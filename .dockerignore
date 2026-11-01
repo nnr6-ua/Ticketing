@@ -1,0 +1,55 @@
+# Control de versiones y metadatos del repositorio
+.git
+.gitignore
+.gitattributes
+.github
+.specify
+.opencode
+specs
+
+# Documentación y configuración que no forma parte de las imágenes
+README.md
+CONSTITUTION.md
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Secretos y configuración local (solo se permite el ejemplo)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencias y entornos virtuales
+**/node_modules
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+
+# Artefactos de compilación y pruebas
+**/dist
+**/build
+**/coverage
+**/.coverage
+**/htmlcov
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.vite
+**/.vitest
+backend/tests
+frontend/tests
+
+# Bases de datos locales
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode
+.idea

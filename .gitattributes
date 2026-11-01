@@ -1,0 +1,3 @@
+# Mantiene los scripts de contenedor con finales de línea LF para que se
+# ejecuten correctamente dentro de Linux, incluso en checkouts de Windows.
+*.sh text eol=lf
