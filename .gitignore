@@ -1,0 +1,39 @@
+# Entornos virtuales y dependencias
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+coverage/
+.coverage
+htmlcov/
+
+# Configuración local y secretos
+.env
+.env.*
+!.env.example
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vite/
+.vitest/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# Editores
+.vscode/
+.idea/
