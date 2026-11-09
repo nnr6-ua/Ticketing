@@ -1,0 +1,47 @@
+# Control de versiones y metadatos del repositorio
+.git
+.gitignore
+.gitattributes
+
+# Entornos virtuales y cachés de Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/coverage.xml
+**/htmlcov/
+
+# Dependencias y artefactos de Node
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.tsbuildinfo
+
+# Entorno y secretos (nunca viajan en la imagen)
+.env
+.env.*
+!.env.example
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.log
+
+# Datos locales
+**/*.sqlite3
+**/*.db
+
+# Documentación y herramientas que no forman parte de la imagen
+specs/
+.specify/
+.opencode/
+CONSTITUTION.md
+fix.ps1

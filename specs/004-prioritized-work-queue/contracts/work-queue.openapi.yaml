@@ -1,0 +1,679 @@
+openapi: 3.1.0
+info:
+  title: API de Cola de Trabajo Priorizada
+  version: 1.0.0
+  license:
+    name: Uso interno
+    identifier: LicenseRef-UsoInterno
+  description: |
+    Contrato de la HU-04 «Ver cola de trabajo priorizada» del sistema de mesa de ayuda.
+
+    El endpoint devuelve exclusivamente los tickets cuyo responsable actual es el
+    técnico autenticado. La identidad se obtiene del token JWT enviado en
+    `Authorization: Bearer <token>`: no existe ningún parámetro de técnico. La
+    respuesta incluye el orden por urgencia, los filtros aplicados, el recuento de
+    tickets activos y finalizados, las opciones de filtro disponibles y los datos de
+    SLA calculados en el servidor.
+
+    Convenciones:
+    - Todas las fechas son instantes UTC en formato ISO 8601 (`Z`).
+    - `remaining_seconds` puede ser negativo (ticket vencido).
+    - La zona horaria `Europe/Madrid` es solo informativa para la presentación;
+      el servidor no envía horas locales.
+    - No se permite ordenación configurable por el cliente: la spec fija el orden.
+servers:
+  - url: /
+    description: Servidor de la aplicación
+tags:
+  - name: Cola de trabajo
+    description: Vista personal de solo lectura del técnico autenticado
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/me/work-queue:
+    get:
+      tags:
+        - Cola de trabajo
+      operationId: getMyWorkQueue
+      summary: Obtener la cola de trabajo del técnico autenticado
+      description: |
+        Devuelve los tickets asignados al usuario autenticado, ordenados por
+        urgencia. Los tickets activos van primero, ordenados por prioridad
+        (nivel 1 = Crítica) y, dentro de la misma prioridad, por menor tiempo
+        restante de SLA. Los tickets finalizados (Resuelto/Cerrado) solo
+        aparecen si se solicitan en `status` y se colocan al final, ordenados
+        por fecha de finalización más reciente.
+
+        Los filtros se combinan con lógica Y. El orden se aplica al conjunto
+        completo antes de paginar.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: |
+            Códigos de estado separados por coma. Si se omite, se aplican los
+            estados activos por defecto: `abierto,en_progreso,pendiente_usuario`.
+            Puede incluir estados finales. Un valor desconocido produce `422`.
+          schema:
+            type: string
+            example: abierto,en_progreso
+          style: form
+          explode: false
+        - name: priority
+          in: query
+          required: false
+          description: |
+            Niveles de prioridad separados por coma (1 = Crítica, 2 = Alta,
+            3 = Media, 4 = Baja). Si se omite, no se filtra por prioridad.
+            Un valor fuera de 1-4 produce `422`.
+          schema:
+            type: string
+            example: "1,2"
+          style: form
+          explode: false
+        - name: page
+          in: query
+          required: false
+          description: |
+            Número de página, empezando en 1. Si supera el total de páginas,
+            el servidor devuelve la última página disponible y lo refleja en
+            `pagination.page`.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Elementos por página.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Cola obtenida correctamente (puede estar vacía).
+          headers:
+            Cache-Control:
+              description: Siempre `no-store` para evitar datos obsoletos.
+              schema:
+                type: string
+                example: no-store
+            Vary:
+              description: Depende de la cabecera de autenticación Bearer JWT.
+              schema:
+                type: string
+                example: Authorization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkQueueResponse"
+              examples:
+                colaConTickets:
+                  summary: Cola con tickets activos y finalizados
+                  value:
+                    items:
+                      - id: 5f0c2f7e-8c1a-4c1e-9b1a-1a2b3c4d5e6f
+                        number: TK-000123
+                        title: No puedo acceder a la VPN desde casa
+                        category:
+                          id: 0d1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f
+                          name: Red
+                          is_active: true
+                        priority:
+                          id: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+                          name: Crítica
+                          level: 1
+                          color: "#dc2626"
+                          is_active: true
+                        status: en_progreso
+                        status_label: En progreso
+                        is_final: false
+                        sla:
+                          deadline: "2026-10-29T12:00:00Z"
+                          started_at: "2026-10-29T08:00:00Z"
+                          total_seconds: 14400
+                          remaining_seconds: 5400
+                          warning_threshold_seconds: 3600
+                          state: on_time
+                          outcome: null
+                          finalized_at: null
+                          breach_delay_seconds: null
+                        links:
+                          self: /api/v1/tickets/5f0c2f7e-8c1a-4c1e-9b1a-1a2b3c4d5e6f
+                    pagination:
+                      page: 1
+                      page_size: 25
+                      total_items: 1
+                      total_pages: 1
+                      has_next: false
+                      has_previous: false
+                    counts:
+                      active: 1
+                      finalized: 0
+                    available_filters:
+                      statuses:
+                        - value: abierto
+                          label: Abierto
+                          is_final: false
+                        - value: en_progreso
+                          label: En progreso
+                          is_final: false
+                        - value: pendiente_usuario
+                          label: Pendiente de usuario
+                          is_final: false
+                        - value: resuelto
+                          label: Resuelto
+                          is_final: true
+                        - value: cerrado
+                          label: Cerrado
+                          is_final: true
+                      priorities:
+                        - id: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+                          name: Crítica
+                          level: 1
+                          color: "#dc2626"
+                          is_active: true
+                      default_statuses:
+                        - abierto
+                        - en_progreso
+                        - pendiente_usuario
+                    applied_filters:
+                      status:
+                        - abierto
+                        - en_progreso
+                        - pendiente_usuario
+                      priority: []
+                      is_default: true
+                    meta:
+                      server_time: "2026-10-29T10:30:00Z"
+                      timezone: Europe/Madrid
+                      warning_policy:
+                        short_sla_threshold_minutes: 60
+                        short_sla_ratio: 0.5
+                        long_sla_minimum_minutes: 60
+                        long_sla_ratio: 0.25
+                colaVacia:
+                  summary: Cola vacía sin asignaciones
+                  value:
+                    items: []
+                    pagination:
+                      page: 1
+                      page_size: 25
+                      total_items: 0
+                      total_pages: 0
+                      has_next: false
+                      has_previous: false
+                    counts:
+                      active: 0
+                      finalized: 0
+                    available_filters:
+                      statuses:
+                        - value: abierto
+                          label: Abierto
+                          is_final: false
+                        - value: en_progreso
+                          label: En progreso
+                          is_final: false
+                        - value: pendiente_usuario
+                          label: Pendiente de usuario
+                          is_final: false
+                        - value: resuelto
+                          label: Resuelto
+                          is_final: true
+                        - value: cerrado
+                          label: Cerrado
+                          is_final: true
+                      priorities: []
+                      default_statuses:
+                        - abierto
+                        - en_progreso
+                        - pendiente_usuario
+                    applied_filters:
+                      status:
+                        - abierto
+                        - en_progreso
+                        - pendiente_usuario
+                      priority: []
+                      is_default: true
+                    meta:
+                      server_time: "2026-10-29T10:30:00Z"
+                      timezone: Europe/Madrid
+                      warning_policy:
+                        short_sla_threshold_minutes: 60
+                        short_sla_ratio: 0.5
+                        long_sla_minimum_minutes: 60
+                        long_sla_ratio: 0.25
+        "401":
+          description: No hay token JWT válido o ha caducado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail:
+                  code: not_authenticated
+                  message: La sesión no es válida o ha caducado.
+        "403":
+          description: El usuario autenticado no tiene rol de técnico.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail:
+                  code: forbidden
+                  message: Esta vista está disponible solo para técnicos.
+        "422":
+          description: Parámetros de consulta inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail:
+                  code: invalid_query_parameter
+                  message: El estado «desconocido» no es válido.
+        "500":
+          description: Error inesperado del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail:
+                  code: internal_error
+                  message: No se pudo cargar la cola de trabajo.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Token JWT de acceso emitido por el sistema de autenticación existente; se envía en `Authorization: Bearer <token>`."
+  schemas:
+    WorkQueueResponse:
+      type: object
+      required:
+        - items
+        - pagination
+        - counts
+        - available_filters
+        - applied_filters
+        - meta
+      properties:
+        items:
+          type: array
+          description: Tickets de la página solicitada, en el orden de urgencia.
+          items:
+            $ref: "#/components/schemas/WorkQueueItem"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        counts:
+          $ref: "#/components/schemas/Counts"
+        available_filters:
+          $ref: "#/components/schemas/AvailableFilters"
+        applied_filters:
+          $ref: "#/components/schemas/AppliedFilters"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    WorkQueueItem:
+      type: object
+      required:
+        - id
+        - number
+        - title
+        - category
+        - priority
+        - status
+        - status_label
+        - is_final
+        - sla
+        - links
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+          description: Número visible del ticket.
+          example: TK-000123
+        title:
+          type: string
+          maxLength: 200
+        category:
+          description: |
+            Categoría almacenada en el ticket. Es `null` si el ticket no tiene
+            categoría; en ese caso el cliente muestra «Sin categoría».
+          oneOf:
+            - $ref: "#/components/schemas/CategoryRef"
+            - type: "null"
+        priority:
+          $ref: "#/components/schemas/PriorityRef"
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        status_label:
+          type: string
+          description: Etiqueta del estado en español de España.
+          example: En progreso
+        is_final:
+          type: boolean
+          description: Verdadero para Resuelto y Cerrado.
+        sla:
+          $ref: "#/components/schemas/SlaInfo"
+        links:
+          type: object
+          required:
+            - self
+          properties:
+            self:
+              type: string
+              description: Ruta de detalle del ticket (solo lectura).
+              example: /api/v1/tickets/5f0c2f7e-8c1a-4c1e-9b1a-1a2b3c4d5e6f
+    CategoryRef:
+      type: object
+      required:
+        - id
+        - name
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Nombre de la categoría almacenada en el ticket.
+        is_active:
+          type: boolean
+          description: Indica si la categoría sigue activa en el catálogo.
+    PriorityRef:
+      type: object
+      required:
+        - id
+        - name
+        - level
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Crítica
+        level:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: Nivel jerárquico; 1 = Crítica, 4 = Baja.
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Color configurado. El frontend usa un mapa estático por nivel para Tailwind.
+          example: "#dc2626"
+        is_active:
+          type: boolean
+          description: Falso si la prioridad fue desactivada después de asignarse al ticket.
+    TicketStatus:
+      type: string
+      enum:
+        - abierto
+        - en_progreso
+        - pendiente_usuario
+        - resuelto
+        - cerrado
+    SlaInfo:
+      type: object
+      required:
+        - state
+      properties:
+        deadline:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Límite SLA congelado en UTC. Nulo si el ticket no tiene SLA.
+          example: "2026-10-29T12:00:00Z"
+        started_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Instante de inicio del SLA (creación del ticket), en UTC.
+        total_seconds:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Duración total del SLA en segundos.
+        remaining_seconds:
+          type:
+            - integer
+            - "null"
+          description: Segundos hasta el límite; negativo si está vencido. Nulo sin SLA o en finalizados.
+        warning_threshold_seconds:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Umbral de aviso en segundos.
+        state:
+          $ref: "#/components/schemas/SlaState"
+        outcome:
+          $ref: "#/components/schemas/SlaOutcome"
+        finalized_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Primer paso a Resuelto o Cerrado, en UTC.
+        breach_delay_seconds:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+          description: Segundos que se rebasó el límite al finalizar. Solo para finalizados incumplidos.
+    SlaState:
+      type: string
+      enum:
+        - on_time
+        - at_risk
+        - overdue
+        - no_sla
+        - finalized
+      description: |
+        - `on_time`: dentro de plazo.
+        - `at_risk`: próximo a vencer (incluye exactamente 0 segundos, «Vence ahora»).
+        - `overdue`: límite superado.
+        - `no_sla`: sin límite aplicable.
+        - `finalized`: estado final; se muestra el resultado histórico.
+    SlaOutcome:
+      type:
+        - string
+        - "null"
+      enum:
+        - met
+        - breached
+        - no_sla
+        - null
+      description: |
+        Resultado histórico para tickets finalizados: `met` (dentro de plazo),
+        `breached` (incumplido) o `no_sla` (sin SLA). Nulo en tickets activos.
+    Pagination:
+      type: object
+      required:
+        - page
+        - page_size
+        - total_items
+        - total_pages
+        - has_next
+        - has_previous
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total_items:
+          type: integer
+          minimum: 0
+          description: Tickets que cumplen los filtros.
+        total_pages:
+          type: integer
+          minimum: 0
+        has_next:
+          type: boolean
+        has_previous:
+          type: boolean
+    Counts:
+      type: object
+      required:
+        - active
+        - finalized
+      properties:
+        active:
+          type: integer
+          minimum: 0
+          description: Tickets activos en toda la cola del técnico (sin filtros). Solo se usan para distinguir los estados vacíos.
+        finalized:
+          type: integer
+          minimum: 0
+          description: Tickets finalizados en toda la cola del técnico (sin filtros).
+    AvailableFilters:
+      type: object
+      required:
+        - statuses
+        - priorities
+        - default_statuses
+      properties:
+        statuses:
+          type: array
+          description: Todos los estados posibles con su etiqueta y su indicador de estado final.
+          items:
+            $ref: "#/components/schemas/StatusFilterOption"
+        priorities:
+          type: array
+          description: Prioridades presentes en la cola del técnico.
+          items:
+            $ref: "#/components/schemas/PriorityFilterOption"
+        default_statuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketStatus"
+          description: Estados que se aplican cuando no se envía `status`.
+    StatusFilterOption:
+      type: object
+      required:
+        - value
+        - label
+        - is_final
+      properties:
+        value:
+          $ref: "#/components/schemas/TicketStatus"
+        label:
+          type: string
+          example: Pendiente de usuario
+        is_final:
+          type: boolean
+    PriorityFilterOption:
+      type: object
+      required:
+        - id
+        - name
+        - level
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        level:
+          type: integer
+          minimum: 1
+          maximum: 4
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+        is_active:
+          type: boolean
+    AppliedFilters:
+      type: object
+      required:
+        - status
+        - priority
+        - is_default
+      properties:
+        status:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketStatus"
+        priority:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 4
+        is_default:
+          type: boolean
+          description: Verdadero si se aplicaron los estados activos por defecto sin filtro explícito.
+    Meta:
+      type: object
+      required:
+        - server_time
+        - timezone
+        - warning_policy
+      properties:
+        server_time:
+          type: string
+          format: date-time
+          description: Instante del servidor en UTC, para diagnóstico y resincronización.
+          example: "2026-10-29T10:30:00Z"
+        timezone:
+          type: string
+          const: Europe/Madrid
+          description: Zona de presentación de fechas absolutas.
+        warning_policy:
+          $ref: "#/components/schemas/WarningPolicy"
+    WarningPolicy:
+      type: object
+      required:
+        - short_sla_threshold_minutes
+        - short_sla_ratio
+        - long_sla_minimum_minutes
+        - long_sla_ratio
+      properties:
+        short_sla_threshold_minutes:
+          type: integer
+          const: 60
+        short_sla_ratio:
+          type: number
+          const: 0.5
+        long_sla_minimum_minutes:
+          type: integer
+          const: 60
+        long_sla_ratio:
+          type: number
+          const: 0.25
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          $ref: "#/components/schemas/ErrorDetail"
+    ErrorDetail:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: invalid_query_parameter
+        message:
+          type: string
+          description: Mensaje comprensible en español de España.
+          example: El estado indicado no es válido.
