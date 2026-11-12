@@ -1,0 +1,408 @@
+openapi: 3.0.3
+info:
+  title: API de creación de tickets - Mesa de ayuda
+  version: 1.0.0
+  description: |
+    Contrato de la primera funcionalidad de la mesa de ayuda: creación de tickets
+    de incidencia, sugerencia de categoría/prioridad y listado de prioridades para
+    el formulario.
+
+    La autenticación queda fuera de alcance. La identidad del empleado se recibe en
+    la cabecera `X-Employee-Id`. En producción debe ser inyectada por el gateway de
+    autenticación; en desarrollo se usa el empleado demo sembrado.
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local
+security:
+  - EmployeeHeader: []
+tags:
+  - name: Catálogos
+    description: Datos necesarios para el formulario de creación
+  - name: Sugerencias
+    description: Propuesta automática de categoría y prioridad
+  - name: Tickets
+    description: Creación de tickets de incidencia
+
+paths:
+  /api/v1/priorities:
+    get:
+      tags: [Catálogos]
+      summary: Lista las prioridades activas seleccionables
+      operationId: listPriorities
+      responses:
+        "200":
+          description: Prioridades disponibles para el empleado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Priority"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/suggestions:
+    post:
+      tags: [Sugerencias]
+      summary: Sugiere categoría fija y prioridad editable a partir del texto
+      operationId: suggestClassification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestionRequest"
+      responses:
+        "200":
+          description: Sugerencia calculada (puede ser un valor por defecto)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tickets:
+    post:
+      tags: [Tickets]
+      summary: Crea un ticket de incidencia
+      description: |
+        Crea el ticket y sus adjuntos en una sola operación todo-o-nada. Si el mismo
+        empleado envía el mismo título y descripción, no se crea un ticket nuevo y se
+        devuelve el existente con `duplicate: true` (HTTP 200). Un ticket nuevo
+        devuelve HTTP 201 con `duplicate: false`.
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 120
+                  example: No puedo conectarme a la VPN
+                description:
+                  type: string
+                  minLength: 20
+                  maxLength: 5000
+                  example: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                priority_id:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: Prioridad elegida por el empleado. Debe estar activa y no ser de sistema. Si se omite, se usa la sugerida.
+                attachments:
+                  type: array
+                  maxItems: 5
+                  description: Capturas de pantalla opcionales (PNG, JPEG o GIF, máximo 5 MB cada una).
+                  items:
+                    type: string
+                    format: binary
+            encoding:
+              attachments:
+                contentType: image/*
+      responses:
+        "201":
+          description: Ticket creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+              example:
+                id: 1
+                ticket_number: TK-000001
+                title: No puedo conectarme a la VPN
+                description: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                status: Abierto
+                category:
+                  id: 1
+                  name: Red y conectividad
+                priority:
+                  id: 3
+                  name: Media
+                  level: 3
+                  color: "#eab308"
+                creator:
+                  id: 1
+                  name: Empleado Demo
+                  email: demo@empresa.local
+                created_at: "2026-10-29T09:15:00Z"
+                attachments: []
+                duplicate: false
+        "200":
+          description: Ya existía un ticket con el mismo creador, título y descripción
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+              example:
+                id: 1
+                ticket_number: TK-000001
+                title: No puedo conectarme a la VPN
+                description: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                status: Abierto
+                category:
+                  id: 1
+                  name: Red y conectividad
+                priority:
+                  id: 3
+                  name: Media
+                  level: 3
+                  color: "#eab308"
+                creator:
+                  id: 1
+                  name: Empleado Demo
+                  email: demo@empresa.local
+                created_at: "2026-10-29T09:15:00Z"
+                attachments: []
+                duplicate: true
+        "400":
+          description: Petición mal formada (por ejemplo, falta el cuerpo multipart)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Error de validación de campos o adjuntos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidAttachment:
+                  value:
+                    error:
+                      code: invalid_attachment
+                      message: El archivo "factura.pdf" no es una imagen permitida. Usa PNG, JPG o GIF.
+                      field: attachments
+                tooLarge:
+                  value:
+                    error:
+                      code: attachment_too_large
+                      message: El archivo "captura.png" supera el tamaño máximo de 5 MB.
+                      field: attachments
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    EmployeeHeader:
+      type: apiKey
+      in: header
+      name: X-Employee-Id
+      description: |
+        Identificador del empleado autenticado. En producción lo inyecta el gateway
+        de autenticación. En desarrollo se usa el id del empleado demo.
+
+  schemas:
+    Priority:
+      type: object
+      required: [id, name, level, color, is_system]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Alta
+        level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: 1 es la prioridad más urgente.
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#f97316"
+        is_system:
+          type: boolean
+          description: True para la prioridad de sistema "Sin clasificar", no seleccionable.
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Red y conectividad
+
+    Employee:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Empleado Demo
+        email:
+          type: string
+          format: email
+          example: demo@empresa.local
+
+    Attachment:
+      type: object
+      required: [id, original_filename, mime_type, size_bytes]
+      properties:
+        id:
+          type: integer
+          format: int64
+        original_filename:
+          type: string
+          example: captura-error.png
+        mime_type:
+          type: string
+          enum: [image/png, image/jpeg, image/gif]
+        size_bytes:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 5242880
+
+    SuggestionRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+          minLength: 0
+          maxLength: 120
+        description:
+          type: string
+          minLength: 0
+          maxLength: 5000
+
+    SuggestionResponse:
+      type: object
+      required: [category, priority, category_is_fallback, priority_is_fallback]
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        category_is_fallback:
+          type: boolean
+          description: True si no hubo coincidencia de palabras clave y se usó el valor por defecto o "Sin clasificar".
+        priority_is_fallback:
+          type: boolean
+          description: True si no hubo coincidencia de palabras clave y se usó el valor por defecto o "Sin clasificar".
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - ticket_number
+        - title
+        - description
+        - status
+        - category
+        - priority
+        - creator
+        - created_at
+        - attachments
+        - duplicate
+      properties:
+        id:
+          type: integer
+          format: int64
+        ticket_number:
+          type: string
+          pattern: "^TK-[0-9]{6,}$"
+          example: TK-000001
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [Abierto, En progreso, Pendiente de usuario, Resuelto, Cerrado]
+        category:
+          $ref: "#/components/schemas/Category"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        creator:
+          $ref: "#/components/schemas/Employee"
+        created_at:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+        duplicate:
+          type: boolean
+          description: True si la respuesta corresponde a un ticket ya existente.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: invalid_attachment
+            message:
+              type: string
+              example: El archivo "factura.pdf" no es una imagen permitida. Usa PNG, JPG o GIF.
+            field:
+              type: string
+              nullable: true
+              example: attachments
+            details:
+              type: array
+              nullable: true
+              items:
+                type: object
+                additionalProperties: true
+
+  responses:
+    Unauthorized:
+      description: Falta la identidad del empleado o no es válida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: unauthorized
+              message: No se ha podido identificar al empleado. Vuelve a iniciar sesión.
+    ValidationError:
+      description: Datos de entrada no válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: validation_error
+              message: El título debe tener al menos 5 caracteres.
+              field: title
+    InternalError:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: internal_error
+              message: No se ha podido completar la operación. Inténtalo de nuevo.

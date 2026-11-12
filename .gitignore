@@ -1,0 +1,31 @@
+# Entorno
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+*.log
+
+# Adjuntos locales
+backend/attachments/
+
+# Sistema
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
