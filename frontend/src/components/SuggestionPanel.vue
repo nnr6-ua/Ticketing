@@ -48,9 +48,9 @@ const emit = defineEmits<{
       </div>
 
       <div>
-        <label class="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <span class="text-xs font-medium uppercase tracking-wide text-slate-500">
           Prioridad
-        </label>
+        </span>
         <div class="mt-1">
           <PrioritySelect
             :model-value="priorityId"

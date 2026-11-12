@@ -134,8 +134,10 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <div class="flex items-center justify-between gap-3">
-      <label class="text-sm font-medium text-slate-900">Adjuntos</label>
-      <span class="text-xs text-slate-500">
+      <label for="ticket-attachments" class="text-sm font-medium text-slate-900">
+        Adjuntos
+      </label>
+      <span id="ticket-attachments-help" class="text-xs text-slate-500">
         Máx. {{ maxFiles }} archivos · {{ formatSize(maxSize) }} cada uno
       </span>
     </div>
@@ -162,10 +164,12 @@ onBeforeUnmount(() => {
     </button>
 
     <input
+      id="ticket-attachments"
       ref="fileInput"
       type="file"
       class="sr-only"
       accept="image/png,image/jpeg,image/gif"
+      aria-describedby="ticket-attachments-help"
       multiple
       @change="handleInput"
     />
@@ -178,7 +182,7 @@ onBeforeUnmount(() => {
       >
         <img
           :src="previews.get(file)"
-          alt=""
+          :alt="`Vista previa de ${file.name}`"
           class="h-12 w-12 flex-none rounded-lg object-cover"
         />
         <div class="min-w-0 flex-1">

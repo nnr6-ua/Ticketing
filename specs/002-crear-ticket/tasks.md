@@ -255,3 +255,18 @@ Task: "Test de componente de sugerencia en frontend/src/tests/SuggestionPanel.sp
 - Cada historia debe poder validarse de forma independiente; US2 y US3 añaden valor sin romper US1.
 - No implementar seguimiento, administración de catálogos, notificaciones ni autenticación propia: están fuera de alcance.
 - Verificar que los tests fallan antes de implementar y que las suites quedan en verde antes de cerrar cada fase.
+
+---
+
+## Phase 7: Convergence
+
+- [ ] T060 CRITICAL — Añadir pruebas de backend para validación de título/descripción (longitudes tras `strip()`, caracteres especiales y código), primer evento de historial con fecha y autor, sugerencia de prioridad por palabras clave y fallback de catálogos inactivos; cubrir tipo/tamaño/firma de adjuntos (JPEG/GIF, >5 MB, firma inválida), atomicidad con mezcla de archivos válidos e inválidos y limpieza de temporales/definitivos per Constitution IV (partial)
+- [ ] T061 CRITICAL — Añadir prueba de concurrencia en PostgreSQL que envíe el mismo creador, título y descripción en paralelo y verifique un único ticket, la misma referencia y ausencia de adjuntos huérfanos per RF-015, CE-006 y Constitution IV (missing)
+- [ ] T062 CRITICAL — Añadir pruebas de frontend (Vitest) para `TicketForm`/`useTicketForm`, `AttachmentField`, `SuggestionPanel`/`PrioritySelect` y `TicketConfirmation`: validaciones, conservación de datos ante error de red, límites de adjuntos, categoría fija/prioridad editable, aviso de duplicado y formato es-ES per Constitution IV, US1/AC4, US2/AC1-3 y US3/AC2 (missing)
+- [ ] T063 CRITICAL — Proporcionar una entrada visible a la creación de tickets para el rol `usuario`: redirección tras el login y/o enlace de cabecera a `/tickets/new`, sin depender de la cola de trabajo (403 para no técnicos), con prueba de navegación per US1/AC1 y CE-002 (missing)
+- [ ] T064 Implementar el fallback final "Sin clasificar": sembrar/garantizar una categoría y prioridad de sistema activas (`is_system = true`, sin palabras clave) y usarlas cuando no haya ningún valor activo, respetando el CHECK de nivel 1–4 o ampliándolo con migración; añadir pruebas per RF-014, US3/AC3-4 y CE-007 (partial)
+- [ ] T065 Persistir los adjuntos en Docker Compose mediante volumen nombrado y `ATTACHMENTS_DIR`, y excluir la carpeta de adjuntos en `.gitignore` per plan: storage decision, T001 y Constitution II (missing)
+- [ ] T066 Corregir accesibilidad del flujo de creación: asociar etiquetas al selector de prioridad y al campo de adjuntos (`for`/`id`/`aria-labelledby`), nombre accesible en `ListboxButton` y texto alternativo de miniaturas; añadir prueba axe del flujo per Constitution V y T055 (partial)
+- [ ] T067 Reconciliar los artefactos de la funcionalidad con la arquitectura integrada: actualizar `data-model.md`, `contracts/openapi.yaml` y `quickstart.md` para reflejar JWT/User UUID, `{"detail": {"code","message"}}`, timeline y `docker compose`/`scripts/seed_dev.py`, sin tocar `spec.md` ni `plan.md` per Constitution II y IV (contradicts)
+- [ ] T068 Validar también el `Content-Type` declarado en cada adjunto contra el tipo permitido (además de extensión y firma) o documentar por qué se descarta, con prueba per plan T038 y RF-004 (partial)
+- [ ] T069 Formatear la fecha de creación con `timeZone: "Europe/Madrid"` en la confirmación y cubrirlo con prueba per Constitution V (partial)

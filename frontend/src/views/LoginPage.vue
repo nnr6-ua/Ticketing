@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { ApiClientError, setAccessToken } from '@/api/client'
 import { devLogin } from '@/api/devAuth'
+import { landingForRole, WORK_QUEUE_PATH } from '@/router/landing'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,20 +15,22 @@ const DEV_USERS = [
   { email: 'tecnico.c@example.com', label: 'Técnico C · solo finalizados' },
   { email: 'tecnico.d@example.com', label: 'Técnico D · cola vacía' },
   { email: 'supervisor@example.com', label: 'Supervisor · 403 en la cola' },
-  { email: 'usuario@example.com', label: 'Solicitante · 403 en la cola' },
+  { email: 'usuario@example.com', label: 'Solicitante · crear ticket' },
 ]
 
 const email = ref(DEV_USERS[0].email)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
-const redirectTarget = computed(() => {
+function requestedRedirect(): string | null {
   const redirect = route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
     return redirect
   }
-  return '/cola-de-trabajo'
-})
+  return null
+}
+
+const redirectTarget = computed(() => requestedRedirect() ?? WORK_QUEUE_PATH)
 
 async function submit(): Promise<void> {
   if (loading.value) {
@@ -38,7 +41,9 @@ async function submit(): Promise<void> {
   try {
     const response = await devLogin(email.value)
     setAccessToken(response.access_token)
-    await router.replace(redirectTarget.value)
+    await router.replace(
+      requestedRedirect() ?? landingForRole(response.user.role),
+    )
   } catch (caught) {
     errorMessage.value =
       caught instanceof ApiClientError
@@ -59,6 +64,7 @@ async function submit(): Promise<void> {
     <p class="mt-4 text-sm text-slate-600">
       Tras iniciar sesión se te redirigirá a
       <code class="rounded bg-slate-100 px-1 py-0.5">{{ redirectTarget }}</code>.
+      El rol de solicitante entra directamente al formulario de creación.
     </p>
 
     <section class="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-6">

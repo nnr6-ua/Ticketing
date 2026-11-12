@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import uuid
 from types import SimpleNamespace
 
@@ -19,6 +20,8 @@ from app.models import (
     User,
     UserRole,
 )
+from app.services.ticket_creation import create_ticket
+from tests.conftest import IS_SQLITE
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"contenido"
 
@@ -117,6 +120,8 @@ def test_creates_ticket_with_suggestion_and_creation_event(
     )
     assert event is not None
     assert event.author_id == catalogs.user.id
+    assert event.created_at == ticket.created_at
+    assert event.event_order == 0
 
 
 def test_duplicate_returns_existing_ticket_with_200(
@@ -294,3 +299,364 @@ def test_priorities_endpoint(
     assert response.status_code == 200
     names = [priority["name"] for priority in response.json()]
     assert names == ["Crítica", "Media"]
+
+
+def test_rejects_whitespace_only_title_after_trimming(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(title="     "),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "validation_error"
+    assert "título" in response.json()["detail"]["message"].lower()
+    assert db.scalar(select(func.count(Ticket.id))) == 0
+
+
+def test_rejects_whitespace_only_description_after_trimming(
+    client: TestClient,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(description="                    "),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "validation_error"
+    assert "descripción" in response.json()["detail"]["message"].lower()
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("title", "abc"),
+        ("title", "x" * 121),
+        ("description", "x" * 19),
+        ("description", "x" * 5001),
+    ],
+)
+def test_rejects_lengths_outside_contract(
+    client: TestClient,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+    field: str,
+    value: str,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(**{field: value}),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_request"
+
+
+def test_preserves_special_characters_and_formatting(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    title = "  Error <script> & 'código'  "
+    description = (
+        "Pega el siguiente fragmento:\n"
+        "```js\nconst ok = 1 < 2 && 3 > 2;\n```\n"
+        "No funciona en la aplicación."
+    )
+
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(title=title, description=description),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["title"] == title.strip()
+    ticket = db.scalar(select(Ticket).where(Ticket.number == body["ticket_number"]))
+    assert ticket is not None
+    assert ticket.title == title.strip()
+    assert ticket.description == description.strip()
+
+
+def test_suggests_priority_from_keywords(
+    client: TestClient,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(
+            title="El servicio está caído",
+            description="Esto es urgente y afecta a toda la oficina.",
+        ),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["priority"]["name"] == "Crítica"
+
+
+def test_uses_system_catalog_when_custom_catalogs_are_inactive(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    for category in db.scalars(select(Category)).all():
+        category.is_active = False
+    for priority in db.scalars(select(Priority)).all():
+        priority.is_active = False
+    db.add_all(
+        [
+            Category(
+                name="Sin clasificar",
+                is_system=True,
+                is_active=True,
+                sort_order=999,
+            ),
+            Priority(
+                name="Sin clasificar",
+                level=4,
+                color="#64748b",
+                base_hours="72",
+                is_system=True,
+                is_active=True,
+                sort_order=999,
+            ),
+        ]
+    )
+    db.commit()
+
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["category"]["name"] == "Sin clasificar"
+    assert body["priority"]["name"] == "Sin clasificar"
+
+
+def test_accepts_jpeg_and_gif_attachments(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    jpeg = b"\xff\xd8\xff" + b"jpeg"
+    gif = b"GIF89a" + b"gif"
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files=[
+            ("attachments", ("foto.jpg", jpeg, "image/jpeg")),
+            ("attachments", ("animacion.gif", gif, "image/gif")),
+        ],
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 201
+    attachments = response.json()["attachments"]
+    assert [item["original_filename"] for item in attachments] == [
+        "foto.jpg",
+        "animacion.gif",
+    ]
+    assert {item["mime_type"] for item in attachments} == {
+        "image/jpeg",
+        "image/gif",
+    }
+    assert db.scalar(select(func.count(Attachment.id))) == 2
+
+
+def test_rejects_oversized_attachment_atomically(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    oversized = b"\x89PNG\r\n\x1a\n" + b"0" * (5 * 1024 * 1024)
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("grande.png", oversized, "image/png")},
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "attachment_too_large"
+    assert db.scalar(select(func.count(Ticket.id))) == 0
+    assert db.scalar(select(func.count(Attachment.id))) == 0
+    assert [path for path in attachments_dir.rglob("*") if path.is_file()] == []
+
+
+def test_rejects_renamed_file_with_invalid_signature(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("falsa.png", b"no soy una imagen", "image/png")},
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_attachment"
+    assert db.scalar(select(func.count(Ticket.id))) == 0
+
+
+def test_rejects_declared_content_type_mismatch(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("foto.png", PNG, "image/gif")},
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_attachment"
+    assert db.scalar(select(func.count(Ticket.id))) == 0
+
+
+def test_atomicity_when_a_later_attachment_is_invalid(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files=[
+            ("attachments", ("valida.png", PNG, "image/png")),
+            ("attachments", ("rota.png", b"contenido invalido", "image/png")),
+        ],
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_attachment"
+    assert db.scalar(select(func.count(Ticket.id))) == 0
+    assert db.scalar(select(func.count(Attachment.id))) == 0
+    assert [path for path in attachments_dir.rglob("*") if path.is_file()] == []
+
+
+def test_duplicate_keeps_only_original_attachments(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    headers = auth(catalogs.user)
+    other_png = b"\x89PNG\r\n\x1a\n" + b"otra-imagen"
+    first = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("original.png", PNG, "image/png")},
+        headers=headers,
+    )
+    second = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("duplicada.png", other_png, "image/png")},
+        headers=headers,
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    assert second.json()["ticket_number"] == first.json()["ticket_number"]
+    assert [item["original_filename"] for item in second.json()["attachments"]] == [
+        "original.png"
+    ]
+    assert db.scalar(select(func.count(Ticket.id))) == 1
+    assert db.scalar(select(func.count(Attachment.id))) == 1
+    files = [path for path in attachments_dir.rglob("*") if path.is_file()]
+    assert len(files) == 1
+    assert files[0].read_bytes() == PNG
+
+
+@pytest.mark.postgres
+@pytest.mark.skipif(IS_SQLITE, reason="Requiere PostgreSQL para concurrencia real")
+def test_concurrent_identical_requests_create_one_ticket(
+    db: Session,
+    catalogs: SimpleNamespace,
+    attachments_dir,
+) -> None:
+    from app.db.session import SessionLocal
+
+    barrier = threading.Barrier(2)
+    results: list[tuple[str, bool]] = []
+    errors: list[str] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        session = SessionLocal()
+        try:
+            user = session.get(User, catalogs.user.id)
+            assert user is not None
+            barrier.wait(timeout=10)
+            ticket, duplicate = create_ticket(
+                session,
+                user,
+                title="No funciona la VPN",
+                description="No puedo conectar desde ayer por la tarde.",
+                priority_id=None,
+                staged=[],
+                attachments_dir=attachments_dir,
+            )
+            with lock:
+                results.append((ticket.number, duplicate))
+        except Exception as exc:  # noqa: BLE001 - se reporta el fallo real
+            with lock:
+                errors.append(repr(exc))
+        finally:
+            session.close()
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+        assert not thread.is_alive(), "la prueba de concurrencia no terminó"
+
+    assert errors == []
+    assert len(results) == 2
+    assert {number for number, _ in results} == {results[0][0]}
+    assert sorted(duplicate for _, duplicate in results) == [False, True]
+
+    db.expire_all()
+    assert db.scalar(select(func.count(Ticket.id))) == 1
+    assert db.scalar(select(func.count(Attachment.id))) == 0

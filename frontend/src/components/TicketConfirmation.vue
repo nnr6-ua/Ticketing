@@ -18,6 +18,7 @@ const createdAt = computed(() =>
   new Intl.DateTimeFormat("es-ES", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "Europe/Madrid",
   }).format(new Date(props.ticket.created_at)),
 );
 

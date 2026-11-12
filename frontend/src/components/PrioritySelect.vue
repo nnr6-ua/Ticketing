@@ -47,6 +47,7 @@ const displayLabel = computed(() => {
   >
     <ListboxButton
       type="button"
+      aria-label="Prioridad del ticket"
       class="relative flex w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
     >
       <span class="flex min-w-0 items-center gap-2">

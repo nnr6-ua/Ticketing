@@ -23,6 +23,28 @@ ALLOWED_TYPES: dict[str, tuple[str, tuple[bytes, ...]]] = {
     ".gif": ("image/gif", (b"GIF87a", b"GIF89a")),
 }
 
+MIME_ALIASES = {
+    "image/jpg": "image/jpeg",
+    "image/pjpeg": "image/jpeg",
+    "image/x-png": "image/png",
+}
+
+# Algunos clientes no envían un tipo fiable para archivos locales. En ese caso
+# la firma mágica sigue siendo la validación autoritativa.
+UNKNOWN_MIME_TYPES = {"", "application/octet-stream"}
+
+
+def _validate_content_type(upload: UploadFile, mime_type: str) -> None:
+    declared = (upload.content_type or "").split(";", 1)[0].strip().lower()
+    if declared in UNKNOWN_MIME_TYPES:
+        return
+    if MIME_ALIASES.get(declared, declared) != mime_type:
+        raise ApiError(
+            422,
+            "invalid_attachment",
+            "El tipo declarado del adjunto no coincide con una imagen PNG, JPG o GIF.",
+        )
+
 
 @dataclass
 class StagedFile:
@@ -48,6 +70,7 @@ def _validate_upload(upload: UploadFile) -> tuple[str, str, tuple[bytes, ...]]:
         )
 
     mime_type, signatures = ALLOWED_TYPES[suffix]
+    _validate_content_type(upload, mime_type)
     return original, mime_type, signatures
 
 
