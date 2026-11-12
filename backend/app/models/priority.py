@@ -1,20 +1,23 @@
+"""Modelo de prioridad del ticket.
+
+Convención del modelo base: `level = 1` es Crítica y `level = 4` es Baja.
+"""
+
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
-    DateTime,
-    Identity,
-    Index,
     Integer,
+    Numeric,
     SmallInteger,
     String,
-    func,
-    text,
+    Uuid,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,33 +26,26 @@ from app.db.base import Base
 class Priority(Base):
     __tablename__ = "priorities"
     __table_args__ = (
-        CheckConstraint("char_length(name) BETWEEN 1 AND 80", name="ck_priorities_name_length"),
-        CheckConstraint("level BETWEEN 1 AND 5", name="ck_priorities_level_range"),
-        CheckConstraint(r"color ~ '^#[0-9A-Fa-f]{6}$'", name="ck_priorities_color_format"),
-        Index(
-            "ux_priorities_single_default",
-            "is_default",
-            unique=True,
-            postgresql_where=text("is_default AND is_active AND NOT is_system"),
-        ),
+        CheckConstraint("level BETWEEN 1 AND 4", name="ck_priorities_level"),
     )
 
-    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
-    name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
     level: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    color: Mapped[str] = mapped_column(
-        String(7), nullable=False, server_default="#64748b"
-    )
+    color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    base_hours: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     keywords: Mapped[list[str]] = mapped_column(
-        ARRAY(String(80)), nullable=False, server_default="{}"
+        JSON, nullable=False, default=list, server_default="[]"
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )

@@ -1,3 +1,4 @@
+import { getAccessToken } from "@/api/client";
 import type {
   ApiErrorBody,
   Priority,
@@ -5,39 +6,51 @@ import type {
   Ticket,
 } from "../types/api";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
-const EMPLOYEE_ID = import.meta.env.VITE_DEV_EMPLOYEE_ID ?? "1";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const API_PREFIX = `${API_BASE_URL}/api/v1`;
 
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  readonly field?: string;
-  readonly details?: unknown;
 
   constructor(status: number, body: ApiErrorBody) {
-    const error = body.error ?? {};
+    const error = body.detail ?? {};
     super(error.message ?? "Ha ocurrido un error inesperado.");
     this.name = "ApiError";
     this.status = status;
     this.code = error.code ?? "UNKNOWN_ERROR";
-    this.field = error.field;
-    this.details = error.details;
   }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  headers.set("X-Employee-Id", EMPLOYEE_ID);
+  headers.set("Accept", "application/json");
+
+  const token = getAccessToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   if (options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_PREFIX}${path}`, {
+      ...options,
+      headers,
+      credentials: "omit",
+    });
+  } catch {
+    throw new ApiError(0, {
+      detail: {
+        code: "network_error",
+        message:
+          "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.",
+      },
+    });
+  }
 
   if (!response.ok) {
     let body: ApiErrorBody = {};
@@ -45,7 +58,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       body = (await response.json()) as ApiErrorBody;
     } catch {
       body = {
-        error: {
+        detail: {
           code: "INVALID_RESPONSE",
           message: "El servidor devolvió una respuesta no válida.",
         },
@@ -78,7 +91,7 @@ export function getSuggestion(
 export interface CreateTicketPayload {
   title: string;
   description: string;
-  priorityId: number | null;
+  priorityId: string | null;
   attachments: File[];
 }
 
@@ -88,7 +101,7 @@ export function createTicket(payload: CreateTicketPayload): Promise<Ticket> {
   form.append("description", payload.description);
 
   if (payload.priorityId !== null) {
-    form.append("priority_id", String(payload.priorityId));
+    form.append("priority_id", payload.priorityId);
   }
 
   for (const file of payload.attachments) {

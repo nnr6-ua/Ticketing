@@ -102,7 +102,7 @@ async function copyNumber() {
           <dd class="mt-1 flex items-center gap-2 font-medium text-slate-900">
             <span
               class="h-2.5 w-2.5 rounded-full"
-              :style="{ backgroundColor: ticket.priority.color }"
+              :style="{ backgroundColor: ticket.priority.color ?? undefined }"
             />
             {{ ticket.priority.name }}
           </dd>

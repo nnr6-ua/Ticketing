@@ -1,0 +1,770 @@
+openapi: 3.1.0
+info:
+  title: Mesa de ayuda — HU-05 Cambio de estado y resolución
+  version: 1.0.0
+  description: |
+    Contrato HTTP de la historia HU-05. Todos los mensajes de error van en
+    español de España y usan el formato heredado de la API:
+
+        {"detail": {"code": "...", "message": "..."}}
+
+    La identidad se resuelve exclusivamente del token JWT enviado en
+    `Authorization: Bearer <token>`.
+
+servers:
+  - url: /api/v1
+    description: API v1 (mismo origen o proxy de Vite en desarrollo)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Ticket workflow
+    description: Comandos y lecturas del flujo de estados del ticket
+
+paths:
+  /tickets/{ticket_id}/workflow:
+    get:
+      tags: [Ticket workflow]
+      operationId: getTicketWorkflow
+      deprecated: false
+      summary: Obtener el estado actual y los estados permitidos
+      description: |
+        Devuelve el snapshot del ticket, los estados de destino permitidos
+        según la máquina de estados y las capacidades del usuario autenticado.
+        El frontend usa `allowed_transitions` para construir el selector; no
+        duplica la matriz.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          description: Snapshot del flujo del ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tickets/{ticket_id}/status-transitions:
+    post:
+      tags: [Ticket workflow]
+      operationId: createStatusTransition
+      deprecated: false
+      summary: Cambiar el estado del ticket y documentar la resolución
+      description: |
+        Comando transaccional. Valida la transición contra la matriz, exige
+        `resolution` cuando el destino es `resuelto`, comprueba el token de
+        concurrencia `expected_updated_at` y crea las entradas de línea
+        temporal en la misma transacción.
+
+        Si `target_status` coincide con el estado actual, devuelve `200` con
+        `changed = false`, sin escribir nada. Un doble envío no genera
+        entradas duplicadas.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusTransitionRequest'
+            examples:
+              resolve:
+                summary: Pasar a Resuelto con descripción
+                value:
+                  target_status: resuelto
+                  resolution: Se reinició el servicio y se verificó el acceso.
+                  expected_updated_at: '2026-11-02T10:15:30.123456+00:00'
+                  request_id: 6f1c2a7e-9b3d-4f4e-8a1b-2c3d4e5f6a7b
+              start:
+                summary: Pasar a En progreso sin resolución
+                value:
+                  target_status: en_progreso
+                  expected_updated_at: '2026-11-02T10:15:30.123456+00:00'
+                  request_id: 0b9e4d6a-1c2f-4a3b-8d7e-5f6a7b8c9d0e
+      responses:
+        '200':
+          description: Transición aplicada o no-op idempotente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusTransitionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Conflicto de estado: transición no permitida, ticket cerrado,
+            versión desactualizada o `request_id` reutilizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidTransition:
+                  value:
+                    detail:
+                      code: invalid_transition
+                      message: 'No puedes pasar de Abierto a Resuelto. Estados disponibles: En progreso.'
+                ticketClosed:
+                  value:
+                    detail:
+                      code: ticket_closed
+                      message: El ticket está cerrado y no admite cambios de estado.
+                staleTicket:
+                  value:
+                    detail:
+                      code: stale_ticket
+                      message: El ticket ha sido modificado por otra persona. Actualiza la información e inténtalo de nuevo.
+                requestIdReused:
+                  value:
+                    detail:
+                      code: request_id_reused
+                      message: La solicitud ya se utilizó con otros datos. Genera una nueva solicitud e inténtalo de nuevo.
+        '422':
+          description: |
+            Validación de negocio o formato: resolución obligatoria,
+            demasiado larga, no permitida para el destino o payload mal
+            formado. Los errores de negocio usan códigos estables; los
+            payloads mal formados se normalizan a `invalid_request`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidRequest:
+                  value:
+                    detail:
+                      code: invalid_request
+                      message: La solicitud no es válida. Revisa los datos e inténtalo de nuevo.
+                resolutionRequired:
+                  value:
+                    detail:
+                      code: resolution_required
+                      message: Indica la descripción de la solución para marcar el ticket como Resuelto.
+                resolutionTooLong:
+                  value:
+                    detail:
+                      code: resolution_too_long
+                      message: La descripción de la solución no puede superar los 5.000 caracteres.
+                resolutionNotAllowed:
+                  value:
+                    detail:
+                      code: resolution_not_allowed
+                      message: La descripción de la solución solo se indica al marcar el ticket como Resuelto.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tickets/{ticket_id}/internal-comments:
+    post:
+      tags: [Ticket workflow]
+      operationId: createInternalComment
+      deprecated: false
+      summary: Añadir un comentario interno
+      description: |
+        Permite **solo al técnico asignado** añadir una nota interna en cualquier
+        estado, incluido `cerrado`. No cambia el estado del ticket. `supervisor`
+        y `admin` reciben `403 forbidden` aunque puedan leer la timeline interna,
+        y un `tecnico` no asignado recibe `403 not_ticket_assignee`.
+        `request_id` es obligatorio y actúa como clave de idempotencia: un
+        reintento con el mismo valor devuelve la entrada existente sin duplicarla.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalCommentRequest'
+            examples:
+              comment:
+                value:
+                  body: Comprobado el registro del servidor; el error era de credenciales.
+                  request_id: 6f1c2a7e-9b3d-4f4e-8a1b-2c3d4e5f6a7b
+      responses:
+        '200':
+          description: Comentario interno creado o recuperado por idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCommentResponse'
+        '201':
+          description: Comentario interno creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCommentResponse'
+        '409':
+          description: |
+            El `request_id` ya se utilizó con otro `body` o con otro autor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                requestIdReused:
+                  value:
+                    detail:
+                      code: request_id_reused
+                      message: La solicitud ya se utilizó con otros datos. Genera una nueva solicitud e inténtalo de nuevo.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Comentario vacío, demasiado largo o payload mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidRequest:
+                  value:
+                    detail:
+                      code: invalid_request
+                      message: La solicitud no es válida. Revisa los datos e inténtalo de nuevo.
+                commentRequired:
+                  value:
+                    detail:
+                      code: comment_required
+                      message: El comentario interno no puede estar vacío.
+                commentTooLong:
+                  value:
+                    detail:
+                      code: comment_too_long
+                      message: El comentario interno no puede superar los 5.000 caracteres.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tickets/{ticket_id}/timeline:
+    get:
+      tags: [Ticket workflow]
+      operationId: getTicketTimeline
+      deprecated: false
+      summary: Obtener la línea temporal visible para el usuario
+      description: |
+        Devuelve las entradas en orden cronológico ascendente
+        (`created_at`, `event_order`, `id`). La visibilidad se calcula en el
+        servidor:
+
+        - `status_change` y `resolution`: visibles para el usuario creador y
+          para cualquier usuario con acceso al ticket.
+        - `internal_comment`: visibles solo para el técnico asignado, los
+          supervisores y los administradores.
+
+        El usuario creador y los técnicos no asignados nunca reciben filas
+        internas.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+        - name: page
+          in: query
+          required: false
+          description: Página solicitada, empezando en 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: |
+            Entradas por página. Por defecto 50; mínimo 1 y máximo 200.
+            Un valor fuera de rango devuelve `422 invalid_request`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Página de la línea temporal visible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelineResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TicketId:
+      name: ticket_id
+      in: path
+      required: true
+      description: Identificador UUID del ticket
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Token ausente, inválido o caducado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notAuthenticated:
+              value:
+                detail:
+                  code: not_authenticated
+                  message: La sesión no es válida o ha caducado.
+    Forbidden:
+      description: Sin permiso para modificar el ticket o rol no autorizado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                detail:
+                  code: forbidden
+                  message: No tienes permiso para modificar este ticket.
+            notAssignee:
+              value:
+                detail:
+                  code: not_ticket_assignee
+                  message: Este ticket ya no está asignado a ti.
+    NotFound:
+      description: El ticket no existe o no es accesible
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                detail:
+                  code: ticket_not_found
+                  message: No se ha encontrado el ticket.
+    ValidationError:
+      description: Payload o parámetros de consulta inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidRequest:
+              value:
+                detail:
+                  code: invalid_request
+                  message: La solicitud no es válida. Revisa los datos e inténtalo de nuevo.
+    InternalError:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internalError:
+              value:
+                detail:
+                  code: internal_error
+                  message: No se pudo guardar el cambio. El ticket no se ha modificado. Inténtalo de nuevo.
+
+  schemas:
+    TicketStatus:
+      type: string
+      description: Estados del ticket definidos en RF-02.1
+      enum: [abierto, en_progreso, pendiente_usuario, resuelto, cerrado]
+      example: en_progreso
+
+    TimelineEventType:
+      type: string
+      description: Tipo de entrada de la línea temporal
+      enum: [status_change, resolution, internal_comment]
+      example: status_change
+
+    UserRole:
+      type: string
+      enum: [usuario, tecnico, supervisor, admin]
+      example: tecnico
+
+    StatusOption:
+      type: object
+      additionalProperties: false
+      required: [value, label]
+      properties:
+        value:
+          $ref: '#/components/schemas/TicketStatus'
+        label:
+          type: string
+          example: En progreso
+
+    AuthorRef:
+      type: object
+      additionalProperties: false
+      required: [id, name, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+        name:
+          type: string
+          example: Técnica A
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    TimelineEntry:
+      type: object
+      additionalProperties: false
+      required: [id, type, from_status, to_status, body, is_internal, author, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/TimelineEventType'
+        from_status:
+          oneOf:
+            - $ref: '#/components/schemas/TicketStatus'
+            - type: 'null'
+        to_status:
+          oneOf:
+            - $ref: '#/components/schemas/TicketStatus'
+            - type: 'null'
+        body:
+          type: [string, 'null']
+          maxLength: 5000
+        is_internal:
+          type: boolean
+        author:
+          $ref: '#/components/schemas/AuthorRef'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-11-02T10:16:00.000000+00:00'
+      example:
+        id: 8b1f2a3c-4d5e-4f60-8a7b-9c0d1e2f3a4b
+        type: resolution
+        from_status: null
+        to_status: resuelto
+        body: Se reinició el servicio y se verificó el acceso.
+        is_internal: false
+        author:
+          id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+          name: Técnica A
+          role: tecnico
+        created_at: '2026-11-02T10:16:00.000000+00:00'
+
+    TicketWorkflowSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - number
+        - title
+        - status
+        - status_label
+        - assignee_id
+        - creator_id
+        - finalized_at
+        - closed_at
+        - updated_at
+        - allowed_transitions
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+          example: TCK-000123
+        title:
+          type: string
+          example: No puedo acceder al correo
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        status_label:
+          type: string
+          example: Resuelto
+        assignee_id:
+          type: [string, 'null']
+          format: uuid
+        creator_id:
+          type: string
+          format: uuid
+        finalized_at:
+          type: [string, 'null']
+          format: date-time
+        closed_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          description: Token de concurrencia que debe enviarse como `expected_updated_at`
+        allowed_transitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusOption'
+      example:
+        id: 5c2b3d4e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+        number: TCK-000123
+        title: No puedo acceder al correo
+        status: resuelto
+        status_label: Resuelto
+        assignee_id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+        creator_id: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+        finalized_at: '2026-11-02T10:16:00.000000+00:00'
+        closed_at: null
+        updated_at: '2026-11-02T10:16:00.000000+00:00'
+        allowed_transitions:
+          - value: cerrado
+            label: Cerrado
+
+    WorkflowResponse:
+      type: object
+      additionalProperties: false
+      required: [ticket, can_change_status, can_comment_internally, can_view_internal]
+      properties:
+        ticket:
+          $ref: '#/components/schemas/TicketWorkflowSnapshot'
+        can_change_status:
+          type: boolean
+        can_comment_internally:
+          type: boolean
+        can_view_internal:
+          type: boolean
+      example:
+        ticket:
+          id: 5c2b3d4e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+          number: TCK-000123
+          title: No puedo acceder al correo
+          status: en_progreso
+          status_label: En progreso
+          assignee_id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+          creator_id: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+          finalized_at: null
+          closed_at: null
+          updated_at: '2026-11-02T10:16:00.000000+00:00'
+          allowed_transitions:
+            - value: pendiente_usuario
+              label: Pendiente de usuario
+            - value: resuelto
+              label: Resuelto
+        can_change_status: true
+        can_comment_internally: true
+        can_view_internal: true
+
+    StatusTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [target_status, expected_updated_at, request_id]
+      properties:
+        target_status:
+          $ref: '#/components/schemas/TicketStatus'
+        resolution:
+          type: [string, 'null']
+          description: |
+            Obligatoria solo cuando `target_status` es `resuelto`; en el resto
+            debe omitirse o ser null. La longitud (1–5000 tras `trim()`) se
+            valida en el servicio con los códigos `resolution_required`,
+            `resolution_too_long` y `resolution_not_allowed`.
+        expected_updated_at:
+          type: string
+          format: date-time
+          description: Valor de `updated_at` recibido en la última lectura.
+        request_id:
+          type: string
+          format: uuid
+          description: |
+            Clave de idempotencia obligatoria generada por el cliente. Un
+            reintento idéntico devuelve `changed=false`; reutilizarla con otro
+            destino, resolución o autor devuelve `409 request_id_reused`.
+
+    StatusTransitionResponse:
+      type: object
+      additionalProperties: false
+      required: [changed, message, ticket, timeline_entries]
+      properties:
+        changed:
+          type: boolean
+          description: |
+            false cuando el destino coincide con el estado actual (no-op) o
+            cuando se reproduce un `request_id` ya aplicado con el mismo
+            contenido (replay idempotente). En ambos casos `timeline_entries`
+            es `[]` y `message` explica el motivo.
+        message:
+          type: [string, 'null']
+          example: El ticket ya se encuentra en ese estado.
+        ticket:
+          $ref: '#/components/schemas/TicketWorkflowSnapshot'
+        timeline_entries:
+          type: array
+          description: Entradas creadas por esta operación; vacío si `changed` es false.
+          items:
+            $ref: '#/components/schemas/TimelineEntry'
+      example:
+        changed: true
+        message: null
+        ticket:
+          id: 5c2b3d4e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+          number: TCK-000123
+          title: No puedo acceder al correo
+          status: resuelto
+          status_label: Resuelto
+          assignee_id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+          creator_id: 7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+          finalized_at: '2026-11-02T10:16:00.000000+00:00'
+          closed_at: null
+          updated_at: '2026-11-02T10:16:00.000000+00:00'
+          allowed_transitions:
+            - value: en_progreso
+              label: En progreso
+            - value: cerrado
+              label: Cerrado
+        timeline_entries: []
+
+    InternalCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [body, request_id]
+      properties:
+        body:
+          type: string
+          description: |
+            Texto del comentario. La longitud (1–5000 tras `trim()`) se valida
+            en el servicio con los códigos `comment_required` y
+            `comment_too_long`.
+        request_id:
+          type: string
+          format: uuid
+          description: |
+            Clave de idempotencia generada por el cliente. Un reintento idéntico
+            (mismo autor y `body` normalizado) devuelve `created=false`;
+            reutilizarla con otro `body` o autor devuelve `409 request_id_reused`.
+
+    InternalCommentResponse:
+      type: object
+      additionalProperties: false
+      required: [entry, created]
+      properties:
+        entry:
+          $ref: '#/components/schemas/TimelineEntry'
+        created:
+          type: boolean
+          description: false si la entrada ya existía con el mismo body por idempotencia.
+      example:
+        entry:
+          id: 9d0e1f2a-3b4c-4d5e-8f60-7a8b9c0d1e2f
+          type: internal_comment
+          from_status: null
+          to_status: null
+          body: Comprobado el registro del servidor; el error era de credenciales.
+          is_internal: true
+          author:
+            id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+            name: Técnica A
+            role: tecnico
+          created_at: '2026-11-02T10:16:00.000000+00:00'
+        created: true
+
+    Pagination:
+      type: object
+      additionalProperties: false
+      required: [page, page_size, total_items, total_pages, has_next, has_previous]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Página actual, empezando en 1.
+          example: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Entradas por página (por defecto 50; máximo 200).
+          example: 50
+        total_items:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+        has_next:
+          type: boolean
+        has_previous:
+          type: boolean
+      example:
+        page: 1
+        page_size: 50
+        total_items: 3
+        total_pages: 1
+        has_next: false
+        has_previous: false
+
+    TimelineResponse:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineEntry'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      example:
+        items:
+          - id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+            type: status_change
+            from_status: abierto
+            to_status: en_progreso
+            body: null
+            is_internal: false
+            author:
+              id: 3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+              name: Técnica A
+              role: tecnico
+            created_at: '2026-11-02T10:16:00.000000+00:00'
+        pagination:
+          page: 1
+          page_size: 50
+          total_items: 1
+          total_pages: 1
+          has_next: false
+          has_previous: false
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: resolution_required
+        message:
+          type: string
+          example: Indica la descripción de la solución para marcar el ticket como Resuelto.
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [detail]
+      properties:
+        detail:
+          $ref: '#/components/schemas/ErrorDetail'

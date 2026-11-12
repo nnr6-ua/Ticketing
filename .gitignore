@@ -1,31 +1,36 @@
-# Entorno
-.env
-.env.local
-.env.*.local
-
-# Python
+# Python / backend
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
-dist/
-build/
 
-# Node
+# Node / frontend
 node_modules/
-frontend/dist/
-frontend/coverage/
-*.log
+dist/
+.vite/
+*.tsbuildinfo
 
-# Adjuntos locales
-backend/attachments/
+# Entorno y secretos
+.env
+.env.*
+!.env.example
 
-# Sistema
-.DS_Store
-Thumbs.db
+# Editores y sistema
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.log
+
+# Alembic / datos locales
+*.sqlite3
+*.db

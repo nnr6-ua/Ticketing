@@ -1,3 +1,5 @@
+"""Validación, almacenamiento temporal y movimiento de adjuntos."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.core.errors import AppError
+from app.core.errors import ApiError
 
 MAX_FILES = 5
 MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -35,18 +37,14 @@ class StagedFile:
 def _validate_upload(upload: UploadFile) -> tuple[str, str, tuple[bytes, ...]]:
     original = Path(upload.filename or "").name.strip()
     if not original:
-        raise AppError(
-            400, "attachment_name_required", "El adjunto no tiene nombre."
-        )
+        raise ApiError(400, "attachment_name_required", "El adjunto no tiene nombre.")
 
     suffix = Path(original).suffix.lower()
     if suffix not in ALLOWED_TYPES:
-        raise AppError(
+        raise ApiError(
             422,
             "invalid_attachment",
             "Solo se permiten imágenes PNG, JPG o GIF.",
-            field="attachments",
-            details={"filename": original},
         )
 
     mime_type, signatures = ALLOWED_TYPES[suffix]
@@ -57,11 +55,10 @@ async def stage_files(files: list[UploadFile], temp_dir: Path) -> list[StagedFil
     if not files:
         return []
     if len(files) > MAX_FILES:
-        raise AppError(
+        raise ApiError(
             422,
             "too_many_attachments",
             f"Puedes adjuntar como máximo {MAX_FILES} archivos.",
-            field="attachments",
         )
 
     staged: list[StagedFile] = []
@@ -74,28 +71,20 @@ async def stage_files(files: list[UploadFile], temp_dir: Path) -> list[StagedFil
             size = len(content)
 
             if size == 0:
-                raise AppError(
-                    422,
-                    "attachment_empty",
-                    "El adjunto está vacío.",
-                    field="attachments",
-                    details={"filename": original},
+                raise ApiError(
+                    422, "attachment_empty", "El adjunto está vacío."
                 )
             if size > MAX_FILE_SIZE:
-                raise AppError(
+                raise ApiError(
                     422,
                     "attachment_too_large",
                     "Cada adjunto puede pesar como máximo 5 MB.",
-                    field="attachments",
-                    details={"filename": original},
                 )
             if not any(content.startswith(signature) for signature in signatures):
-                raise AppError(
+                raise ApiError(
                     422,
                     "invalid_attachment",
                     "El contenido del archivo no coincide con una imagen PNG, JPG o GIF.",
-                    field="attachments",
-                    details={"filename": original},
                 )
 
             stored_filename = f"{uuid4().hex}{Path(original).suffix.lower()}"
@@ -124,7 +113,7 @@ def move_staged(
     if not staged:
         return []
 
-    relative_dir = Path("attachments") / ticket_number
+    relative_dir = Path(ticket_number)
     target_dir = attachments_dir / relative_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 

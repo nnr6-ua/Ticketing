@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError
+from app.core.errors import ApiError
 from app.models import Category, Priority
 
 
@@ -33,7 +33,7 @@ def _resolve_default(db: Session, model: type[Category] | type[Priority], label:
             .limit(1)
         )
     if entity is None:
-        raise AppError(
+        raise ApiError(
             500,
             "catalog_not_configured",
             f"No hay {label} activos configurados.",

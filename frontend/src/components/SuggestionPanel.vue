@@ -8,11 +8,11 @@ defineProps<{
   loading: boolean;
   error: string | null;
   priorities: Priority[];
-  priorityId: number | null;
+  priorityId: string | null;
 }>();
 
 const emit = defineEmits<{
-  "update:priority-id": [value: number | null];
+  "update:priority-id": [value: string | null];
 }>();
 </script>
 

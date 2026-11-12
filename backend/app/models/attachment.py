@@ -1,22 +1,24 @@
+"""Modelo de adjunto de un ticket."""
+
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
     CHAR,
-    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
-    Identity,
     Index,
     String,
     Text,
-    func,
+    Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.ticket import Ticket, utcnow
 
 
 class Attachment(Base):
@@ -33,18 +35,18 @@ class Attachment(Base):
         Index("ix_attachments_ticket", "ticket_id"),
     )
 
-    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
     )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(nullable=False)
     relative_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, default=utcnow
     )
 
-    ticket: Mapped["Ticket"] = relationship("Ticket", back_populates="attachments")
+    ticket: Mapped[Ticket] = relationship()

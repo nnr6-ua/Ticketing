@@ -1,31 +1,31 @@
 export interface Employee {
-  id: number;
+  id: string;
   name: string;
   email: string;
 }
 
 export interface Category {
-  id: number;
+  id: string;
   name: string;
 }
 
 export interface Priority {
-  id: number;
+  id: string;
   name: string;
   level: number;
-  color: string;
-  is_system: boolean;
+  color: string | null;
+  is_system?: boolean;
 }
 
 export interface Attachment {
-  id: number;
+  id: string;
   original_filename: string;
   mime_type: string;
   size_bytes: number;
 }
 
 export interface Ticket {
-  id: number;
+  id: string;
   ticket_number: string;
   title: string;
   description: string;
@@ -47,10 +47,8 @@ export interface SuggestionResponse {
 }
 
 export interface ApiErrorBody {
-  error?: {
+  detail?: {
     code?: string;
     message?: string;
-    field?: string;
-    details?: unknown;
   };
 }

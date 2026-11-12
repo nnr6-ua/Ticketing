@@ -14,7 +14,7 @@ export function useTicketForm() {
 
   const title = ref("");
   const description = ref("");
-  const priorityId = ref<number | null>(null);
+  const priorityId = ref<string | null>(null);
   const priorityTouched = ref(false);
   const attachments = ref<File[]>([]);
 
@@ -104,7 +104,7 @@ export function useTicketForm() {
     }, 400);
   }
 
-  function setPriority(value: number | null) {
+  function setPriority(value: string | null) {
     priorityId.value = value;
     priorityTouched.value = true;
   }
@@ -127,15 +127,10 @@ export function useTicketForm() {
         attachments: attachments.value,
       });
     } catch (error) {
-      if (error instanceof ApiError) {
-        errorMessage.value = error.message;
-        if (error.field) {
-          fieldErrors.value = { [error.field]: error.message };
-        }
-      } else {
-        errorMessage.value =
-          "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
-      }
+      errorMessage.value =
+        error instanceof ApiError
+          ? error.message
+          : "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
       return null;
     } finally {
       submitting.value = false;

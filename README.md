@@ -1,99 +1,90 @@
-# Mesa de ayuda — Creación de tickets
+# Mesa de ayuda
 
-Primera funcionalidad de una mesa de ayuda interna: un empleado autenticado crea un ticket con título, descripción y adjuntos opcionales, recibe un número de referencia `TK-000001` y puede consultar la confirmación.
+Mesa de ayuda interna con autenticación JWT. Reúne dos funcionalidades:
+
+- **Creación de tickets** (HU-01): título, descripción y adjuntos opcionales, con
+  sugerencia automática de categoría/prioridad, detección de duplicados y
+  número de referencia `TK-000001`.
+- **Cola de trabajo priorizada y flujo del ticket** (HU-04/HU-05): vista de los
+  tickets asignados al técnico ordenados por urgencia y SLA, cambio de estado,
+  resolución y comentarios internos con línea temporal.
 
 ## Stack
 
-- **Backend**: FastAPI, SQLAlchemy 2.0 síncrono, PostgreSQL 16, Alembic, Pydantic v2, Uvicorn.
-- **Frontend**: Vue 3 + TypeScript, Vite, Tailwind CSS, Headless UI, Heroicons.
-- **Pruebas**: pytest + httpx + PostgreSQL embebido (`pgserver`); Vitest + Vue Test Utils + jsdom.
+- **Backend**: FastAPI, SQLAlchemy 2.0 síncrono, PostgreSQL 16, Alembic,
+  Pydantic v2, PyJWT, Uvicorn.
+- **Frontend**: Vue 3 + TypeScript, Vite, Pinia, Vue Router, Tailwind CSS.
+- **Pruebas**: pytest + httpx; Vitest + Vue Test Utils + jsdom.
 
-## Requisitos
+## Arranque con Docker
 
-- Python 3.12+
-- Node.js 18+ y npm
-- Docker y Docker Compose (opcional si usas una base PostgreSQL propia)
+```bash
+cp .env.example .env
+docker compose up --build
+```
 
-## Arranque rápido
+- Frontend: `http://localhost:8080`
+- Backend / OpenAPI: `http://localhost:8000/docs`
 
-### 1. Base de datos
+El backend aplica las migraciones al arrancar. Para cargar datos de ejemplo:
+
+```bash
+docker compose exec backend python scripts/seed_dev.py
+```
+
+En desarrollo, el stub de autenticación permite entrar desde `/login` con los
+usuarios del seed (por ejemplo `tecnico.a@example.com`).
+
+## Arranque local
+
+### Base de datos
 
 ```bash
 docker compose up -d db
 ```
 
-### 2. Backend
+### Backend
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
-python -m app.seeds.seed
+python scripts/seed_dev.py
 uvicorn app.main:app --reload --port 8000
 ```
 
-API: `http://localhost:8000` · Documentación: `http://localhost:8000/docs`
-
-### 3. Frontend
+### Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-Aplicación: `http://localhost:5173`
+La SPA queda en `http://localhost:5173` y Vite redirige `/api` al backend.
 
 ## Variables de entorno
 
-Backend (`backend/.env`):
+Configuración principal (ver `.env.example`):
 
 | Variable | Ejemplo | Uso |
 |---|---|---|
-| `DATABASE_URL` | `postgresql+psycopg://ticketing:ticketing@localhost:5432/ticketing` | Conexión a PostgreSQL |
-| `ATTACHMENTS_DIR` | `./attachments` | Carpeta local de adjuntos |
-| `CORS_ORIGINS` | `http://localhost:5173` | Orígenes permitidos |
-
-Frontend (`frontend/.env.local`):
-
-| Variable | Ejemplo | Uso |
-|---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | Base de la API |
-| `VITE_DEV_EMPLOYEE_ID` | `1` | Empleado demo para `X-Employee-Id` |
-
-No hay secretos reales en los archivos de ejemplo.
+| `DATABASE_URL` | `postgresql+psycopg://ticketing:ticketing@db:5432/ticketing` | Conexión a PostgreSQL |
+| `JWT_SECRET` | `dev-only-secret` | Firma/validación de JWT |
+| `AUTH_DEV_STUB_ENABLED` | `true` | Habilita el login de desarrollo |
+| `FRONTEND_ORIGINS` | `http://localhost:8080` | Orígenes CORS |
+| `ATTACHMENTS_DIR` | `./attachments` | Carpeta de adjuntos |
+| `VITE_API_BASE_URL` | *(vacío)* | URL del API; vacío = mismo origen |
 
 ## Pruebas
 
 ```bash
-# Backend: inicia un PostgreSQL embebido automáticamente
-cd backend
-pytest
-
-# Frontend
-cd frontend
-npm run test
-npm run build
+cd backend && python -m pytest
+cd frontend && npm test
 ```
 
-## Endpoints principales
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/api/v1/priorities` | Prioridades activas |
-| `POST` | `/api/v1/suggestions` | Sugerencia de categoría y prioridad |
-| `POST` | `/api/v1/tickets` | Crea un ticket (`multipart/form-data`) |
-
-Todas las peticiones requieren la cabecera `X-Employee-Id`.
-
-## Documentación funcional
-
-- [Especificación](specs/002-crear-ticket/spec.md)
-- [Plan técnico](specs/002-crear-ticket/plan.md)
-- [Modelo de datos](specs/002-crear-ticket/data-model.md)
-- [Contrato OpenAPI](specs/002-crear-ticket/contracts/openapi.yaml)
-- [Guía de validación](specs/002-crear-ticket/quickstart.md)
+Las pruebas del backend usan SQLite por defecto; exporta `TEST_DATABASE_URL`
+para ejecutarlas contra un PostgreSQL 16 desechable.

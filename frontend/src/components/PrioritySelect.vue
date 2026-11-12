@@ -11,7 +11,7 @@ import type { Priority } from "../types/api";
 
 const props = withDefaults(
   defineProps<{
-    modelValue: number | null;
+    modelValue: string | null;
     priorities: Priority[];
     disabled?: boolean;
     loading?: boolean;
@@ -23,7 +23,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  "update:modelValue": [value: number | null];
+  "update:modelValue": [value: string | null];
 }>();
 
 const selected = computed(
@@ -53,7 +53,7 @@ const displayLabel = computed(() => {
         <span
           v-if="selected"
           class="h-2.5 w-2.5 flex-none rounded-full"
-          :style="{ backgroundColor: selected.color }"
+          :style="{ backgroundColor: selected.color ?? undefined }"
         />
         <span class="truncate font-medium" :class="selected ? 'text-slate-900' : 'text-slate-500'">
           {{ displayLabel }}
@@ -78,7 +78,7 @@ const displayLabel = computed(() => {
         >
           <span
             class="h-2.5 w-2.5 flex-none rounded-full"
-            :style="{ backgroundColor: priority.color }"
+            :style="{ backgroundColor: priority.color ?? undefined }"
           />
           <span class="flex-1">{{ priority.name }}</span>
           <CheckIcon v-if="isSelected" class="h-4 w-4 text-sky-600" aria-hidden="true" />
