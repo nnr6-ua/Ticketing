@@ -13,6 +13,16 @@ const router = createRouter({
       component: () => import('@/views/WorkQueuePage.vue'),
     },
     {
+      path: '/mis-tickets',
+      name: 'my-tickets',
+      component: () => import('@/views/MyTicketsPage.vue'),
+    },
+    {
+      path: '/tickets/new',
+      name: 'ticket-create',
+      component: () => import('@/views/TicketCreatePage.vue'),
+    },
+    {
       path: '/tickets/:id',
       name: 'ticket-detail',
       component: () => import('@/views/TicketDetailPage.vue'),

@@ -40,7 +40,7 @@ os.environ.pop("AUTH_AUDIENCE", None)
 
 import jwt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app import models  # noqa: E402,F401
@@ -78,6 +78,13 @@ def _cleanup_temp_dir():
 def db() -> Session:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    if not IS_SQLITE:
+        # La secuencia de numeración la crea la migración 0004; en las pruebas
+        # el esquema se construye desde los modelos, así que se replica aquí.
+        with engine.begin() as connection:
+            connection.execute(
+                text("CREATE SEQUENCE IF NOT EXISTS ticket_number_seq START 1 INCREMENT 1")
+            )
     # En PostgreSQL, recrear los tipos ENUM cambia su OID. Descartar las
     # conexiones del pool evita que queden planes preparados con el OID viejo.
     engine.dispose()

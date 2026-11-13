@@ -1,16 +1,33 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type { TicketStatus, TimelineEntry } from '@/types/ticketWorkflow'
+import type { Pagination, TicketStatus, TimelineEntry } from '@/types/ticketWorkflow'
 
 const props = withDefaults(
   defineProps<{
     entries: TimelineEntry[]
     canSeeInternal: boolean
     loading?: boolean
+    pagination?: Pagination | null
   }>(),
   { loading: false },
 )
+
+const emit = defineEmits<{
+  (e: 'page-change', page: number): void
+}>()
+
+function previousPage(): void {
+  if (props.pagination?.has_previous) {
+    emit('page-change', props.pagination.page - 1)
+  }
+}
+
+function nextPage(): void {
+  if (props.pagination?.has_next) {
+    emit('page-change', props.pagination.page + 1)
+  }
+}
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   abierto: 'Abierto',
@@ -110,7 +127,18 @@ function isHistoricalResolution(entryId: string): boolean {
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div class="min-w-0">
-            <template v-if="entry.type === 'status_change'">
+            <template v-if="entry.type === 'created'">
+              <span
+                class="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+              >
+                Ticket creado
+              </span>
+              <p class="mt-2 text-sm">
+                {{ entry.author.name }} creó el ticket.
+              </p>
+            </template>
+
+            <template v-else-if="entry.type === 'status_change'">
               <span
                 class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
               >
@@ -162,5 +190,30 @@ function isHistoricalResolution(entryId: string): boolean {
         <p class="mt-2 text-xs text-slate-600">{{ entry.author.name }}</p>
       </li>
     </ol>
+
+    <div
+      v-if="pagination && pagination.total_items > 0"
+      class="mt-4 flex items-center justify-between gap-2 px-4"
+    >
+      <button
+        type="button"
+        :disabled="!pagination.has_previous"
+        class="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+        @click="previousPage"
+      >
+        Anterior
+      </button>
+      <span class="text-sm text-slate-600">
+        Página {{ pagination.page }} de {{ pagination.total_pages }}
+      </span>
+      <button
+        type="button"
+        :disabled="!pagination.has_next"
+        class="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+        @click="nextPage"
+      >
+        Siguiente
+      </button>
+    </div>
   </section>
 </template>

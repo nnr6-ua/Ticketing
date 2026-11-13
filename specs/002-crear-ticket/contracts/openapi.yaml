@@ -1,0 +1,499 @@
+openapi: 3.0.3
+info:
+  title: API de creación de tickets - Mesa de ayuda
+  version: 1.1.0
+  description: |
+    Contrato de la creación de tickets de incidencia, sugerencia de categoría y
+    prioridad, y listado de prioridades seleccionables.
+
+    La identidad se resuelve siempre de un JWT `Authorization: Bearer <token>`
+    emitido por el proveedor de autenticación del proyecto. Los identificadores
+    de usuario, ticket, categoría y prioridad son UUID. En desarrollo existe un
+    stub opcional (`POST /api/v1/dev/login`) que solo se registra cuando
+    `AUTH_DEV_STUB_ENABLED=true`.
+
+    Todos los errores usan el formato `{"detail": {"code", "message"}}`.
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local
+security:
+  - BearerAuth: []
+tags:
+  - name: Catálogos
+    description: Datos necesarios para el formulario de creación
+  - name: Sugerencias
+    description: Propuesta automática de categoría y prioridad
+  - name: Tickets
+    description: Creación de tickets de incidencia
+  - name: Desarrollo
+    description: Stub de autenticación local (deshabilitado por defecto)
+
+paths:
+  /api/v1/priorities:
+    get:
+      tags: [Catálogos]
+      summary: Lista las prioridades activas seleccionables
+      operationId: listPriorities
+      description: Excluye las prioridades de sistema (`is_system = true`).
+      responses:
+        "200":
+          description: Prioridades disponibles para el usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Priority"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/suggestions:
+    post:
+      tags: [Sugerencias]
+      summary: Sugiere categoría fija y prioridad editable a partir del texto
+      operationId: suggestClassification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestionRequest"
+      responses:
+        "200":
+          description: Sugerencia calculada (puede ser un valor por defecto)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tickets:
+    post:
+      tags: [Tickets]
+      summary: Crea un ticket de incidencia
+      description: |
+        Crea el ticket, su evento de creación y sus adjuntos en una sola
+        operación todo-o-nada. Si el mismo creador envía el mismo título y
+        descripción (hash SHA-256), no se crea un ticket nuevo: se devuelve el
+        existente con `duplicate: true` (HTTP 200) y se descartan los adjuntos
+        del segundo envío. Un ticket nuevo devuelve HTTP 201 con
+        `duplicate: false`.
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 120
+                  example: No puedo conectarme a la VPN
+                description:
+                  type: string
+                  minLength: 20
+                  maxLength: 5000
+                  example: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                priority_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: |
+                    Prioridad elegida. Debe existir, estar activa y no ser de
+                    sistema. Si se omite, se usa la sugerida.
+                attachments:
+                  type: array
+                  maxItems: 5
+                  description: |
+                    Capturas opcionales PNG, JPG/JPEG o GIF, máximo 5 MB cada
+                    una. Se validan extensión, `Content-Type` declarado y firma
+                    binaria.
+                  items:
+                    type: string
+                    format: binary
+            encoding:
+              attachments:
+                contentType: image/*
+      responses:
+        "201":
+          description: Ticket creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+              example:
+                id: 3f1b6c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70
+                ticket_number: TK-000001
+                title: No puedo conectarme a la VPN
+                description: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                status: Abierto
+                category:
+                  id: 2b1c0d9e-8f70-4c7b-8a3d-6f1f4c2e9d5a
+                  name: Red
+                priority:
+                  id: 4c7b8a3d-2b1c-0d9e-8f70-6f1f4c2e9d5a
+                  name: Media
+                  level: 3
+                  color: "#ca8a04"
+                  is_system: false
+                creator:
+                  id: 8a3d2b1c-0d9e-4f70-8f70-6f1f4c2e9d5a
+                  name: Solicitante
+                  email: usuario@example.com
+                attachments: []
+                created_at: "2026-10-29T09:15:00Z"
+                updated_at: "2026-10-29T09:15:00Z"
+                duplicate: false
+        "200":
+          description: Ya existía un ticket con el mismo creador, título y descripción
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+              example:
+                id: 3f1b6c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70
+                ticket_number: TK-000001
+                title: No puedo conectarme a la VPN
+                description: Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.
+                status: Abierto
+                category:
+                  id: 2b1c0d9e-8f70-4c7b-8a3d-6f1f4c2e9d5a
+                  name: Red
+                priority:
+                  id: 4c7b8a3d-2b1c-0d9e-8f70-6f1f4c2e9d5a
+                  name: Media
+                  level: 3
+                  color: "#ca8a04"
+                  is_system: false
+                creator:
+                  id: 8a3d2b1c-0d9e-4f70-8f70-6f1f4c2e9d5a
+                  name: Solicitante
+                  email: usuario@example.com
+                attachments: []
+                created_at: "2026-10-29T09:15:00Z"
+                updated_at: "2026-10-29T09:15:00Z"
+                duplicate: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: |
+            Error de validación de campos o adjuntos. Códigos habituales:
+            `invalid_request`, `validation_error`, `invalid_priority`,
+            `invalid_attachment`, `attachment_empty`,
+            `attachment_name_required`, `attachment_too_large` y
+            `too_many_attachments`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidRequest:
+                  value:
+                    detail:
+                      code: invalid_request
+                      message: La solicitud no es válida. Revisa los datos e inténtalo de nuevo.
+                invalidAttachment:
+                  value:
+                    detail:
+                      code: invalid_attachment
+                      message: Solo se permiten imágenes PNG, JPG o GIF.
+                tooLarge:
+                  value:
+                    detail:
+                      code: attachment_too_large
+                      message: Cada adjunto puede pesar como máximo 5 MB.
+        "409":
+          description: Conflicto de datos no atribuible a un duplicado recuperable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/dev/login:
+    post:
+      tags: [Desarrollo]
+      summary: Emite un JWT de prueba para un usuario del seed
+      description: Solo existe si `AUTH_DEV_STUB_ENABLED=true`.
+      operationId: devLogin
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  default: tecnico.a@example.com
+      responses:
+        "200":
+          description: Token emitido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevLoginResponse"
+        "404":
+          description: Usuario inexistente o stub deshabilitado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Falta `JWT_SECRET`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT con `sub` (UUID del usuario), `role`, `iat` y `exp`. El usuario debe
+        existir y estar activo en la tabla `users`.
+
+  schemas:
+    Priority:
+      type: object
+      required: [id, name, level, color, is_system]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Alta
+        level:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: 1 es la prioridad más urgente.
+        color:
+          type: string
+          nullable: true
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#ea580c"
+        is_system:
+          type: boolean
+          description: |
+            True para la prioridad de sistema "Sin clasificar", que solo se usa
+            como fallback y no aparece en `GET /priorities`.
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Red
+
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Solicitante
+        email:
+          type: string
+          format: email
+          example: usuario@example.com
+
+    Attachment:
+      type: object
+      required: [id, original_filename, mime_type, size_bytes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        original_filename:
+          type: string
+          example: captura-error.png
+        mime_type:
+          type: string
+          enum: [image/png, image/jpeg, image/gif]
+        size_bytes:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+
+    SuggestionRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+          minLength: 0
+          maxLength: 120
+        description:
+          type: string
+          minLength: 0
+          maxLength: 5000
+
+    SuggestionResponse:
+      type: object
+      required: [category, priority, category_is_fallback, priority_is_fallback]
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        category_is_fallback:
+          type: boolean
+          description: |
+            True si no hubo coincidencia de palabras clave y se usó el valor por
+            defecto o, en su ausencia, la categoría de sistema "Sin clasificar".
+        priority_is_fallback:
+          type: boolean
+          description: |
+            True si no hubo coincidencia de palabras clave y se usó el valor por
+            defecto o, en su ausencia, la prioridad de sistema "Sin clasificar".
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - ticket_number
+        - title
+        - description
+        - status
+        - category
+        - priority
+        - creator
+        - created_at
+        - updated_at
+        - attachments
+        - duplicate
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+          pattern: "^TK-[0-9]{6,}$"
+          example: TK-000001
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [Abierto, En progreso, Pendiente de usuario, Resuelto, Cerrado]
+          description: Etiqueta en español; en base de datos se guarda el enum en snake_case.
+        category:
+          $ref: "#/components/schemas/Category"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        creator:
+          $ref: "#/components/schemas/User"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+        duplicate:
+          type: boolean
+          description: True si la respuesta corresponde a un ticket ya existente.
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: invalid_attachment
+            message:
+              type: string
+              example: Solo se permiten imágenes PNG, JPG o GIF.
+
+    DevLoginResponse:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 28800
+        user:
+          type: object
+          required: [id, email, name, role]
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+            role:
+              type: string
+              enum: [usuario, tecnico, supervisor, admin]
+
+  responses:
+    Unauthorized:
+      description: Falta el token, no es válido o el usuario no está activo
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail:
+              code: not_authenticated
+              message: La sesión no es válida o ha caducado.
+    ValidationError:
+      description: Datos de entrada no válidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail:
+              code: invalid_request
+              message: La solicitud no es válida. Revisa los datos e inténtalo de nuevo.
+    InternalError:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail:
+              code: internal_error
+              message: No se pudo cargar la cola de trabajo.

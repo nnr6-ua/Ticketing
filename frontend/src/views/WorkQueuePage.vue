@@ -97,13 +97,23 @@ onUnmounted(() => {
 <template>
   <main class="mx-auto max-w-7xl px-4 py-8">
     <header class="mb-6">
-      <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-        Cola de trabajo
-      </h1>
-      <p class="mt-1 text-sm text-slate-700">
-        Tickets asignados a ti, ordenados por urgencia: prioridad y tiempo
-        restante de SLA.
-      </p>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+            Cola de trabajo
+          </h1>
+          <p class="mt-1 text-sm text-slate-700">
+            Tickets asignados a ti, ordenados por urgencia: prioridad y tiempo
+            restante de SLA.
+          </p>
+        </div>
+        <RouterLink
+          to="/tickets/new"
+          class="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+        >
+          Nuevo ticket
+        </RouterLink>
+      </div>
     </header>
 
     <p

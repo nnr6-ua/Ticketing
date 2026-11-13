@@ -29,6 +29,7 @@ class TicketStatus(str, Enum):
 
 
 class TimelineEventType(str, Enum):
+    created = "created"
     status_change = "status_change"
     resolution = "resolution"
     internal_comment = "internal_comment"

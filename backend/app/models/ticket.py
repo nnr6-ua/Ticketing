@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -52,6 +53,11 @@ class Ticket(Base):
         Index("ix_tickets_assignee_finalized_at", "assignee_id", "finalized_at"),
         Index("ix_tickets_assignee_priority", "assignee_id", "priority_id"),
         Index("ix_tickets_number", "number"),
+        UniqueConstraint(
+            "creator_id",
+            "content_hash",
+            name="uq_tickets_creator_content_hash",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -94,6 +100,7 @@ class Ticket(Base):
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
     )
     sla_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     priority: Mapped[Priority] = relationship(lazy="joined")
     category: Mapped[Category | None] = relationship(lazy="joined")

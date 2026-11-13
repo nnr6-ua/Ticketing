@@ -1,5 +1,6 @@
 """Modelos del dominio expuestos por el paquete `app.models`."""
 
+from app.models.attachment import Attachment
 from app.models.category import Category
 from app.models.enums import (
     DEFAULT_ACTIVE_STATUSES,
@@ -17,6 +18,7 @@ from app.models.timeline import TicketTimelineEntry
 from app.models.user import User
 
 __all__ = [
+    "Attachment",
     "Category",
     "DEFAULT_ACTIVE_STATUSES",
     "FINAL_STATUSES",

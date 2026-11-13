@@ -8,6 +8,7 @@ export type TicketStatus =
   | 'cerrado'
 
 export type TimelineEventType =
+  | 'created'
   | 'status_change'
   | 'resolution'
   | 'internal_comment'

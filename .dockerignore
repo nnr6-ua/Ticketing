@@ -38,6 +38,7 @@ Thumbs.db
 # Datos locales
 **/*.sqlite3
 **/*.db
+**/attachments/
 
 # Documentación y herramientas que no forman parte de la imagen
 specs/

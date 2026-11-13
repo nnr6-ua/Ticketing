@@ -62,20 +62,40 @@ def upsert_priority(
     color: str,
     base_hours: str,
     is_active: bool = True,
+    keywords: list[str] | None = None,
+    is_default: bool = False,
+    is_system: bool = False,
+    sort_order: int | None = None,
 ) -> Priority:
-    priority = session.scalar(select(Priority).where(Priority.level == level))
+    priority = session.scalar(select(Priority).where(Priority.name == name))
     if priority is None:
-        priority = Priority(id=sid(f"priority-{level}"), level=level, name=name)
+        priority = Priority(
+            id=sid(f"priority-{name.casefold().replace(' ', '-')}"),
+            level=level,
+            name=name,
+        )
         session.add(priority)
     priority.name = name
+    priority.level = level
     priority.color = color
     priority.base_hours = base_hours  # type: ignore[assignment]
     priority.is_active = is_active
+    priority.keywords = keywords or []
+    priority.is_default = is_default
+    priority.is_system = is_system
+    priority.sort_order = sort_order if sort_order is not None else level * 10
     return priority
 
 
 def upsert_category(
-    session: Session, *, key: str, name: str, description: str
+    session: Session,
+    *,
+    key: str,
+    name: str,
+    description: str,
+    keywords: list[str] | None = None,
+    is_default: bool = False,
+    is_system: bool = False,
 ) -> Category:
     category = session.scalar(select(Category).where(Category.name == name))
     if category is None:
@@ -83,6 +103,16 @@ def upsert_category(
         session.add(category)
     category.description = description
     category.is_active = True
+    category.keywords = keywords or []
+    category.is_default = is_default
+    category.is_system = is_system
+    category.sort_order = {
+        "red": 10,
+        "hardware": 20,
+        "software": 30,
+        "otros": 100,
+        "sin_clasificar": 999,
+    }.get(key, 50)
     return category
 
 
@@ -173,16 +203,48 @@ def main() -> None:
         )
 
         critica = upsert_priority(
-            session, level=1, name="Crítica", color="#dc2626", base_hours="4"
+            session,
+            level=1,
+            name="Crítica",
+            color="#dc2626",
+            base_hours="4",
+            keywords=["urgente", "crítico", "caído", "no puedo trabajar", "toda la oficina"],
         )
         alta = upsert_priority(
-            session, level=2, name="Alta", color="#ea580c", base_hours="8"
+            session,
+            level=2,
+            name="Alta",
+            color="#ea580c",
+            base_hours="8",
+            keywords=["importante", "bloqueado", "error grave", "afecta a varios"],
         )
         media = upsert_priority(
-            session, level=3, name="Media", color="#ca8a04", base_hours="24"
+            session,
+            level=3,
+            name="Media",
+            color="#ca8a04",
+            base_hours="24",
+            is_default=True,
         )
         baja = upsert_priority(
-            session, level=4, name="Baja", color="#16a34a", base_hours="72"
+            session,
+            level=4,
+            name="Baja",
+            color="#16a34a",
+            base_hours="72",
+            keywords=["leve", "consulta", "cuando pueda", "no urgente"],
+        )
+        # Fallback de sistema: solo se usa si no queda ninguna prioridad
+        # personalizada activa. El CHECK de nivel admite 1–4, por eso comparte
+        # nivel 4 y se ordena al final para no aparecer en los listados.
+        upsert_priority(
+            session,
+            level=4,
+            name="Sin clasificar",
+            color="#64748b",
+            base_hours="72",
+            is_system=True,
+            sort_order=999,
         )
 
         red = upsert_category(
@@ -190,18 +252,35 @@ def main() -> None:
             key="red",
             name="Red",
             description="Conectividad y acceso remoto.",
+            keywords=["wifi", "vpn", "internet", "red", "conexión", "proxy", "dns"],
         )
         hardware = upsert_category(
             session,
             key="hardware",
             name="Hardware",
             description="Equipos y periféricos.",
+            keywords=["portátil", "ordenador", "monitor", "teclado", "ratón", "batería"],
         )
         software = upsert_category(
             session,
             key="software",
             name="Software",
             description="Aplicaciones corporativas.",
+            keywords=["aplicación", "programa", "instalar", "actualizar", "error", "correo"],
+        )
+        upsert_category(
+            session,
+            key="otros",
+            name="Otros",
+            description="Solicitudes que no encajan en otra categoría.",
+            is_default=True,
+        )
+        upsert_category(
+            session,
+            key="sin_clasificar",
+            name="Sin clasificar",
+            description="Categoría de sistema para tickets sin catálogo activo.",
+            is_system=True,
         )
 
         # Técnico A: 5 activos + 1 resuelto en plazo + 1 cerrado incumplido.
