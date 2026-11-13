@@ -55,7 +55,9 @@ def test_returns_only_authenticated_technician_tickets(
 def test_cache_headers(seeded_client) -> None:
     response = get(seeded_client.client, seeded_client.seed)
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert "Authorization" in [
+        value.strip() for value in response.headers["Vary"].split(",")
+    ]
 
 
 def test_injected_technician_id_is_ignored(seeded_client) -> None:

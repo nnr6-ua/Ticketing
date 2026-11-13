@@ -1,0 +1,230 @@
+openapi: 3.0.3
+info:
+  title: Mesa de Ayuda - Consulta de estado y línea temporal del ticket (HU-02)
+  version: 1.0.0
+  description: |
+    Endpoints de solo lectura que permiten al usuario creador consultar el estado
+    actual de su ticket y revisar la línea temporal cronológica (cambios de estado,
+    resoluciones y comentarios públicos del técnico) sin tener que preguntar al
+    técnico. La escritura pertenece a HU-05.
+servers:
+  - url: /api/v1
+    description: Backend de la mesa de ayuda
+paths:
+  /tickets/{ticket_id}/workflow:
+    get:
+      summary: Obtener el resumen de un ticket con su estado actual
+      operationId: getTicket
+      tags: [tickets, timeline]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Identificador único del ticket
+      responses:
+        "200":
+          description: Resumen del ticket con estado actual y capacidades del visor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowResponse"
+        "401":
+          description: No autenticado (token JWT inválido o ausente)
+        "403":
+          description: No tiene permiso para leer este ticket (no es el creador ni rol operativo)
+        "404":
+          description: Ticket no encontrado
+  /tickets/{ticket_id}/timeline:
+    get:
+      summary: Obtener la línea temporal paginada de un ticket
+      operationId: getTicketTimeline
+      tags: [tickets, timeline]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Identificador único del ticket
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Tamaño de página (máximo 200)
+      responses:
+        "200":
+          description: Línea temporal paginada en orden cronológico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineResponse"
+        "401":
+          description: No autenticado (token JWT inválido o ausente)
+        "403":
+          description: No tiene permiso para leer este ticket
+        "404":
+          description: Ticket no encontrado
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Identidad obtenida exclusivamente del token JWT (Authorization: Bearer)
+  schemas:
+    AuthorRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          type: string
+          enum: [usuario, tecnico, supervisor, admin]
+      required: [id, name, role]
+    TimelineEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [status_change, resolution, internal_comment]
+        from_status:
+          type: string
+          nullable: true
+          enum: [abierto, en_progreso, pendiente_usuario, resuelto, cerrado]
+        to_status:
+          type: string
+          nullable: true
+          enum: [abierto, en_progreso, pendiente_usuario, resuelto, cerrado]
+        body:
+          type: string
+          nullable: true
+          maxLength: 5000
+        is_internal:
+          type: boolean
+        author:
+          $ref: "#/components/schemas/AuthorRef"
+        created_at:
+          type: string
+          format: date-time
+      required: [id, type, is_internal, author, created_at]
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+        has_next:
+          type: boolean
+        has_previous:
+          type: boolean
+      required: [page, page_size, total_items, total_pages, has_next, has_previous]
+    TimelineResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEntry"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required: [items, pagination]
+    StatusOption:
+      type: object
+      properties:
+        value:
+          type: string
+          enum: [abierto, en_progreso, pendiente_usuario, resuelto, cerrado]
+        label:
+          type: string
+      required: [value, label]
+    TicketWorkflowSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [abierto, en_progreso, pendiente_usuario, resuelto, cerrado]
+        status_label:
+          type: string
+        assignee_id:
+          type: string
+          format: uuid
+          nullable: true
+        creator_id:
+          type: string
+          format: uuid
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+        allowed_transitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusOption"
+      required: [id, number, title, status, status_label, creator_id, updated_at, allowed_transitions]
+    WorkflowResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: "#/components/schemas/TicketWorkflowSnapshot"
+        can_change_status:
+          type: boolean
+        can_comment_internally:
+          type: boolean
+        can_view_internal:
+          type: boolean
+      required: [ticket, can_change_status, can_comment_internally, can_view_internal]
+    Error:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+          required: [code, message]
+      required: [detail]

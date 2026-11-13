@@ -15,6 +15,7 @@ const store = useTicketDetailStore()
 const {
   ticket,
   timeline,
+  pagination,
   canChangeStatus,
   canComment,
   canSeeInternal,
@@ -63,6 +64,10 @@ const canSubmit = computed(
 async function load(): Promise<void> {
   await store.loadWorkflow(props.ticketId)
   await store.loadTimeline(props.ticketId)
+}
+
+async function onPageChange(page: number): Promise<void> {
+  await store.loadTimeline(props.ticketId, page, 50)
 }
 
 function ensureRequestId(): string {
@@ -348,6 +353,8 @@ onMounted(() => {
             :entries="timeline"
             :can-see-internal="canSeeInternal"
             :loading="timelineLoading && timeline.length === 0"
+            :pagination="pagination"
+            @page-change="onPageChange"
           />
         </div>
       </div>
