@@ -49,6 +49,7 @@ from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Category,
+    EscalationLevel,
     Priority,
     Ticket,
     TicketStatus,
@@ -556,6 +557,179 @@ def ticket_cerrado(seeded_workflow: SeededWorkflow) -> Ticket:
     return seeded_workflow.tickets["cerrado"]
 
 
+@dataclass
+class SeededAssigneeChange:
+    """Escenario determinista de cambio de responsable (HU-06)."""
+
+    now: datetime
+    users: dict[str, User]
+    tickets: dict[str, Ticket]
+    priority: Priority
+    category: Category
+
+    def headers_for(self, key: str, **kwargs) -> dict[str, str]:
+        return {"Authorization": f"Bearer {make_token(self.users[key], **kwargs)}"}
+
+
+@pytest.fixture()
+def seeded_assignee_change(db: Session) -> SeededAssigneeChange:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+
+    def user(
+        key: str,
+        name: str,
+        role: UserRole,
+        *,
+        level: EscalationLevel = EscalationLevel.nivel_1,
+        team: str | None = "Soporte",
+        is_active: bool = True,
+    ) -> User:
+        row = User(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, f"hu06-user-{key}"),
+            name=name,
+            email=f"hu06.{key}@example.com",
+            role=role,
+            team=team,
+            escalation_level=level,
+            is_active=is_active,
+        )
+        db.add(row)
+        return row
+
+    creator_tech = user(
+        "creador-tecnico",
+        "Técnico Creador",
+        UserRole.tecnico,
+        level=EscalationLevel.nivel_1,
+    )
+    assigned = user("asignado", "Técnico A", UserRole.tecnico)
+    colleague = user("companero", "Técnico E", UserRole.tecnico)
+    level2 = user(
+        "nivel-2", "Técnico B", UserRole.tecnico, level=EscalationLevel.nivel_2
+    )
+    specialist = user(
+        "especialista",
+        "Técnico C",
+        UserRole.tecnico,
+        level=EscalationLevel.especialista,
+    )
+    other_team = user(
+        "otro-equipo", "Técnico D", UserRole.tecnico, team="Redes"
+    )
+    inactive = user(
+        "inactivo", "Técnico Inactivo", UserRole.tecnico, is_active=False
+    )
+    supervisor = user(
+        "supervisor",
+        "Supervisora",
+        UserRole.supervisor,
+        team=None,
+    )
+    admin = user("admin", "Administrador", UserRole.admin, team=None)
+    end_user = user("usuario", "Usuario Final", UserRole.usuario, team=None)
+    unrelated = user(
+        "sin-relacion", "Usuario Sin Relación", UserRole.usuario, team=None
+    )
+
+    priority = Priority(
+        id=uuid.uuid5(uuid.NAMESPACE_DNS, "hu06-priority-3"),
+        name="Media",
+        level=3,
+        color="#ca8a04",
+        base_hours="24.00",
+        is_active=True,
+    )
+    db.add(priority)
+    category = Category(
+        id=uuid.uuid5(uuid.NAMESPACE_DNS, "hu06-category-red"),
+        name="Red",
+        is_active=True,
+    )
+    db.add(category)
+
+    def ticket(
+        key: str,
+        number: str,
+        status: TicketStatus,
+        *,
+        creator: User,
+        assignee: User | None,
+        finalized_at: datetime | None = None,
+    ) -> Ticket:
+        row = Ticket(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, f"hu06-ticket-{key}"),
+            number=number,
+            title=f"Ticket de prueba {number}",
+            description="Descripción de prueba.",
+            status=status,
+            priority_id=priority.id,
+            category_id=category.id,
+            creator_id=creator.id,
+            assignee_id=assignee.id if assignee is not None else None,
+            created_at=now - timedelta(days=1),
+            sla_deadline=now + timedelta(hours=8),
+            finalized_at=finalized_at,
+            closed_at=None,
+            updated_at=now,
+            sla_version="v1",
+        )
+        db.add(row)
+        return row
+
+    tickets = {
+        "activo": ticket(
+            "activo",
+            "TK-000601",
+            TicketStatus.en_progreso,
+            creator=creator_tech,
+            assignee=assigned,
+        ),
+        "creador_asignado": ticket(
+            "creador-asignado",
+            "TK-000602",
+            TicketStatus.abierto,
+            creator=assigned,
+            assignee=assigned,
+        ),
+        "finalizado": ticket(
+            "finalizado",
+            "TK-000603",
+            TicketStatus.resuelto,
+            creator=creator_tech,
+            assignee=assigned,
+            finalized_at=now - timedelta(hours=2),
+        ),
+        "sin_asignar": ticket(
+            "sin-asignar",
+            "TK-000604",
+            TicketStatus.abierto,
+            creator=creator_tech,
+            assignee=None,
+        ),
+    }
+    db.commit()
+
+    return SeededAssigneeChange(
+        now=now,
+        users={
+            "creador_tecnico": creator_tech,
+            "asignado": assigned,
+            "companero": colleague,
+            "nivel_2": level2,
+            "especialista": specialist,
+            "otro_equipo": other_team,
+            "inactivo": inactive,
+            "supervisor": supervisor,
+            "admin": admin,
+            "usuario": end_user,
+            "sin_relacion": unrelated,
+        },
+        tickets=tickets,
+        priority=priority,
+        category=category,
+    )
+
+
 @pytest.fixture()
 def auth_headers():
     """Devuelve las cabeceras Bearer de un usuario."""
@@ -610,6 +784,7 @@ def timeline_entry_factory(db: Session):
 __all__ = [
     "JWT_ALGORITHM",
     "JWT_SECRET",
+    "SeededAssigneeChange",
     "SeededQueue",
     "SeededWorkflow",
     "auth_headers",
@@ -617,6 +792,7 @@ __all__ = [
     "db",
     "make_token",
     "seeded",
+    "seeded_assignee_change",
     "seeded_workflow",
     "select",
     "timeline_entry_factory",

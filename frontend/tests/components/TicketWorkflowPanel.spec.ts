@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiClientError } from '@/api/client'
 import TicketWorkflowPanel from '@/components/tickets/TicketWorkflowPanel.vue'
+import { getAssigneeChangeOptions } from '@/services/assigneeChange'
 import {
   addInternalComment,
   getTimeline,
@@ -13,6 +14,10 @@ import {
   transitionStatus,
 } from '@/services/ticketWorkflow'
 import { useTicketDetailStore } from '@/stores/ticketDetail'
+import type {
+  AssigneeChangeOptions,
+  AssigneeRef,
+} from '@/types/assigneeChange'
 import type {
   StatusTransitionResponse,
   TicketWorkflowSnapshot,
@@ -28,10 +33,17 @@ vi.mock('@/services/ticketWorkflow', () => ({
   addInternalComment: vi.fn(),
 }))
 
+vi.mock('@/services/assigneeChange', () => ({
+  getAssigneeChangeOptions: vi.fn(),
+  reassignTicket: vi.fn(),
+  escalateTicket: vi.fn(),
+}))
+
 const getWorkflowMock = vi.mocked(getWorkflow)
 const getTimelineMock = vi.mocked(getTimeline)
 const transitionMock = vi.mocked(transitionStatus)
 const addCommentMock = vi.mocked(addInternalComment)
+const optionsMock = vi.mocked(getAssigneeChangeOptions)
 
 const REQUEST_1 = '00000000-0000-4000-8000-000000000001'
 const REQUEST_2 = '00000000-0000-4000-8000-000000000002'
@@ -69,7 +81,11 @@ function makeWorkflow(
   capabilities: Partial<
     Pick<
       WorkflowResponse,
-      'can_change_status' | 'can_comment_internally' | 'can_view_internal'
+      | 'can_change_status'
+      | 'can_comment_internally'
+      | 'can_view_internal'
+      | 'can_reassign'
+      | 'can_escalate'
     >
   > = {},
 ): WorkflowResponse {
@@ -78,6 +94,8 @@ function makeWorkflow(
     can_change_status: true,
     can_comment_internally: true,
     can_view_internal: true,
+    can_reassign: false,
+    can_escalate: false,
     ...capabilities,
   }
 }
@@ -92,6 +110,13 @@ function makeEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
     is_internal: false,
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-04T10:00:00Z',
+    change_kind: null,
+    previous_assignee: null,
+    new_assignee: null,
+    from_escalation_level: null,
+    from_escalation_level_label: null,
+    to_escalation_level: null,
+    to_escalation_level_label: null,
     ...overrides,
   }
 }
@@ -107,6 +132,39 @@ function makeTimeline(entries: TimelineEntry[] = [makeEntry()]): TimelineRespons
       has_next: false,
       has_previous: false,
     },
+  }
+}
+
+function makeAssignee(overrides: Partial<AssigneeRef> = {}): AssigneeRef {
+  return {
+    id: 'u1',
+    name: 'Técnica Asignada',
+    role: 'tecnico',
+    team: 'Soporte',
+    escalation_level: 'nivel_1',
+    escalation_level_label: 'Nivel 1',
+    ...overrides,
+  }
+}
+
+function makeOptions(): AssigneeChangeOptions {
+  return {
+    ticket_id: 't1',
+    status: 'abierto',
+    current_assignee: makeAssignee(),
+    has_reassignment_candidates: true,
+    has_available_escalation_target: true,
+    reassignment_candidates: [
+      makeAssignee({ id: 'u2', name: 'Técnico B' }),
+    ],
+    escalation_targets: [
+      {
+        value: 'nivel_2',
+        label: 'Nivel 2',
+        technician_count: 2,
+        is_available: true,
+      },
+    ],
   }
 }
 
@@ -147,8 +205,10 @@ describe('TicketWorkflowPanel', () => {
     getTimelineMock.mockReset()
     transitionMock.mockReset()
     addCommentMock.mockReset()
+    optionsMock.mockReset()
     getWorkflowMock.mockResolvedValue(makeWorkflow())
     getTimelineMock.mockResolvedValue(makeTimeline())
+    optionsMock.mockResolvedValue(makeOptions())
 
     randomUUIDMock = vi.fn()
     randomUUIDMock
@@ -687,6 +747,84 @@ describe('TicketWorkflowPanel', () => {
     expect(wrapper.find('[data-entry-type="internal_comment"]').exists()).toBe(false)
     expect(wrapper.find('#internal-comment').exists()).toBe(false)
     expect(wrapper.text()).toContain('No tienes permiso para cambiar el estado')
+  })
+
+  it('no monta el panel de cambio de responsable si no hay capacidades', async () => {
+    const wrapper = mountPanel()
+    await settle()
+
+    expect(wrapper.text()).not.toContain('Cambiar responsable')
+    expect(optionsMock).not.toHaveBeenCalled()
+  })
+
+  it('monta el panel de cambio de responsable si alguna capacidad está activa', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({}, { can_reassign: true, can_escalate: false }),
+    )
+
+    const wrapper = mountPanel()
+    await settle()
+
+    expect(wrapper.text()).toContain('Cambiar responsable')
+    expect(wrapper.text()).toContain('Reasignar a un compañero')
+    expect(wrapper.text()).not.toContain('Escalar a un nivel superior')
+    expect(optionsMock).toHaveBeenCalledWith('t1')
+  })
+
+  it('recalcula las capacidades y avisa cuando se pierde la asignación', async () => {
+    let workflowCall = 0
+    getWorkflowMock.mockImplementation(async () => {
+      workflowCall += 1
+      return workflowCall === 1
+        ? makeWorkflow({}, { can_reassign: true, can_escalate: false })
+        : makeWorkflow()
+    })
+    optionsMock.mockRejectedValue(
+      new ApiClientError('forbidden', 'sin permiso', 403, 'not_ticket_assignee'),
+    )
+
+    const wrapper = mountPanel()
+    await settle()
+    await settle()
+
+    const store = useTicketDetailStore(pinia)
+    expect(store.canReassign).toBe(false)
+    expect(store.canEscalate).toBe(false)
+    expect(wrapper.text()).toContain('Este ticket ya no está asignado a ti.')
+    expect(wrapper.text()).not.toContain('Cambiar responsable')
+    expect(wrapper.find('#assignee-select').exists()).toBe(false)
+    expect(wrapper.find('input[value="reassign"]').exists()).toBe(false)
+  })
+
+  it('avisa de inconsistencia y bloquea el cambio de responsable si difiere el último cambio', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({ assignee_id: 'u1' }, { can_reassign: true, can_escalate: false }),
+    )
+    getTimelineMock.mockResolvedValue(
+      makeTimeline([
+        makeEntry({
+          id: 'ac1',
+          type: 'assignee_change',
+          from_status: null,
+          to_status: null,
+          change_kind: 'reassignment',
+          previous_assignee: makeAssignee(),
+          new_assignee: makeAssignee({ id: 'u2', name: 'Técnico B' }),
+          body: 'Motivo del cambio.',
+        }),
+      ]),
+    )
+
+    const wrapper = mountPanel()
+    await settle()
+
+    expect(wrapper.text()).toContain(
+      'El responsable del ticket no coincide con el último cambio registrado.',
+    )
+    await selectTarget(wrapper, 'reassign')
+    expect(
+      wrapper.find('input[value="reassign"]').attributes('disabled'),
+    ).toBeDefined()
   })
 
   it('mantiene el estado del store alineado con el ticket cargado', async () => {
