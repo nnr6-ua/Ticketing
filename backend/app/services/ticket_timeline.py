@@ -10,8 +10,17 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Ticket, TicketStatus, TicketTimelineEntry, User, UserRole
+from app.models import (
+    ESCALATION_LEVEL_LABELS,
+    EscalationLevel,
+    Ticket,
+    TicketStatus,
+    TicketTimelineEntry,
+    User,
+    UserRole,
+)
 from app.schemas.ticket_workflow import (
+    AssigneeRef,
     AuthorRef,
     Pagination,
     TimelineEntry,
@@ -88,6 +97,45 @@ def serialize_entry(entry: TicketTimelineEntry) -> TimelineEntry:
             role=entry.author.role,
         ),
         created_at=as_utc(entry.created_at) or entry.created_at,
+        change_kind=entry.change_kind,
+        previous_assignee=(
+            assignee_ref(entry.previous_assignee)
+            if entry.previous_assignee is not None
+            else None
+        ),
+        new_assignee=(
+            assignee_ref(entry.new_assignee)
+            if entry.new_assignee is not None
+            else None
+        ),
+        from_escalation_level=entry.from_escalation_level,
+        from_escalation_level_label=escalation_level_label(
+            entry.from_escalation_level
+        ),
+        to_escalation_level=entry.to_escalation_level,
+        to_escalation_level_label=escalation_level_label(
+            entry.to_escalation_level
+        ),
+    )
+
+
+def escalation_level_label(level: EscalationLevel | None) -> str | None:
+    if level is None:
+        return None
+    return ESCALATION_LEVEL_LABELS[level]
+
+
+def assignee_ref(user: User) -> AssigneeRef:
+    """DTO público del responsable, sin datos internos ni correo."""
+
+    level = user.escalation_level or EscalationLevel.nivel_1
+    return AssigneeRef(
+        id=user.id,
+        name=user.name,
+        role=user.role,
+        team=user.team,
+        escalation_level=level,
+        escalation_level_label=ESCALATION_LEVEL_LABELS[level],
     )
 
 

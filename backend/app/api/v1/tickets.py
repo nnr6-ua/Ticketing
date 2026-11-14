@@ -1,8 +1,9 @@
-"""Endpoints del flujo de trabajo del ticket (HU-05).
+"""Endpoints del flujo de trabajo del ticket (HU-05) y del cambio de responsable (HU-06).
 
 El router es una capa de traducción HTTP: toda la lógica de negocio, la
 idempotencia y las decisiones `changed`/`created` viven en
-`app.services.ticket_workflow` y `app.services.ticket_timeline`.
+`app.services.ticket_workflow`, `app.services.ticket_timeline` y
+`app.services.assignee_change`.
 """
 
 from __future__ import annotations
@@ -17,6 +18,12 @@ from app.api.deps import get_current_user
 from app.core.errors import ApiError, WORKFLOW_WRITE_ERROR_MESSAGE
 from app.db.session import get_session
 from app.models import Ticket, User
+from app.schemas.assignee_change import (
+    AssigneeChangeOptions,
+    AssigneeChangeResponse,
+    EscalationRequest,
+    ReassignmentRequest,
+)
 from app.schemas.ticket_workflow import (
     InternalCommentRequest,
     InternalCommentResponse,
@@ -24,6 +31,11 @@ from app.schemas.ticket_workflow import (
     StatusTransitionResponse,
     TimelineResponse,
     WorkflowResponse,
+)
+from app.services.assignee_change import (
+    escalate_ticket,
+    get_assignee_change_options,
+    reassign_ticket,
 )
 from app.services.ticket_timeline import can_read_ticket, get_timeline
 from app.services.ticket_workflow import (
@@ -61,6 +73,15 @@ def _readable_ticket(session: Session, ticket_id: UUID, user: User) -> Ticket:
 
     ticket = session.get(Ticket, ticket_id)
     if ticket is None or not can_read_ticket(user, ticket):
+        raise _not_found()
+    return ticket
+
+
+def _ticket_or_404(session: Session, ticket_id: UUID) -> Ticket:
+    """Carga el ticket sin filtrar por visibilidad (el servicio decide el 403)."""
+
+    ticket = session.get(Ticket, ticket_id)
+    if ticket is None:
         raise _not_found()
     return ticket
 
@@ -183,5 +204,114 @@ def get_ticket_timeline(
     result = get_timeline(
         session, ticket, current_user, page=page, page_size=page_size
     )
+    _no_store(response)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# HU-06: cambio de responsable
+# ---------------------------------------------------------------------------
+@router.get(
+    "/tickets/{ticket_id}/assignee-change-options",
+    response_model=AssigneeChangeOptions,
+    summary="Obtener candidatos, niveles superiores y capacidades",
+    responses={
+        401: {"description": "Token JWT ausente, inválido o caducado."},
+        403: {"description": "El usuario no es el técnico asignado."},
+        404: {"description": "El ticket no existe."},
+        409: {
+            "description": (
+                "Ticket finalizado o responsable inconsistente con la "
+                "última entrada `assignee_change`."
+            )
+        },
+        500: {"description": "Error inesperado del servidor."},
+    },
+)
+def get_ticket_assignee_change_options(
+    ticket_id: UUID,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AssigneeChangeOptions:
+    ticket = _ticket_or_404(session, ticket_id)
+    result = get_assignee_change_options(session, ticket, current_user)
+    _no_store(response)
+    return result
+
+
+@router.post(
+    "/tickets/{ticket_id}/reassignments",
+    response_model=AssigneeChangeResponse,
+    summary="Reasignar el ticket a otro técnico del mismo equipo y nivel",
+    responses={
+        401: {"description": "Token JWT ausente, inválido o caducado."},
+        403: {"description": "Rol o asignación no autorizados."},
+        404: {"description": "El ticket no existe."},
+        409: {
+            "description": (
+                "Ticket finalizado, versión desactualizada, `request_id` "
+                "reutilizado o responsable inconsistente."
+            )
+        },
+        422: {
+            "description": (
+                "Motivo, destino o payload no válidos."
+            )
+        },
+        500: {"description": "Error inesperado del servidor."},
+    },
+)
+def create_reassignment(
+    ticket_id: UUID,
+    payload: ReassignmentRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AssigneeChangeResponse:
+    try:
+        result = reassign_ticket(session, ticket_id, current_user, payload)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        raise _write_error(ticket_id, "reasignar el ticket") from exc
+    _no_store(response)
+    return result
+
+
+@router.post(
+    "/tickets/{ticket_id}/escalations",
+    response_model=AssigneeChangeResponse,
+    summary="Escalar el ticket a un nivel superior",
+    responses={
+        401: {"description": "Token JWT ausente, inválido o caducado."},
+        403: {"description": "Rol o asignación no autorizados."},
+        404: {"description": "El ticket no existe."},
+        409: {
+            "description": (
+                "Ticket finalizado, versión desactualizada, `request_id` "
+                "reutilizado, nivel máximo, nivel sin técnicos o responsable "
+                "inconsistente."
+            )
+        },
+        422: {
+            "description": "Motivo, nivel o payload no válidos."
+        },
+        500: {"description": "Error inesperado del servidor."},
+    },
+)
+def create_escalation(
+    ticket_id: UUID,
+    payload: EscalationRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AssigneeChangeResponse:
+    try:
+        result = escalate_ticket(session, ticket_id, current_user, payload)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        raise _write_error(ticket_id, "escalar el ticket") from exc
     _no_store(response)
     return result

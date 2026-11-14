@@ -2,12 +2,13 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import dev_auth, tickets, work_queue
+from app.api.v1 import dev_auth, notifications, tickets, work_queue
 from app.core.config import get_settings
 
 api_router = APIRouter()
 api_router.include_router(work_queue.router)
 api_router.include_router(tickets.router)
+api_router.include_router(notifications.router)
 
 # El stub de autenticación solo existe cuando se habilita explícitamente.
 if get_settings().auth_dev_stub_enabled:

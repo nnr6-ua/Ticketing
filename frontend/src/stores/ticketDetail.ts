@@ -3,11 +3,22 @@ import { defineStore } from 'pinia'
 
 import { ApiClientError } from '@/api/client'
 import {
+  escalateTicket as postEscalation,
+  getAssigneeChangeOptions,
+  reassignTicket as postReassignment,
+} from '@/services/assigneeChange'
+import {
   addInternalComment,
   getTimeline,
   getWorkflow,
   transitionStatus as postStatusTransition,
 } from '@/services/ticketWorkflow'
+import type {
+  AssigneeChangeOptions,
+  AssigneeChangeResponse,
+  EscalationRequest,
+  ReassignmentRequest,
+} from '@/types/assigneeChange'
 import type {
   InternalCommentResponse,
   Pagination,
@@ -29,6 +40,24 @@ const CODE_MESSAGES: Record<string, string> = {
   not_authenticated: 'La sesión no es válida o ha caducado.',
   internal_error:
     'No se pudo guardar el cambio. El ticket no se ha modificado. Inténtalo de nuevo.',
+  reason_required: 'Indica el motivo del cambio de responsable.',
+  reason_too_long: 'El motivo no puede superar los 5.000 caracteres.',
+  self_reassignment: 'No puedes reasignarte el ticket a ti mismo.',
+  creator_not_assignable: 'Ese usuario no puede recibir este ticket.',
+  invalid_reassignment_target:
+    'Solo puedes reasignar a técnicos activos de tu equipo y de tu nivel.',
+  assignee_unavailable:
+    'El técnico seleccionado ya no está disponible. Actualiza la lista e inténtalo de nuevo.',
+  invalid_escalation_level:
+    'Debes elegir un nivel superior al del responsable actual.',
+  no_higher_level: 'El ticket ya está en el nivel máximo de soporte.',
+  no_technicians_available:
+    'No hay técnicos disponibles en ese nivel en este momento.',
+  ticket_finalized:
+    'El ticket está finalizado y no admite cambios de responsable.',
+  assignee_inconsistent:
+    'El responsable del ticket no coincide con el último cambio registrado. Actualiza la información.',
+  notification_not_found: 'No se ha encontrado la notificación.',
 }
 
 function extractErrorCode(caught: unknown): string | null {
@@ -55,6 +84,8 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
   const canChangeStatus = ref(false)
   const canComment = ref(false)
   const canSeeInternal = ref(false)
+  const canReassign = ref(false)
+  const canEscalate = ref(false)
   const loading = ref(false)
   const timelineLoading = ref(false)
   const submitting = ref(false)
@@ -63,10 +94,17 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
   const resolutionText = ref('')
   const commentText = ref('')
   const notice = ref<string | null>(null)
+  const assigneeOptions = ref<AssigneeChangeOptions | null>(null)
+  const assigneeOptionsLoading = ref(false)
+  const assigneeSubmitting = ref(false)
+  const assigneeError = ref<string | null>(null)
+  const assigneeErrorCode = ref<string | null>(null)
+  const assigneeNotice = ref<string | null>(null)
 
   // Secuencias para descartar respuestas de carga fuera de orden.
   let workflowSeq = 0
   let timelineSeq = 0
+  let optionsSeq = 0
 
   const hasInternalEntries = computed(() =>
     timeline.value.some((entry) => entry.type === 'internal_comment'),
@@ -82,11 +120,15 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     can_change_status: boolean
     can_comment_internally: boolean
     can_view_internal: boolean
+    can_reassign: boolean
+    can_escalate: boolean
   }): void {
     ticket.value = response.ticket
     canChangeStatus.value = response.can_change_status
     canComment.value = response.can_comment_internally
     canSeeInternal.value = response.can_view_internal
+    canReassign.value = response.can_reassign
+    canEscalate.value = response.can_escalate
   }
 
   function applyTransitionTicket(snapshot: TicketWorkflowSnapshot): void {
@@ -96,6 +138,10 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     ticket.value = snapshot
     canChangeStatus.value =
       snapshot.status !== 'cerrado' && snapshot.allowed_transitions.length > 0
+    if (snapshot.status === 'resuelto' || snapshot.status === 'cerrado') {
+      canReassign.value = false
+      canEscalate.value = false
+    }
   }
 
   async function loadWorkflow(ticketId: string): Promise<void> {
@@ -222,13 +268,143 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     canChangeStatus.value = false
     canComment.value = false
     canSeeInternal.value = false
+    canReassign.value = false
+    canEscalate.value = false
     loading.value = false
     timelineLoading.value = false
     submitting.value = false
     resolutionText.value = ''
     commentText.value = ''
     notice.value = null
+    assigneeOptions.value = null
+    assigneeOptionsLoading.value = false
+    assigneeSubmitting.value = false
+    assigneeError.value = null
+    assigneeErrorCode.value = null
+    assigneeNotice.value = null
     clearError()
+  }
+
+  function clearAssigneeError(): void {
+    assigneeError.value = null
+    assigneeErrorCode.value = null
+  }
+
+  async function loadAssigneeOptions(
+    ticketId: string,
+    preserveError = false,
+  ): Promise<void> {
+    const sequence = ++optionsSeq
+    assigneeOptionsLoading.value = true
+    if (!preserveError) {
+      clearAssigneeError()
+    }
+    try {
+      const response = await getAssigneeChangeOptions(ticketId)
+      if (sequence !== optionsSeq) {
+        return
+      }
+      assigneeOptions.value = response
+    } catch (caught) {
+      if (sequence !== optionsSeq) {
+        return
+      }
+      assigneeOptions.value = null
+      assigneeError.value = errorMessage(caught)
+      assigneeErrorCode.value = extractErrorCode(caught)
+      if (assigneeErrorCode.value === 'not_ticket_assignee') {
+        await loadWorkflow(ticketId)
+      }
+    } finally {
+      if (sequence === optionsSeq) {
+        assigneeOptionsLoading.value = false
+      }
+    }
+  }
+
+  const RELOAD_OPTIONS_CODES = new Set([
+    'invalid_reassignment_target',
+    'assignee_unavailable',
+    'invalid_escalation_level',
+    'no_higher_level',
+    'no_technicians_available',
+    'creator_not_assignable',
+    'stale_ticket',
+  ])
+
+  const RELOAD_WORKFLOW_CODES = new Set([
+    'stale_ticket',
+    'ticket_finalized',
+    'not_ticket_assignee',
+    'assignee_inconsistent',
+  ])
+
+  async function runAssigneeChange(
+    ticketId: string,
+    command: () => Promise<AssigneeChangeResponse>,
+    successMessage: string,
+  ): Promise<AssigneeChangeResponse | null> {
+    assigneeSubmitting.value = true
+    clearAssigneeError()
+    assigneeNotice.value = null
+    try {
+      const response = await command()
+      if (response.changed) {
+        assigneeNotice.value = successMessage
+      } else if (response.message) {
+        assigneeNotice.value = response.message
+      }
+      await refreshAfterAssigneeChange(ticketId)
+      return response
+    } catch (caught) {
+      const message = errorMessage(caught)
+      const code = extractErrorCode(caught)
+      assigneeError.value = message
+      assigneeErrorCode.value = code
+      if (code && RELOAD_WORKFLOW_CODES.has(code)) {
+        await loadWorkflow(ticketId)
+      }
+      if (code === 'stale_ticket') {
+        await loadTimeline(ticketId)
+      }
+      if (code && RELOAD_OPTIONS_CODES.has(code)) {
+        await loadAssigneeOptions(ticketId, true)
+      }
+      return null
+    } finally {
+      assigneeSubmitting.value = false
+    }
+  }
+
+  async function reassign(
+    ticketId: string,
+    payload: ReassignmentRequest,
+  ): Promise<AssigneeChangeResponse | null> {
+    return runAssigneeChange(
+      ticketId,
+      () => postReassignment(ticketId, payload),
+      'El cambio de responsable se ha aplicado.',
+    )
+  }
+
+  async function escalate(
+    ticketId: string,
+    payload: EscalationRequest,
+  ): Promise<AssigneeChangeResponse | null> {
+    return runAssigneeChange(
+      ticketId,
+      () => postEscalation(ticketId, payload),
+      'El cambio de responsable se ha aplicado.',
+    )
+  }
+
+  async function refreshAfterAssigneeChange(ticketId: string): Promise<void> {
+    await Promise.all([loadWorkflow(ticketId), loadTimeline(ticketId)])
+    if (canReassign.value || canEscalate.value) {
+      await loadAssigneeOptions(ticketId)
+    } else {
+      assigneeOptions.value = null
+    }
   }
 
   return {
@@ -238,6 +414,8 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     canChangeStatus,
     canComment,
     canSeeInternal,
+    canReassign,
+    canEscalate,
     loading,
     timelineLoading,
     submitting,
@@ -246,12 +424,22 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     resolutionText,
     commentText,
     notice,
+    assigneeOptions,
+    assigneeOptionsLoading,
+    assigneeSubmitting,
+    assigneeError,
+    assigneeErrorCode,
+    assigneeNotice,
     hasInternalEntries,
     loadWorkflow,
     loadTimeline,
     refresh,
     transitionStatus,
     addComment,
+    loadAssigneeOptions,
+    reassign,
+    escalate,
+    refreshAfterAssigneeChange,
     reset,
   }
 })

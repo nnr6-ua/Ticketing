@@ -430,6 +430,30 @@ describe('useWorkQueueStore', () => {
     expect(mocks.route.query.estado).toBeUndefined()
   })
 
+  it('refleja el traspaso del ticket en la siguiente actualización de 60 s', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        items: [makeItem('t1', 'TK-000001')],
+        counts: { active: 1, finalized: 0 },
+      }),
+    )
+    const store = useWorkQueueStore()
+
+    store.startPolling()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await flushPromises()
+    expect(store.items.map((item) => item.id)).toEqual(['t1'])
+
+    // El ticket sale de la cola del responsable anterior en el siguiente sondeo.
+    fetchMock.mockResolvedValueOnce(makeResponse())
+    await vi.advanceTimersByTimeAsync(60_000)
+    await flushPromises()
+
+    expect(store.items).toHaveLength(0)
+    store.stopPolling()
+  })
+
   it('distingue cola vacía, solo finalizados y sin resultados', () => {
     const store = useWorkQueueStore()
     expect(store.isEmptyQueue).toBe(true)

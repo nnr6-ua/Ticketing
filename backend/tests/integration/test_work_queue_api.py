@@ -436,3 +436,42 @@ def test_performance_with_100_tickets(seeded_client, db: Session) -> None:
 
     print(f"Plan de consulta ({dialect}): {plan_text}")
     assert plan_text
+
+
+# ---------------------------------------------------------------------------
+# HU-06 · Traspaso del ticket entre colas (T059)
+# ---------------------------------------------------------------------------
+def test_ticket_moves_to_new_assignee_queue(
+    client: TestClient, db: Session, seeded_assignee_change, auth_headers
+) -> None:
+    from tests.integration._hu06 import reassign
+
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    previous = seed.users["asignado"]
+    new_assignee = seed.users["companero"]
+
+    before_previous = client.get(
+        ENDPOINT, headers=auth_headers(previous)
+    ).json()
+    before_new = client.get(
+        ENDPOINT, headers=auth_headers(new_assignee)
+    ).json()
+    assert ticket.number in [item["number"] for item in before_previous["items"]]
+    assert ticket.number not in [item["number"] for item in before_new["items"]]
+
+    response = reassign(
+        client, ticket, auth_headers(previous), new_assignee, reason="Traspaso."
+    )
+    assert response.status_code == 200, response.text
+
+    after_previous = client.get(
+        ENDPOINT, headers=auth_headers(previous)
+    ).json()
+    after_new = client.get(ENDPOINT, headers=auth_headers(new_assignee)).json()
+
+    assert ticket.number not in [item["number"] for item in after_previous["items"]]
+    assert after_previous["counts"]["active"] == 1
+    assert [item["number"] for item in after_new["items"]] == [ticket.number]
+    assert after_new["counts"] == {"active": 1, "finalized": 0}
+    assert after_new["items"][0]["id"] == str(ticket.id)

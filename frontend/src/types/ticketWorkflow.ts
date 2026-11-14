@@ -1,4 +1,10 @@
-/** Tipos alineados con `contracts/ticket-workflow.openapi.yaml` (HU-05). */
+/** Tipos alineados con `contracts/ticket-workflow.openapi.yaml` (HU-05 y HU-06). */
+
+import type {
+  AssigneeChangeKind,
+  AssigneeRef,
+  EscalationLevel,
+} from '@/types/assigneeChange'
 
 export type TicketStatus =
   | 'abierto'
@@ -11,6 +17,7 @@ export type TimelineEventType =
   | 'status_change'
   | 'resolution'
   | 'internal_comment'
+  | 'assignee_change'
 
 export interface StatusOption {
   value: TicketStatus
@@ -32,6 +39,13 @@ export interface TimelineEntry {
   is_internal: boolean
   author: AuthorRef
   created_at: string
+  change_kind: AssigneeChangeKind | null
+  previous_assignee: AssigneeRef | null
+  new_assignee: AssigneeRef | null
+  from_escalation_level: EscalationLevel | null
+  from_escalation_level_label: string | null
+  to_escalation_level: EscalationLevel | null
+  to_escalation_level_label: string | null
 }
 
 export interface TicketWorkflowSnapshot {
@@ -53,6 +67,8 @@ export interface WorkflowResponse {
   can_change_status: boolean
   can_comment_internally: boolean
   can_view_internal: boolean
+  can_reassign: boolean
+  can_escalate: boolean
 }
 
 export interface StatusTransitionRequest {
