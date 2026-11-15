@@ -214,3 +214,80 @@ def test_workflow_and_timeline_p95_and_transition_reflection(
 def test_p95_helper_is_stable() -> None:
     assert _p95([0.1, 0.2, 0.3, 0.4, 0.5]) == 0.5
     assert _p95([0.1]) == 0.1
+
+
+def test_information_commands_and_my_tickets_p95(
+    client, seeded_workflow, auth_headers
+) -> None:
+    """T061: petición, respuesta y «Mis tickets» dentro del presupuesto."""
+
+    seed = seeded_workflow
+    ticket = seed.tickets["en_progreso"]
+    technician = auth_headers(seed.users["tecnico_asignado"])
+    creator = auth_headers(seed.users["creador"])
+    workflow_url = _url(ticket.id, "workflow")
+    request_url = _url(ticket.id, "information-requests")
+    response_url = _url(ticket.id, "information-responses")
+    my_tickets_url = "/api/v1/me/tickets"
+
+    for _ in range(WARMUP_CALLS):
+        assert client.get(workflow_url, headers=technician).status_code == 200
+        assert client.get(my_tickets_url, headers=creator).status_code == 200
+
+    request_samples: list[float] = []
+    response_samples: list[float] = []
+    my_tickets_samples: list[float] = []
+    for index in range(SAMPLES):
+        current = client.get(workflow_url, headers=technician).json()["ticket"]
+        elapsed, response = _timed_post(
+            client,
+            request_url,
+            technician,
+            {
+                "body": f"¿Qué dato necesitas {index}?",
+                "expected_updated_at": current["updated_at"],
+                "request_id": str(uuid.uuid4()),
+            },
+        )
+        assert response.status_code == 201, response.text
+        request_samples.append(elapsed)
+
+        current = client.get(workflow_url, headers=creator).json()["ticket"]
+        elapsed, response = _timed_post(
+            client,
+            response_url,
+            creator,
+            {
+                "body": f"Respuesta {index}.",
+                "expected_updated_at": current["updated_at"],
+                "request_id": str(uuid.uuid4()),
+            },
+        )
+        assert response.status_code == 201, response.text
+        response_samples.append(elapsed)
+
+        elapsed, response = _timed_get(client, my_tickets_url, creator)
+        assert response == 200
+        my_tickets_samples.append(elapsed)
+
+    request_p95 = _p95(request_samples)
+    response_p95 = _p95(response_samples)
+    my_tickets_p95 = _p95(my_tickets_samples)
+
+    print(
+        "HU-03 rendimiento: "
+        f"petición p95={request_p95 * 1000:.2f} ms, "
+        f"respuesta p95={response_p95 * 1000:.2f} ms, "
+        f"mis-tickets p95={my_tickets_p95 * 1000:.2f} ms "
+        f"({SAMPLES} muestras)"
+    )
+
+    assert request_p95 < WRITE_BUDGET_SECONDS, (
+        f"p95 de information-requests demasiado alto: {request_p95:.3f}s"
+    )
+    assert response_p95 < WRITE_BUDGET_SECONDS, (
+        f"p95 de information-responses demasiado alto: {response_p95:.3f}s"
+    )
+    assert my_tickets_p95 < READ_BUDGET_SECONDS, (
+        f"p95 de /me/tickets demasiado alto: {my_tickets_p95:.3f}s"
+    )

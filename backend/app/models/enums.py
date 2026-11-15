@@ -33,6 +33,8 @@ class TimelineEventType(str, Enum):
     status_change = "status_change"
     resolution = "resolution"
     internal_comment = "internal_comment"
+    information_request = "information_request"
+    user_response = "user_response"
 
 
 class SlaState(str, Enum):

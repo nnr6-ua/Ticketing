@@ -395,7 +395,7 @@ components:
     TimelineEventType:
       type: string
       description: Tipo de entrada de la línea temporal
-      enum: [status_change, resolution, internal_comment]
+      enum: [created, status_change, resolution, internal_comment, information_request, user_response]
       example: status_change
 
     UserRole:
@@ -458,6 +458,10 @@ components:
           type: string
           format: date-time
           example: '2026-11-02T10:16:00.000000+00:00'
+        reply_to_id:
+          type: [string, 'null']
+          format: uuid
+          description: Petición respondida; añadido de forma compatible en HU-03.
       example:
         id: 8b1f2a3c-4d5e-4f60-8a7b-9c0d1e2f3a4b
         type: resolution
@@ -549,6 +553,25 @@ components:
           type: boolean
         can_view_internal:
           type: boolean
+        can_request_information:
+          type: boolean
+          description: Añadido por HU-03.
+        can_respond_to_information:
+          type: boolean
+          description: Añadido por HU-03.
+        awaiting_user_response:
+          type: boolean
+          description: Añadido por HU-03.
+        active_information_request:
+          type: [object, 'null']
+          description: Añadido por HU-03.
+        reminder_active:
+          type: boolean
+          description: Añadido por HU-03.
+        reminder_due_at:
+          type: [string, 'null']
+          format: date-time
+          description: Añadido por HU-03.
       example:
         ticket:
           id: 5c2b3d4e-6f7a-4b8c-9d0e-1f2a3b4c5d6e

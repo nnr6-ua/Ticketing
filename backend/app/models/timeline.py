@@ -50,6 +50,19 @@ class TicketTimelineEntry(Base):
             name="ck_timeline_internal_comment",
         ),
         CheckConstraint(
+            "(event_type <> 'information_request') OR "
+            "(from_status IS NULL AND to_status IS NULL "
+            "AND body IS NOT NULL AND is_internal = false "
+            "AND reply_to_id IS NULL)",
+            name="ck_timeline_information_request",
+        ),
+        CheckConstraint(
+            "(event_type <> 'user_response') OR "
+            "(from_status IS NULL AND to_status IS NULL "
+            "AND body IS NOT NULL AND is_internal = false)",
+            name="ck_timeline_user_response",
+        ),
+        CheckConstraint(
             "body IS NULL OR (length(body) >= 1 AND length(body) <= 5000)",
             name="ck_timeline_body_length",
         ),
@@ -63,6 +76,7 @@ class TicketTimelineEntry(Base):
         Index("ix_timeline_ticket_created", "ticket_id", "created_at"),
         Index("ix_timeline_ticket_internal", "ticket_id", "is_internal"),
         Index("ix_timeline_author", "author_id"),
+        Index("ix_timeline_reply_to", "reply_to_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -109,6 +123,15 @@ class TicketTimelineEntry(Base):
         SmallInteger, nullable=False, default=0, server_default="0"
     )
     request_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    reply_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "ticket_timeline_entries.id",
+            name="fk_timeline_reply_to",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
 
     author: Mapped[User] = relationship(lazy="joined")
     ticket: Mapped[Ticket] = relationship()

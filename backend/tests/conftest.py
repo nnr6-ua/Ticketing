@@ -589,6 +589,7 @@ def timeline_entry_factory(db: Session):
         created_at: datetime | None = None,
         event_order: int = 0,
         request_id: uuid.UUID | None = None,
+        reply_to_id: uuid.UUID | None = None,
         commit: bool = True,
     ) -> TicketTimelineEntry:
         if is_internal is None:
@@ -605,6 +606,7 @@ def timeline_entry_factory(db: Session):
             created_at=created_at or datetime.now(timezone.utc),
             event_order=event_order,
             request_id=request_id or uuid.uuid4(),
+            reply_to_id=reply_to_id,
         )
         db.add(entry)
         if commit:
@@ -614,17 +616,141 @@ def timeline_entry_factory(db: Session):
     return _factory
 
 
+@dataclass
+class SeededInformation:
+    ticket: Ticket
+    request: TicketTimelineEntry
+    status_change: TicketTimelineEntry
+    request_id: uuid.UUID
+
+
+@pytest.fixture()
+def pending_information(
+    db: Session, seeded_workflow: SeededWorkflow
+) -> SeededInformation:
+    """Ticket pendiente con una petición activa del técnico asignado."""
+
+    ticket = seeded_workflow.tickets["pendiente_usuario"]
+    author = seeded_workflow.users["tecnico_asignado"]
+    request_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"hu03-request-{ticket.id}")
+    now = seeded_workflow.now
+
+    status_change = TicketTimelineEntry(
+        ticket_id=ticket.id,
+        event_type=TimelineEventType.status_change,
+        from_status=TicketStatus.en_progreso,
+        to_status=TicketStatus.pendiente_usuario,
+        body=None,
+        is_internal=False,
+        author_id=author.id,
+        author=author,
+        created_at=now,
+        event_order=0,
+        request_id=request_id,
+    )
+    request = TicketTimelineEntry(
+        ticket_id=ticket.id,
+        event_type=TimelineEventType.information_request,
+        from_status=None,
+        to_status=None,
+        body="¿Qué versión del navegador usas?",
+        is_internal=False,
+        author_id=author.id,
+        author=author,
+        created_at=now,
+        event_order=1,
+        request_id=request_id,
+    )
+    db.add_all([status_change, request])
+    db.commit()
+    return SeededInformation(
+        ticket=ticket,
+        request=request,
+        status_change=status_change,
+        request_id=request_id,
+    )
+
+
+@pytest.fixture()
+def information_request_factory(db: Session):
+    """Crea una petición pública válida sin cambiar el ticket."""
+
+    def _factory(
+        *,
+        ticket: Ticket,
+        author: User,
+        body: str = "¿Qué información necesitas?",
+        created_at: datetime | None = None,
+        request_id: uuid.UUID | None = None,
+    ) -> TicketTimelineEntry:
+        entry = TicketTimelineEntry(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.information_request,
+            from_status=None,
+            to_status=None,
+            body=body,
+            is_internal=False,
+            author_id=author.id,
+            author=author,
+            created_at=created_at or datetime.now(timezone.utc),
+            event_order=1,
+            request_id=request_id or uuid.uuid4(),
+        )
+        db.add(entry)
+        db.commit()
+        return entry
+
+    return _factory
+
+
+@pytest.fixture()
+def user_response_factory(db: Session):
+    """Crea una respuesta pública, opcionalmente vinculada a una petición."""
+
+    def _factory(
+        *,
+        ticket: Ticket,
+        author: User,
+        body: str = "Uso Chrome 131.",
+        reply_to_id: uuid.UUID | None = None,
+        created_at: datetime | None = None,
+        request_id: uuid.UUID | None = None,
+    ) -> TicketTimelineEntry:
+        entry = TicketTimelineEntry(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.user_response,
+            from_status=None,
+            to_status=None,
+            body=body,
+            is_internal=False,
+            author_id=author.id,
+            author=author,
+            created_at=created_at or datetime.now(timezone.utc),
+            event_order=1,
+            request_id=request_id or uuid.uuid4(),
+            reply_to_id=reply_to_id,
+        )
+        db.add(entry)
+        db.commit()
+        return entry
+
+    return _factory
+
+
 __all__ = [
     "JWT_ALGORITHM",
     "JWT_SECRET",
+    "SeededInformation",
     "SeededQueue",
     "SeededWorkflow",
     "auth_headers",
     "client",
     "db",
+    "information_request_factory",
     "make_token",
     "seeded",
     "seeded_workflow",
     "select",
     "timeline_entry_factory",
+    "user_response_factory",
 ]

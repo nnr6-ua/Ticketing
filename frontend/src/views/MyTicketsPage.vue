@@ -122,6 +122,20 @@ onMounted(load)
               {{ formatDate(ticket.created_at) }}
               <span v-if="ticket.category"> · {{ ticket.category.name }}</span>
             </p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                v-if="ticket.awaiting_user_response"
+                class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900"
+              >
+                Esperando tu respuesta
+              </span>
+              <span
+                v-if="ticket.reminder_active"
+                class="inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-800"
+              >
+                Pendiente desde hace más de 48 horas
+              </span>
+            </div>
           </div>
           <div class="flex flex-none items-center gap-3">
             <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">

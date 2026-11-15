@@ -20,6 +20,10 @@ export interface MyTicketSummary {
   priority: MyTicketPriority
   created_at: string
   updated_at: string
+  awaiting_user_response: boolean
+  response_requested_at: string | null
+  reminder_active: boolean
+  reminder_due_at: string | null
 }
 
 export interface MyTicketsResponse {

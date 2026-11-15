@@ -10,7 +10,9 @@ from pydantic import BaseModel, field_serializer
 from app.models.enums import TicketStatus
 
 
-def _iso_utc(value: datetime) -> str:
+def _iso_utc(value: datetime | None) -> str | None:
+    if value is None:
+        return None
     normalized = (
         value.replace(tzinfo=timezone.utc)
         if value.tzinfo is None
@@ -41,9 +43,18 @@ class MyTicketSummary(BaseModel):
     priority: MyTicketPriority
     created_at: datetime
     updated_at: datetime
+    awaiting_user_response: bool
+    response_requested_at: datetime | None = None
+    reminder_active: bool
+    reminder_due_at: datetime | None = None
 
-    @field_serializer("created_at", "updated_at")
-    def _serialize_datetime(self, value: datetime) -> str:
+    @field_serializer(
+        "created_at",
+        "updated_at",
+        "response_requested_at",
+        "reminder_due_at",
+    )
+    def _serialize_datetime(self, value: datetime | None) -> str | None:
         return _iso_utc(value)
 
 
