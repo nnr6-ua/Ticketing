@@ -40,6 +40,14 @@ class TimelineEntry(_Schema):
     is_internal: bool
     author: AuthorRef
     created_at: datetime
+    reply_to_id: UUID | None = None
+
+
+class InformationRequestRef(_Schema):
+    id: UUID
+    body: str
+    requested_at: datetime
+    requested_by: AuthorRef
 
 
 class TicketWorkflowSnapshot(_Schema):
@@ -61,6 +69,12 @@ class WorkflowResponse(_Schema):
     can_change_status: bool
     can_comment_internally: bool
     can_view_internal: bool
+    can_request_information: bool
+    can_respond_to_information: bool
+    awaiting_user_response: bool
+    active_information_request: InformationRequestRef | None = None
+    reminder_active: bool
+    reminder_due_at: datetime | None = None
 
 
 class StatusTransitionRequest(_Schema):
@@ -85,6 +99,34 @@ class InternalCommentRequest(_Schema):
 class InternalCommentResponse(_Schema):
     entry: TimelineEntry
     created: bool
+
+
+class InformationRequestRequest(_Schema):
+    body: str
+    expected_updated_at: datetime
+    request_id: UUID
+
+
+class InformationRequestResponse(_Schema):
+    changed: bool
+    message: str | None = None
+    ticket: TicketWorkflowSnapshot
+    timeline_entries: list[TimelineEntry] = Field(default_factory=list)
+    information_request: InformationRequestRef
+
+
+class InformationResponseRequest(_Schema):
+    body: str
+    expected_updated_at: datetime
+    request_id: UUID
+
+
+class InformationResponseResponse(_Schema):
+    changed: bool
+    message: str | None = None
+    ticket: TicketWorkflowSnapshot
+    timeline_entries: list[TimelineEntry] = Field(default_factory=list)
+    information_response: TimelineEntry
 
 
 class Pagination(_Schema):

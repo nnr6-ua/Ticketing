@@ -121,7 +121,11 @@ function isHistoricalResolution(entryId: string): boolean {
             ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
             : entry.type === 'internal_comment'
               ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : 'border-slate-200 bg-white text-slate-800'
+              : entry.type === 'information_request'
+                ? 'border-sky-200 bg-sky-50 text-sky-900'
+                : entry.type === 'user_response'
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-900'
+                  : 'border-slate-200 bg-white text-slate-800'
         "
         :data-entry-type="entry.type"
       >
@@ -163,6 +167,28 @@ function isHistoricalResolution(entryId: string): boolean {
                 data-historical-resolution="true"
               >
                 Histórica
+              </span>
+              <p class="mt-2 whitespace-pre-wrap break-words text-sm">
+                {{ entry.body }}
+              </p>
+            </template>
+
+            <template v-else-if="entry.type === 'information_request'">
+              <span
+                class="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
+              >
+                Petición de información
+              </span>
+              <p class="mt-2 whitespace-pre-wrap break-words text-sm">
+                {{ entry.body }}
+              </p>
+            </template>
+
+            <template v-else-if="entry.type === 'user_response'">
+              <span
+                class="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800"
+              >
+                Respuesta del usuario
               </span>
               <p class="mt-2 whitespace-pre-wrap break-words text-sm">
                 {{ entry.body }}

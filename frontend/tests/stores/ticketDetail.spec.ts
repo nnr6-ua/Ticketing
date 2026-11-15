@@ -21,6 +21,8 @@ vi.mock('@/services/ticketWorkflow', () => ({
   getWorkflow: vi.fn(),
   getTimeline: vi.fn(),
   transitionStatus: vi.fn(),
+  requestInformation: vi.fn(),
+  respondToInformation: vi.fn(),
   addInternalComment: vi.fn(),
 }))
 
@@ -50,6 +52,12 @@ function makeWorkflow(overrides: Partial<WorkflowResponse> = {}): WorkflowRespon
     can_change_status: true,
     can_comment_internally: true,
     can_view_internal: true,
+    can_request_information: false,
+    can_respond_to_information: false,
+    awaiting_user_response: false,
+    active_information_request: null,
+    reminder_active: false,
+    reminder_due_at: null,
     ...overrides,
   }
 }
@@ -64,6 +72,7 @@ function makeEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
     is_internal: false,
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-04T10:00:00Z',
+    reply_to_id: null,
     ...overrides,
   }
 }

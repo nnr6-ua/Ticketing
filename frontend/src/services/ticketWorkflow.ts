@@ -1,5 +1,9 @@
 import { apiGet, apiPost } from '@/api/client'
 import type {
+  InformationRequestRequest,
+  InformationRequestResponse,
+  InformationResponseRequest,
+  InformationResponseResponse,
   InternalCommentRequest,
   InternalCommentResponse,
   StatusTransitionRequest,
@@ -29,6 +33,32 @@ export function transitionStatus(
 ): Promise<StatusTransitionResponse> {
   return apiPost<StatusTransitionResponse, StatusTransitionRequest>(
     `${BASE_PATH}/${encodeURIComponent(ticketId)}/status-transitions`,
+    payload,
+    { signal },
+  )
+}
+
+/** `POST /api/v1/tickets/{id}/information-requests` */
+export function requestInformation(
+  ticketId: string,
+  payload: InformationRequestRequest,
+  signal?: AbortSignal,
+): Promise<InformationRequestResponse> {
+  return apiPost<InformationRequestResponse, InformationRequestRequest>(
+    `${BASE_PATH}/${encodeURIComponent(ticketId)}/information-requests`,
+    payload,
+    { signal },
+  )
+}
+
+/** `POST /api/v1/tickets/{id}/information-responses` */
+export function respondToInformation(
+  ticketId: string,
+  payload: InformationResponseRequest,
+  signal?: AbortSignal,
+): Promise<InformationResponseResponse> {
+  return apiPost<InformationResponseResponse, InformationResponseRequest>(
+    `${BASE_PATH}/${encodeURIComponent(ticketId)}/information-responses`,
     payload,
     { signal },
   )

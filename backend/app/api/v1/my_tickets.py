@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_session
-from app.models import STATUS_LABELS, Ticket, User
+from app.models import STATUS_LABELS, Ticket, TicketStatus, User
 from app.schemas.my_tickets import (
     MyTicketCategory,
     MyTicketPriority,
     MyTicketsResponse,
     MyTicketSummary,
 )
+from app.services.ticket_timeline import information_states
 
 router = APIRouter(tags=["Mis tickets"])
 
@@ -42,6 +43,8 @@ def get_my_tickets(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Authorization"
 
+    states = information_states(session, list(tickets))
+
     return MyTicketsResponse(
         items=[
             MyTicketSummary(
@@ -65,6 +68,16 @@ def get_my_tickets(
                 ),
                 created_at=ticket.created_at,
                 updated_at=ticket.updated_at,
+                awaiting_user_response=(
+                    ticket.status == TicketStatus.pendiente_usuario
+                ),
+                response_requested_at=(
+                    states[ticket.id].active_request.created_at
+                    if states[ticket.id].active_request is not None
+                    else None
+                ),
+                reminder_active=states[ticket.id].reminder_active,
+                reminder_due_at=states[ticket.id].reminder_due_at,
             )
             for ticket in tickets
         ]

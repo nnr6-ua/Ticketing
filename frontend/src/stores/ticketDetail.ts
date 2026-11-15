@@ -6,15 +6,21 @@ import {
   addInternalComment,
   getTimeline,
   getWorkflow,
+  requestInformation as postInformationRequest,
+  respondToInformation as postInformationResponse,
   transitionStatus as postStatusTransition,
 } from '@/services/ticketWorkflow'
 import type {
+  InformationRequestRef,
+  InformationRequestResponse,
+  InformationResponseResponse,
   InternalCommentResponse,
   Pagination,
   StatusTransitionRequest,
   StatusTransitionResponse,
   TicketWorkflowSnapshot,
   TimelineEntry,
+  WorkflowResponse,
 } from '@/types/ticketWorkflow'
 
 const DEFAULT_PAGE_SIZE = 50
@@ -29,6 +35,17 @@ const CODE_MESSAGES: Record<string, string> = {
   not_authenticated: 'La sesión no es válida o ha caducado.',
   internal_error:
     'No se pudo guardar el cambio. El ticket no se ha modificado. Inténtalo de nuevo.',
+  information_request_already_open:
+    'Ya hay una petición de información pendiente de respuesta.',
+  information_request_required:
+    'Escribe qué información necesitas del usuario.',
+  information_request_too_long:
+    'La petición de información no puede superar los 5.000 caracteres.',
+  information_response_required:
+    'Escribe la información que te ha pedido el técnico.',
+  information_response_too_long:
+    'La respuesta no puede superar los 5.000 caracteres.',
+  ticket_not_found: 'No se ha encontrado el ticket.',
 }
 
 function extractErrorCode(caught: unknown): string | null {
@@ -62,11 +79,23 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
   const errorCode = ref<string | null>(null)
   const resolutionText = ref('')
   const commentText = ref('')
+  const informationRequest = ref<InformationRequestRef | null>(null)
+  const canRequestInformation = ref(false)
+  const canRespondToInformation = ref(false)
+  const awaitingUserResponse = ref(false)
+  const reminderActive = ref(false)
+  const reminderDueAt = ref<string | null>(null)
+  const informationRequestText = ref('')
+  const informationResponseText = ref('')
   const notice = ref<string | null>(null)
 
   // Secuencias para descartar respuestas de carga fuera de orden.
   let workflowSeq = 0
   let timelineSeq = 0
+  let informationRequestId = ''
+  let informationRequestSignature = ''
+  let informationResponseId = ''
+  let informationResponseSignature = ''
 
   const hasInternalEntries = computed(() =>
     timeline.value.some((entry) => entry.type === 'internal_comment'),
@@ -77,16 +106,17 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     errorCode.value = null
   }
 
-  function applyWorkflow(response: {
-    ticket: TicketWorkflowSnapshot
-    can_change_status: boolean
-    can_comment_internally: boolean
-    can_view_internal: boolean
-  }): void {
+  function applyWorkflow(response: WorkflowResponse): void {
     ticket.value = response.ticket
     canChangeStatus.value = response.can_change_status
     canComment.value = response.can_comment_internally
     canSeeInternal.value = response.can_view_internal
+    canRequestInformation.value = response.can_request_information ?? false
+    canRespondToInformation.value = response.can_respond_to_information ?? false
+    awaitingUserResponse.value = response.awaiting_user_response ?? false
+    informationRequest.value = response.active_information_request ?? null
+    reminderActive.value = response.reminder_active ?? false
+    reminderDueAt.value = response.reminder_due_at ?? null
   }
 
   function applyTransitionTicket(snapshot: TicketWorkflowSnapshot): void {
@@ -190,6 +220,139 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     }
   }
 
+
+  function ensureInformationRequestId(body: string): string {
+    if (!informationRequestId || body !== informationRequestSignature) {
+      informationRequestId = crypto.randomUUID()
+      informationRequestSignature = body
+    }
+    return informationRequestId
+  }
+
+  function ensureInformationResponseId(body: string): string {
+    if (!informationResponseId || body !== informationResponseSignature) {
+      informationResponseId = crypto.randomUUID()
+      informationResponseSignature = body
+    }
+    return informationResponseId
+  }
+
+  function resetInformationRequestId(): void {
+    informationRequestId = ''
+    informationRequestSignature = ''
+  }
+
+  function resetInformationResponseId(): void {
+    informationResponseId = ''
+    informationResponseSignature = ''
+  }
+
+  async function reloadAfterInformationConflict(
+    ticketId: string,
+    message: string,
+    code: string | null,
+  ): Promise<void> {
+    await refresh(ticketId)
+    error.value = message
+    errorCode.value = code
+  }
+
+  async function requestInformation(
+    ticketId: string,
+    body: string,
+  ): Promise<InformationRequestResponse | null> {
+    const normalized = body.trim()
+    submitting.value = true
+    clearError()
+    notice.value = null
+    try {
+      const response = await postInformationRequest(ticketId, {
+        body: normalized,
+        expected_updated_at: ticket.value?.updated_at ?? '',
+        request_id: ensureInformationRequestId(normalized),
+      })
+      ticket.value = response.ticket
+      if (response.changed) {
+        informationRequestText.value = ''
+        notice.value = 'La petición de información se ha enviado.'
+      } else {
+        notice.value = response.message
+      }
+      await refresh(ticketId)
+      resetInformationRequestId()
+      return response
+    } catch (caught) {
+      const message = errorMessage(caught)
+      const code = extractErrorCode(caught)
+      if (
+        code === 'stale_ticket' ||
+        code === 'information_request_already_open' ||
+        code === 'invalid_transition'
+      ) {
+        await reloadAfterInformationConflict(ticketId, message, code)
+      } else {
+        error.value = message
+        errorCode.value = code
+      }
+      if (
+        code === 'request_id_reused' ||
+        code === 'stale_ticket' ||
+        code === 'information_request_already_open'
+      ) {
+        resetInformationRequestId()
+      }
+      return null
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  async function respondToInformation(
+    ticketId: string,
+    body: string,
+  ): Promise<InformationResponseResponse | null> {
+    const normalized = body.trim()
+    submitting.value = true
+    clearError()
+    notice.value = null
+    try {
+      const response = await postInformationResponse(ticketId, {
+        body: normalized,
+        expected_updated_at: ticket.value?.updated_at ?? '',
+        request_id: ensureInformationResponseId(normalized),
+      })
+      ticket.value = response.ticket
+      if (response.changed) {
+        informationResponseText.value = ''
+        notice.value = 'Tu respuesta se ha enviado.'
+      } else {
+        notice.value = response.message
+      }
+      await refresh(ticketId)
+      resetInformationResponseId()
+      return response
+    } catch (caught) {
+      const message = errorMessage(caught)
+      const code = extractErrorCode(caught)
+      if (code === 'stale_ticket' || code === 'invalid_transition') {
+        await reloadAfterInformationConflict(ticketId, message, code)
+      } else {
+        error.value = message
+        errorCode.value = code
+      }
+      if (
+        code === 'request_id_reused' ||
+        code === 'stale_ticket' ||
+        code === 'invalid_transition'
+      ) {
+        resetInformationResponseId()
+      }
+      return null
+    } finally {
+      submitting.value = false
+    }
+  }
+
   async function addComment(
     ticketId: string,
     requestId: string,
@@ -227,7 +390,17 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     submitting.value = false
     resolutionText.value = ''
     commentText.value = ''
+    informationRequest.value = null
+    canRequestInformation.value = false
+    canRespondToInformation.value = false
+    awaitingUserResponse.value = false
+    reminderActive.value = false
+    reminderDueAt.value = null
+    informationRequestText.value = ''
+    informationResponseText.value = ''
     notice.value = null
+    resetInformationRequestId()
+    resetInformationResponseId()
     clearError()
   }
 
@@ -245,12 +418,22 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
     errorCode,
     resolutionText,
     commentText,
+    informationRequest,
+    canRequestInformation,
+    canRespondToInformation,
+    awaitingUserResponse,
+    reminderActive,
+    reminderDueAt,
+    informationRequestText,
+    informationResponseText,
     notice,
     hasInternalEntries,
     loadWorkflow,
     loadTimeline,
     refresh,
     transitionStatus,
+    requestInformation,
+    respondToInformation,
     addComment,
     reset,
   }
