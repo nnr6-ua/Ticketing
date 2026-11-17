@@ -15,7 +15,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import ApiError
+from app.core.errors import ADMIN_FORBIDDEN_MESSAGE, ApiError
 from app.db.session import get_session
 from app.models import User, UserRole
 
@@ -76,5 +76,17 @@ def require_technician(current_user: User = Depends(get_current_user)) -> User:
             403,
             "forbidden",
             WORK_QUEUE_FORBIDDEN_MESSAGE,
+        )
+    return current_user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Restringe la configuración administrativa al rol `admin`."""
+
+    if current_user.role != UserRole.admin:
+        raise ApiError(
+            403,
+            "forbidden",
+            ADMIN_FORBIDDEN_MESSAGE,
         )
     return current_user

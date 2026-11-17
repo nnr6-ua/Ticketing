@@ -49,6 +49,7 @@ from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Category,
+    ConfigurationVersion,
     Priority,
     Ticket,
     TicketStatus,
@@ -89,6 +90,15 @@ def db() -> Session:
     # conexiones del pool evita que queden planes preparados con el OID viejo.
     engine.dispose()
     session = SessionLocal()
+    session.add(
+        ConfigurationVersion(
+            id=uuid.UUID("0f5a7f8e-4ef7-4e0d-9a1e-9f6e2e3d4c10"),
+            version=1,
+            created_by_id=None,
+            note="Línea base de configuración",
+        )
+    )
+    session.commit()
     try:
         yield session
     finally:
@@ -124,6 +134,27 @@ def auth():
         return {"Authorization": f"Bearer {make_token(user, **kwargs)}"}
 
     return _auth
+
+
+@pytest.fixture()
+def admin_user(db: Session) -> User:
+    """Administrador reutilizable para las pruebas de HU-08."""
+
+    user = User(
+        id=uuid.uuid5(uuid.NAMESPACE_DNS, "hu08-admin"),
+        name="Administración",
+        email="admin@example.com",
+        role=UserRole.admin,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    return user
+
+
+@pytest.fixture()
+def admin_headers(admin_user: User) -> dict[str, str]:
+    return {"Authorization": f"Bearer {make_token(admin_user)}"}
 
 
 @dataclass

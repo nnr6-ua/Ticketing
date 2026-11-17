@@ -45,6 +45,23 @@ class SlaState(str, Enum):
     finalized = "finalized"
 
 
+class ConfigEntityType(str, Enum):
+    category = "category"
+    priority = "priority"
+    sla_rule = "sla_rule"
+
+
+class ConfigAction(str, Enum):
+    create = "create"
+    update = "update"
+    deactivate = "deactivate"
+    reactivate = "reactivate"
+    delete = "delete"
+    set_default = "set_default"
+    rule_upsert = "rule_upsert"
+    rule_retire = "rule_retire"
+
+
 class SlaOutcome(str, Enum):
     met = "met"
     breached = "breached"

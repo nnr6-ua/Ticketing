@@ -17,6 +17,7 @@ export default defineConfig({
       'tests/components/**/*.spec.ts',
       'tests/stores/**/*.spec.ts',
       'tests/unit/**/*.spec.ts',
+      'tests/views/**/*.spec.ts',
     ],
     setupFiles: ['./tests/setup.ts'],
     css: false,

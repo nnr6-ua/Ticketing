@@ -57,6 +57,10 @@ def _ticket_read(
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         duplicate=duplicate,
+        sla_priority_level=ticket.sla_priority_level,
+        sla_hours_applied=ticket.sla_hours_applied,
+        sla_version=ticket.sla_version,
+        sla_config_version_id=ticket.sla_config_version_id,
     )
 
 

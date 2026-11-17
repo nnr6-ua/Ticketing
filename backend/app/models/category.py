@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, Integer, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, Index, Integer, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -12,6 +12,15 @@ from app.db.base import Base
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = (
+        Index(
+            "uq_categories_default_active_non_system",
+            "is_default",
+            unique=True,
+            postgresql_where=text("is_default AND is_active AND NOT is_system"),
+            sqlite_where=text("is_default = 1 AND is_active = 1 AND is_system = 0"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -30,4 +39,7 @@ class Category(Base):
     )
     sort_order: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
+    )
+    revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
     )

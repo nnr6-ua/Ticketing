@@ -16,6 +16,7 @@ const DEV_USERS = [
   { email: 'tecnico.c@example.com', label: 'Técnico C · solo finalizados' },
   { email: 'tecnico.d@example.com', label: 'Técnico D · cola vacía' },
   { email: 'supervisor@example.com', label: 'Supervisor · 403 en la cola' },
+  { email: 'admin@example.com', label: 'Administración · configuración' },
   { email: 'usuario@example.com', label: 'Solicitante · mis tickets' },
 ]
 

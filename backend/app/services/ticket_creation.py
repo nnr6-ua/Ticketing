@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -12,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiError
 from app.models import (
     Attachment,
+    ConfigurationVersion,
     Priority,
+    SlaRule,
     Ticket,
     TicketStatus,
     TicketTimelineEntry,
@@ -26,6 +29,7 @@ from app.services.attachments import (
     remove_files,
 )
 from app.services.duplicates import compute_content_hash, normalize_text
+from app.services.sla_resolution import resolve_sla
 from app.services.suggestions import Suggestion, suggest
 
 MAX_TITLE_LENGTH = 120
@@ -120,6 +124,38 @@ def create_ticket(
 
         suggestion = suggest(session, clean_title, clean_description)
         priority = _resolve_priority(session, priority_id, suggestion)
+
+        version_statement = (
+            select(ConfigurationVersion)
+            .order_by(ConfigurationVersion.version.desc())
+            .limit(1)
+        )
+        if session.get_bind().dialect.name == "postgresql":
+            version_statement = version_statement.with_for_update(read=True)
+        configuration_version = session.scalar(version_statement)
+        if configuration_version is None:
+            raise ApiError(
+                500,
+                "configuration_not_initialized",
+                "La configuración base no está inicializada.",
+            )
+
+        sla_rule = session.scalar(
+            select(SlaRule)
+            .where(
+                SlaRule.category_id == suggestion.category.id,
+                SlaRule.priority_id == priority.id,
+                SlaRule.valid_to_version.is_(None),
+            )
+            .limit(1)
+        )
+        resolution = resolve_sla(
+            rule_hours=sla_rule.hours if sla_rule is not None else None,
+            base_hours=priority.base_hours,
+            version=configuration_version.version,
+            priority_level=priority.level,
+        )
+        created_at = datetime.now(timezone.utc)
         ticket_number = _next_ticket_number(session)
 
         ticket = Ticket(
@@ -131,6 +167,12 @@ def create_ticket(
             category_id=suggestion.category.id,
             priority_id=priority.id,
             content_hash=content_hash,
+            created_at=created_at,
+            sla_deadline=created_at + timedelta(hours=float(resolution.hours)),
+            sla_priority_level=resolution.priority_level,
+            sla_hours_applied=resolution.hours,
+            sla_config_version_id=configuration_version.id,
+            sla_version=f"v{resolution.version}",
         )
     except Exception:
         cleanup_staged(staged)

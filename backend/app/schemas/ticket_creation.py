@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class UserRead(BaseModel):
@@ -55,6 +56,14 @@ class TicketRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     duplicate: bool = False
+    sla_priority_level: int | None = None
+    sla_hours_applied: Decimal | None = None
+    sla_version: str | None = None
+    sla_config_version_id: UUID | None = None
+
+    @field_serializer("sla_hours_applied", when_used="json")
+    def _serialize_sla_hours(self, value: Decimal | None) -> str | None:
+        return None if value is None else f"{value:.2f}"
 
 
 class SuggestionRequest(BaseModel):
