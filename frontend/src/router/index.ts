@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import { getStoredUserRole } from '@/auth/session'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -28,11 +30,23 @@ const router = createRouter({
       component: () => import('@/views/TicketDetailPage.vue'),
     },
     {
+      path: '/admin/configuracion',
+      name: 'admin-configuration',
+      component: () => import('@/views/AdminConfigurationPage.vue'),
+      meta: { requiresAdmin: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginPage.vue'),
     },
   ],
+})
+
+router.beforeEach((to) => {
+  if (!to.meta.requiresAdmin) return true
+  if (getStoredUserRole() === 'admin') return true
+  return { name: 'login', query: { redirect: to.fullPath } }
 })
 
 export default router

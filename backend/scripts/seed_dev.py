@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -25,7 +26,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models import Category, Priority, Ticket, TicketStatus, User, UserRole
+from app.models import (
+    Category,
+    ConfigAction,
+    ConfigEntityType,
+    ConfigurationAuditEntry,
+    ConfigurationVersion,
+    Priority,
+    SlaRule,
+    Ticket,
+    TicketStatus,
+    User,
+    UserRole,
+)
 
 NAMESPACE = uuid.UUID("6f1f4c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70")
 
@@ -150,6 +163,115 @@ def upsert_ticket(
     return ticket
 
 
+def seed_configuration(
+    session: Session,
+    actor: User,
+    categories: list[Category],
+    priorities: list[Priority],
+    now: datetime,
+) -> None:
+    if session.scalar(select(ConfigurationVersion).limit(1)) is not None:
+        return
+
+    base = ConfigurationVersion(
+        id=sid("configuration-version-1"),
+        version=1,
+        created_at=now,
+        created_by_id=actor.id,
+        note="Configuración base de demostración (HU-08).",
+    )
+    session.add(base)
+
+    factors = {
+        "Red": Decimal("1.50"),
+        "Hardware": Decimal("1.00"),
+        "Software": Decimal("1.25"),
+        "Otros": Decimal("1.00"),
+    }
+    rules: dict[tuple[str, str], SlaRule] = {}
+    for category in categories:
+        for priority in priorities:
+            hours = (
+                Decimal(str(priority.base_hours))
+                * factors.get(category.name, Decimal("1.00"))
+            ).quantize(Decimal("0.01"))
+            rule = SlaRule(
+                id=sid(f"sla-rule-v1-{category.name}-{priority.name}"),
+                category_id=category.id,
+                priority_id=priority.id,
+                hours=hours,
+                configuration_version_id=base.id,
+                created_by_id=actor.id,
+                created_at=now,
+                valid_from_version=1,
+            )
+            session.add(rule)
+            rules[(category.name, priority.name)] = rule
+            session.add(
+                ConfigurationAuditEntry(
+                    id=sid(f"audit-v1-{category.name}-{priority.name}"),
+                    configuration_version_id=base.id,
+                    entity_type=ConfigEntityType.sla_rule,
+                    entity_id=rule.id,
+                    action=ConfigAction.rule_upsert,
+                    actor_id=actor.id,
+                    occurred_at=now,
+                    summary=(
+                        f"Regla SLA inicial: {category.name} / "
+                        f"{priority.name} ({hours:.2f} h)."
+                    ),
+                    new_values={
+                        "category": category.name,
+                        "priority": priority.name,
+                        "hours": f"{hours:.2f}",
+                    },
+                )
+            )
+
+    changed_at = now + timedelta(minutes=1)
+    updated = ConfigurationVersion(
+        id=sid("configuration-version-2"),
+        version=2,
+        created_at=changed_at,
+        created_by_id=actor.id,
+        note="Ajuste de demostración: plazo de Red / Crítica.",
+    )
+    session.add(updated)
+
+    previous_rule = rules[("Red", "Crítica")]
+    previous_rule.valid_to_version = 2
+    new_hours = previous_rule.hours + Decimal("2.00")
+    new_rule = SlaRule(
+        id=sid("sla-rule-v2-red-critica"),
+        category_id=previous_rule.category_id,
+        priority_id=previous_rule.priority_id,
+        hours=new_hours,
+        configuration_version_id=updated.id,
+        created_by_id=actor.id,
+        created_at=changed_at,
+        valid_from_version=2,
+        supersedes_id=previous_rule.id,
+    )
+    session.add(new_rule)
+    session.add(
+        ConfigurationAuditEntry(
+            id=sid("audit-v2-red-critica"),
+            configuration_version_id=updated.id,
+            entity_type=ConfigEntityType.sla_rule,
+            entity_id=new_rule.id,
+            action=ConfigAction.rule_upsert,
+            actor_id=actor.id,
+            occurred_at=changed_at,
+            summary=(
+                "Ajuste de plazo SLA: Red / Crítica de "
+                f"{previous_rule.hours:.2f} h a {new_hours:.2f} h."
+            ),
+            previous_values={"hours": f"{previous_rule.hours:.2f}"},
+            new_values={"hours": f"{new_hours:.2f}"},
+        )
+    )
+
+
 def main() -> None:
     now = datetime.now(timezone.utc).replace(microsecond=0)
 
@@ -193,6 +315,13 @@ def main() -> None:
             email="supervisor@example.com",
             role=UserRole.supervisor,
             team="Soporte",
+        )
+        admin = upsert_user(
+            session,
+            key="user-admin",
+            name="Administración",
+            email="admin@example.com",
+            role=UserRole.admin,
         )
         upsert_user(
             session,
@@ -268,7 +397,7 @@ def main() -> None:
             description="Aplicaciones corporativas.",
             keywords=["aplicación", "programa", "instalar", "actualizar", "error", "correo"],
         )
-        upsert_category(
+        otros = upsert_category(
             session,
             key="otros",
             name="Otros",
@@ -421,6 +550,14 @@ def main() -> None:
 
         # Técnico D no tiene tickets (cola vacía).
 
+        seed_configuration(
+            session,
+            admin,
+            [red, hardware, software, otros],
+            [critica, alta, media, baja],
+            now,
+        )
+
         session.commit()
 
     print("Seed completado:")
@@ -429,6 +566,7 @@ def main() -> None:
     print("  Técnico C: 1 resuelto (solo finalizados)")
     print("  Técnico D: sin tickets")
     print("  Supervisor: rol no autorizado (403)")
+    print("  Configuración: versión 2 con 16 reglas SLA vigentes e historial")
 
 
 if __name__ == "__main__":

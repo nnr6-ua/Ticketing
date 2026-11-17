@@ -52,6 +52,7 @@ def catalogs(db: Session) -> SimpleNamespace:
         name="Media",
         level=3,
         color="#ca8a04",
+        base_hours="24.00",
         is_default=True,
         is_active=True,
     )
@@ -59,6 +60,7 @@ def catalogs(db: Session) -> SimpleNamespace:
         name="Crítica",
         level=1,
         color="#dc2626",
+        base_hours="4.00",
         keywords=["urgente", "caído"],
         is_active=True,
     )

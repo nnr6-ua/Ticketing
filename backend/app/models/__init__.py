@@ -2,10 +2,17 @@
 
 from app.models.attachment import Attachment
 from app.models.category import Category
+from app.models.configuration import (
+    ConfigurationAuditEntry,
+    ConfigurationVersion,
+    SlaRule,
+)
 from app.models.enums import (
     DEFAULT_ACTIVE_STATUSES,
     FINAL_STATUSES,
     STATUS_LABELS,
+    ConfigAction,
+    ConfigEntityType,
     SlaOutcome,
     SlaState,
     TicketStatus,
@@ -20,9 +27,14 @@ from app.models.user import User
 __all__ = [
     "Attachment",
     "Category",
+    "ConfigAction",
+    "ConfigEntityType",
+    "ConfigurationAuditEntry",
+    "ConfigurationVersion",
     "DEFAULT_ACTIVE_STATUSES",
     "FINAL_STATUSES",
     "Priority",
+    "SlaRule",
     "STATUS_LABELS",
     "SlaOutcome",
     "SlaState",

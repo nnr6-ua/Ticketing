@@ -12,11 +12,13 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
     String,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +29,20 @@ class Priority(Base):
     __tablename__ = "priorities"
     __table_args__ = (
         CheckConstraint("level BETWEEN 1 AND 4", name="ck_priorities_level"),
+        Index(
+            "uq_priorities_level_active_non_system",
+            "level",
+            unique=True,
+            postgresql_where=text("is_active AND NOT is_system"),
+            sqlite_where=text("is_active = 1 AND is_system = 0"),
+        ),
+        Index(
+            "uq_priorities_default_active_non_system",
+            "is_default",
+            unique=True,
+            postgresql_where=text("is_default AND is_active AND NOT is_system"),
+            sqlite_where=text("is_default = 1 AND is_active = 1 AND is_system = 0"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -48,4 +64,7 @@ class Priority(Base):
     )
     sort_order: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
+    )
+    revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
     )
