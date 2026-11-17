@@ -32,6 +32,7 @@ from app.models import (
     ConfigEntityType,
     ConfigurationAuditEntry,
     ConfigurationVersion,
+    EscalationLevel,
     Priority,
     SlaRule,
     Ticket,
@@ -55,6 +56,7 @@ def upsert_user(
     email: str,
     role: UserRole,
     team: str | None = None,
+    escalation_level: EscalationLevel = EscalationLevel.nivel_1,
 ) -> User:
     user = session.scalar(select(User).where(User.email == email))
     if user is None:
@@ -63,6 +65,7 @@ def upsert_user(
     user.name = name
     user.role = role
     user.team = team
+    user.escalation_level = escalation_level
     user.is_active = True
     return user
 
@@ -299,14 +302,32 @@ def main() -> None:
             email="tecnico.c@example.com",
             role=UserRole.tecnico,
             team="Soporte",
+            escalation_level=EscalationLevel.nivel_2,
         )
-        upsert_user(
+        tecnico_d = upsert_user(
             session,
             key="user-tecnico-d",
             name="Técnico D",
             email="tecnico.d@example.com",
             role=UserRole.tecnico,
             team="Soporte",
+            escalation_level=EscalationLevel.especialista,
+        )
+        tecnico_e = upsert_user(
+            session,
+            key="user-tecnico-e",
+            name="Técnico E",
+            email="tecnico.e@example.com",
+            role=UserRole.tecnico,
+            team="Soporte",
+        )
+        upsert_user(
+            session,
+            key="user-tecnico-f",
+            name="Técnico F",
+            email="tecnico.f@example.com",
+            role=UserRole.tecnico,
+            team="Infraestructura",
         )
         upsert_user(
             session,
@@ -433,7 +454,7 @@ def main() -> None:
             status=TicketStatus.abierto,
             priority=critica,
             category=red,
-            creator=tecnico_a,
+            creator=tecnico_b,
             assignee=tecnico_a,
             created_at=now - timedelta(minutes=10),
             sla_deadline=now + timedelta(minutes=20),

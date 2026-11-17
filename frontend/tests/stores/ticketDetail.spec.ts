@@ -1,8 +1,13 @@
 import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiClientError } from '@/api/client'
+import {
+  escalateTicket,
+  getAssigneeChangeOptions,
+  reassignTicket,
+} from '@/services/assigneeChange'
 import {
   addInternalComment,
   getTimeline,
@@ -10,6 +15,13 @@ import {
   transitionStatus,
 } from '@/services/ticketWorkflow'
 import { useTicketDetailStore } from '@/stores/ticketDetail'
+import type {
+  AssigneeChangeOptions,
+  AssigneeChangeResponse,
+  AssigneeRef,
+  EscalationRequest,
+  ReassignmentRequest,
+} from '@/types/assigneeChange'
 import type {
   StatusTransitionRequest,
   TimelineEntry,
@@ -26,10 +38,19 @@ vi.mock('@/services/ticketWorkflow', () => ({
   addInternalComment: vi.fn(),
 }))
 
+vi.mock('@/services/assigneeChange', () => ({
+  getAssigneeChangeOptions: vi.fn(),
+  reassignTicket: vi.fn(),
+  escalateTicket: vi.fn(),
+}))
+
 const getWorkflowMock = vi.mocked(getWorkflow)
 const getTimelineMock = vi.mocked(getTimeline)
 const transitionMock = vi.mocked(transitionStatus)
 const addCommentMock = vi.mocked(addInternalComment)
+const optionsMock = vi.mocked(getAssigneeChangeOptions)
+const reassignMock = vi.mocked(reassignTicket)
+const escalateMock = vi.mocked(escalateTicket)
 
 function makeWorkflow(overrides: Partial<WorkflowResponse> = {}): WorkflowResponse {
   return {
@@ -58,6 +79,8 @@ function makeWorkflow(overrides: Partial<WorkflowResponse> = {}): WorkflowRespon
     active_information_request: null,
     reminder_active: false,
     reminder_due_at: null,
+    can_reassign: false,
+    can_escalate: false,
     ...overrides,
   }
 }
@@ -73,6 +96,13 @@ function makeEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-04T10:00:00Z',
     reply_to_id: null,
+    change_kind: null,
+    previous_assignee: null,
+    new_assignee: null,
+    from_escalation_level: null,
+    from_escalation_level_label: null,
+    to_escalation_level: null,
+    to_escalation_level_label: null,
     ...overrides,
   }
 }
@@ -91,6 +121,88 @@ function makeTimeline(entries: TimelineEntry[] = [makeEntry()]): TimelineRespons
   }
 }
 
+function makeAssignee(overrides: Partial<AssigneeRef> = {}): AssigneeRef {
+  return {
+    id: 'u1',
+    name: 'Técnica Asignada',
+    role: 'tecnico',
+    team: 'Soporte',
+    escalation_level: 'nivel_1',
+    escalation_level_label: 'Nivel 1',
+    ...overrides,
+  }
+}
+
+function makeOptions(
+  overrides: Partial<AssigneeChangeOptions> = {},
+): AssigneeChangeOptions {
+  return {
+    ticket_id: 't1',
+    status: 'en_progreso',
+    current_assignee: makeAssignee(),
+    has_reassignment_candidates: true,
+    has_available_escalation_target: true,
+    reassignment_candidates: [
+      makeAssignee({ id: 'u3', name: 'Técnico B' }),
+    ],
+    escalation_targets: [
+      {
+        value: 'nivel_2',
+        label: 'Nivel 2',
+        technician_count: 2,
+        is_available: true,
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function makeChangeResponse(
+  overrides: Partial<AssigneeChangeResponse> = {},
+): AssigneeChangeResponse {
+  return {
+    changed: true,
+    message: null,
+    ticket: {
+      ...makeWorkflow().ticket,
+      assignee_id: 'u3',
+      updated_at: '2026-11-04T10:05:00Z',
+    },
+    previous_assignee: makeAssignee(),
+    new_assignee: makeAssignee({ id: 'u3', name: 'Técnico B' }),
+    change_kind: 'reassignment',
+    from_escalation_level: 'nivel_1',
+    from_escalation_level_label: 'Nivel 1',
+    to_escalation_level: 'nivel_1',
+    to_escalation_level_label: 'Nivel 1',
+    timeline_entry: makeEntry({
+      id: 'ac1',
+      type: 'assignee_change',
+      from_status: null,
+      to_status: null,
+      change_kind: 'reassignment',
+      previous_assignee: makeAssignee(),
+      new_assignee: makeAssignee({ id: 'u3', name: 'Técnico B' }),
+      body: 'Motivo del cambio.',
+    }),
+    ...overrides,
+  }
+}
+
+const REASSIGN_PAYLOAD: ReassignmentRequest = {
+  new_assignee_id: 'u3',
+  reason: 'Motivo del cambio',
+  expected_updated_at: '2026-11-04T10:00:00Z',
+  request_id: '00000000-0000-4000-8000-000000000021',
+}
+
+const ESCALATE_PAYLOAD: EscalationRequest = {
+  target_level: 'nivel_2',
+  reason: 'Escalado por volumen',
+  expected_updated_at: '2026-11-04T10:00:00Z',
+  request_id: '00000000-0000-4000-8000-000000000022',
+}
+
 describe('useTicketDetailStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -98,8 +210,16 @@ describe('useTicketDetailStore', () => {
     getTimelineMock.mockReset()
     transitionMock.mockReset()
     addCommentMock.mockReset()
+    optionsMock.mockReset()
+    reassignMock.mockReset()
+    escalateMock.mockReset()
     getWorkflowMock.mockResolvedValue(makeWorkflow())
     getTimelineMock.mockResolvedValue(makeTimeline())
+    optionsMock.mockResolvedValue(makeOptions())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('loadWorkflow y loadTimeline pueblan el estado y las capacidades', async () => {
@@ -291,5 +411,178 @@ describe('useTicketDetailStore', () => {
     expect(store.commentText).toBe('')
     expect(getTimelineMock).toHaveBeenCalledTimes(2)
     expect(store.notice).toBe('El comentario interno se ha añadido.')
+  })
+
+  it('reasigna con el payload recibido y refresca workflow, timeline y opciones en orden', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({ can_reassign: true, can_escalate: true }),
+    )
+    reassignMock.mockResolvedValue(makeChangeResponse())
+
+    const store = useTicketDetailStore()
+    await store.loadWorkflow('t1')
+    await store.loadTimeline('t1')
+
+    const response = await store.reassign('t1', REASSIGN_PAYLOAD)
+
+    expect(reassignMock).toHaveBeenCalledWith('t1', REASSIGN_PAYLOAD)
+    expect(response?.changed).toBe(true)
+    expect(store.assigneeNotice).toBe('El cambio de responsable se ha aplicado.')
+    expect(store.assigneeSubmitting).toBe(false)
+    expect(store.assigneeError).toBeNull()
+    expect(getWorkflowMock).toHaveBeenCalledTimes(2)
+    expect(getTimelineMock).toHaveBeenCalledTimes(2)
+    expect(optionsMock).toHaveBeenCalledWith('t1')
+
+    const workflowOrder = getWorkflowMock.mock.invocationCallOrder[1] ?? 0
+    const timelineOrder = getTimelineMock.mock.invocationCallOrder[1] ?? 0
+    const optionsOrder = optionsMock.mock.invocationCallOrder[0] ?? 0
+    expect(workflowOrder).toBeLessThan(optionsOrder)
+    expect(timelineOrder).toBeLessThan(optionsOrder)
+  })
+
+  it('escala con la acción de escalado y sin identificador de persona', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({ can_reassign: true, can_escalate: true }),
+    )
+    escalateMock.mockResolvedValue(
+      makeChangeResponse({
+        change_kind: 'escalation',
+        to_escalation_level: 'nivel_2',
+        to_escalation_level_label: 'Nivel 2',
+      }),
+    )
+
+    const store = useTicketDetailStore()
+    await store.loadWorkflow('t1')
+    await store.loadTimeline('t1')
+
+    await store.escalate('t1', ESCALATE_PAYLOAD)
+
+    expect(escalateMock).toHaveBeenCalledWith('t1', ESCALATE_PAYLOAD)
+    expect(reassignMock).not.toHaveBeenCalled()
+    expect(ESCALATE_PAYLOAD).not.toHaveProperty('assignee_id')
+    expect(store.assigneeNotice).toBe('El cambio de responsable se ha aplicado.')
+  })
+
+  it('ante stale_ticket conserva el error, recarga workflow, timeline y opciones', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({ can_reassign: true, can_escalate: true }),
+    )
+    reassignMock.mockRejectedValue(
+      new ApiClientError('conflict', 'conflicto', 409, 'stale_ticket'),
+    )
+
+    const store = useTicketDetailStore()
+    await store.loadWorkflow('t1')
+    await store.loadTimeline('t1')
+
+    const response = await store.reassign('t1', REASSIGN_PAYLOAD)
+
+    expect(response).toBeNull()
+    expect(store.assigneeErrorCode).toBe('stale_ticket')
+    expect(store.assigneeError).toContain('modificado por otra persona')
+    expect(store.assigneeSubmitting).toBe(false)
+    expect(getWorkflowMock).toHaveBeenCalledTimes(2)
+    expect(getTimelineMock).toHaveBeenCalledTimes(2)
+    expect(optionsMock).toHaveBeenCalledTimes(1)
+    expect(store.assigneeErrorCode).toBe('stale_ticket')
+  })
+
+  it('mapea request_id_reused, validación, 401 y red a mensajes estables', async () => {
+    const store = useTicketDetailStore()
+    await store.loadWorkflow('t1')
+
+    reassignMock.mockRejectedValueOnce(
+      new ApiClientError('conflict', 'reutilizado', 409, 'request_id_reused'),
+    )
+    await store.reassign('t1', REASSIGN_PAYLOAD)
+    expect(store.assigneeErrorCode).toBe('request_id_reused')
+    expect(store.assigneeError).toContain('La solicitud ya se utilizó')
+
+    reassignMock.mockRejectedValueOnce(
+      new ApiClientError('invalid', 'destino', 422, 'invalid_reassignment_target'),
+    )
+    await store.reassign('t1', REASSIGN_PAYLOAD)
+    expect(store.assigneeErrorCode).toBe('invalid_reassignment_target')
+    expect(store.assigneeError).toContain('técnicos activos de tu equipo')
+
+    reassignMock.mockRejectedValueOnce(
+      new ApiClientError('unauthorized', 'sesión', 401, 'not_authenticated'),
+    )
+    await store.reassign('t1', REASSIGN_PAYLOAD)
+    expect(store.assigneeErrorCode).toBe('not_authenticated')
+    expect(store.assigneeError).toContain('sesión no es válida')
+
+    reassignMock.mockRejectedValueOnce(
+      new ApiClientError('network', 'sin conexión'),
+    )
+    await store.reassign('t1', REASSIGN_PAYLOAD)
+    expect(store.assigneeErrorCode).toBeNull()
+    expect(store.assigneeError).toContain('No se pudo guardar el cambio')
+  })
+
+  it('descarta respuestas fuera de orden al cargar las opciones', async () => {
+    let resolveFirst!: (value: AssigneeChangeOptions) => void
+    optionsMock.mockImplementationOnce(
+      () =>
+        new Promise<AssigneeChangeOptions>((resolve) => {
+          resolveFirst = resolve
+        }),
+    )
+    const store = useTicketDetailStore()
+
+    const first = store.loadAssigneeOptions('t1')
+    optionsMock.mockResolvedValueOnce(
+      makeOptions({
+        reassignment_candidates: [makeAssignee({ id: 'u9', name: 'Última' })],
+      }),
+    )
+    const second = store.loadAssigneeOptions('t1')
+    await second
+
+    resolveFirst(makeOptions({ reassignment_candidates: [] }))
+    await first
+
+    expect(store.assigneeOptions?.reassignment_candidates[0]?.id).toBe('u9')
+    expect(store.assigneeOptionsLoading).toBe(false)
+  })
+
+  it('refleja la entrada assignee_change en menos de 2 s tras confirmar', async () => {
+    const assigneeEntry = makeEntry({
+      id: 'ac-latency',
+      type: 'assignee_change',
+      from_status: null,
+      to_status: null,
+      change_kind: 'reassignment',
+      previous_assignee: makeAssignee(),
+      new_assignee: makeAssignee({ id: 'u3', name: 'Técnico B' }),
+      body: 'Motivo del cambio.',
+    })
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow({ can_reassign: true, can_escalate: true }),
+    )
+    const store = useTicketDetailStore()
+    await store.loadWorkflow('t1')
+    await store.loadTimeline('t1')
+
+    vi.useFakeTimers()
+    getTimelineMock.mockResolvedValue(makeTimeline([assigneeEntry]))
+    reassignMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(makeChangeResponse()), 800)
+        }),
+    )
+
+    const started = Date.now()
+    const pending = store.reassign('t1', REASSIGN_PAYLOAD)
+    await vi.advanceTimersByTimeAsync(800)
+    await pending
+
+    expect(
+      store.timeline.some((entry) => entry.type === 'assignee_change'),
+    ).toBe(true)
+    expect(Date.now() - started).toBeLessThan(2000)
   })
 })

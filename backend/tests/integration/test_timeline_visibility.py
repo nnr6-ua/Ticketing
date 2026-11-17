@@ -400,3 +400,282 @@ def test_timeline_entry_ticket_relationship(
     assert loaded is not None
     assert loaded.ticket.id == ticket.id
     assert loaded.ticket.number == ticket.number
+
+
+# ---------------------------------------------------------------------------
+# HU-06 · Cambio de responsable en la línea temporal (T050, T092)
+# ---------------------------------------------------------------------------
+def test_assignee_change_entries_interleave_in_chronological_order(
+    client, db, seeded_assignee_change, auth_headers, timeline_entry_factory
+) -> None:
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    assigned = seed.users["asignado"]
+    destination = seed.users["companero"]
+    headers = auth_headers(assigned)
+
+    # Hecho previo de HU-05 para comprobar el intercalado.
+    timeline_entry_factory(
+        ticket=ticket,
+        author=assigned,
+        event_type=TimelineEventType.status_change,
+        from_status=TicketStatus.abierto,
+        to_status=TicketStatus.en_progreso,
+        created_at=seed.now - timedelta(minutes=10),
+    )
+
+    first = client.post(
+        _url(ticket, "reassignments"),
+        headers=headers,
+        json={
+            "new_assignee_id": str(destination.id),
+            "reason": "Reasignación documentada.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=headers
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.post(
+        _url(ticket, "escalations"),
+        headers=auth_headers(destination),
+        json={
+            "target_level": "nivel_2",
+            "reason": "Escalado documentado.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=auth_headers(destination)
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert second.status_code == 200, second.text
+
+    payload = _timeline(client, ticket, headers).json()
+    assert _types(payload) == [
+        "status_change",
+        "assignee_change",
+        "assignee_change",
+    ]
+
+    reassignment_entry, escalation_entry = payload["items"][-2:]
+    assert reassignment_entry["change_kind"] == "reassignment"
+    assert reassignment_entry["body"] == "Reasignación documentada."
+    assert reassignment_entry["is_internal"] is False
+    assert reassignment_entry["previous_assignee"]["id"] == str(assigned.id)
+    assert reassignment_entry["new_assignee"]["id"] == str(destination.id)
+    assert reassignment_entry["from_escalation_level"] == "nivel_1"
+    assert reassignment_entry["to_escalation_level"] == "nivel_1"
+
+    assert escalation_entry["change_kind"] == "escalation"
+    assert escalation_entry["body"] == "Escalado documentado."
+    assert escalation_entry["from_escalation_level"] == "nivel_1"
+    assert escalation_entry["to_escalation_level"] == "nivel_2"
+    assert escalation_entry["to_escalation_level_label"] == "Nivel 2"
+    assert escalation_entry["author"]["id"] == str(destination.id)
+
+    created = [item["created_at"] for item in payload["items"]]
+    assert created == sorted(created)
+
+
+def test_creator_sees_assignee_change_but_not_internal_notes(
+    client, db, seeded_assignee_change, auth_headers, timeline_entry_factory
+) -> None:
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    creator = seed.users["creador_tecnico"]
+    assigned = seed.users["asignado"]
+    destination = seed.users["companero"]
+
+    timeline_entry_factory(
+        ticket=ticket,
+        author=assigned,
+        event_type=TimelineEventType.internal_comment,
+        body="Nota interna del equipo.",
+        is_internal=True,
+        created_at=seed.now - timedelta(minutes=5),
+    )
+
+    response = client.post(
+        _url(ticket, "reassignments"),
+        headers=auth_headers(assigned),
+        json={
+            "new_assignee_id": str(destination.id),
+            "reason": "Motivo público.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=auth_headers(assigned)
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    payload = _timeline(client, ticket, auth_headers(creator)).json()
+    assert _types(payload) == ["assignee_change"]
+    item = payload["items"][0]
+    assert item["body"] == "Motivo público."
+    assert item["is_internal"] is False
+    assert item["previous_assignee"]["name"] == assigned.name
+    assert item["new_assignee"]["name"] == destination.name
+
+    workflow = _workflow(client, ticket, auth_headers(creator)).json()
+    assert workflow["can_view_internal"] is False
+    assert workflow["can_reassign"] is False
+    assert workflow["can_escalate"] is False
+
+
+def test_previous_technician_keeps_public_timeline_and_loses_internal_access(
+    client, db, seeded_assignee_change, auth_headers, timeline_entry_factory
+) -> None:
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    previous = seed.users["asignado"]
+    new_assignee = seed.users["companero"]
+
+    timeline_entry_factory(
+        ticket=ticket,
+        author=previous,
+        event_type=TimelineEventType.internal_comment,
+        body="Nota interna anterior.",
+        is_internal=True,
+        created_at=seed.now - timedelta(minutes=5),
+    )
+
+    response = client.post(
+        _url(ticket, "reassignments"),
+        headers=auth_headers(previous),
+        json={
+            "new_assignee_id": str(new_assignee.id),
+            "reason": "Traspaso.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=auth_headers(previous)
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    previous_timeline = _timeline(client, ticket, auth_headers(previous))
+    assert previous_timeline.status_code == 200, previous_timeline.text
+    assert _types(previous_timeline.json()) == ["assignee_change"]
+
+    previous_workflow = _workflow(client, ticket, auth_headers(previous)).json()
+    assert previous_workflow["can_view_internal"] is False
+    assert previous_workflow["can_change_status"] is False
+    assert previous_workflow["can_comment_internally"] is False
+    assert previous_workflow["can_reassign"] is False
+    assert previous_workflow["can_escalate"] is False
+
+    new_timeline = _timeline(client, ticket, auth_headers(new_assignee))
+    assert _types(new_timeline.json()) == ["internal_comment", "assignee_change"]
+
+    new_workflow = _workflow(client, ticket, auth_headers(new_assignee)).json()
+    assert new_workflow["can_view_internal"] is True
+    assert new_workflow["can_comment_internally"] is True
+    assert new_workflow["can_reassign"] is True
+    assert new_workflow["can_escalate"] is True
+
+
+def test_rejections_and_replays_do_not_add_timeline_entries(
+    client, db, seeded_assignee_change, auth_headers
+) -> None:
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    assigned = seed.users["asignado"]
+    destination = seed.users["companero"]
+    headers = auth_headers(assigned)
+    request_id = uuid.uuid4()
+
+    expected = client.get(
+        _url(ticket, "workflow"), headers=headers
+    ).json()["ticket"]["updated_at"]
+    body = {
+        "new_assignee_id": str(destination.id),
+        "reason": "Motivo.",
+        "expected_updated_at": expected,
+        "request_id": str(request_id),
+    }
+
+    rejected = client.post(
+        _url(ticket, "reassignments"),
+        headers=headers,
+        json={**body, "reason": "   "},
+    )
+    assert rejected.status_code == 422
+    assert _timeline(client, ticket, headers).json()["pagination"]["total_items"] == 0
+
+    first = client.post(_url(ticket, "reassignments"), headers=headers, json=body)
+    assert first.status_code == 200, first.text
+    assert _timeline(client, ticket, headers).json()["pagination"]["total_items"] == 1
+
+    replay = client.post(_url(ticket, "reassignments"), headers=headers, json=body)
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["changed"] is False
+    assert replay.json()["timeline_entry"] is None
+    assert _timeline(client, ticket, headers).json()["pagination"]["total_items"] == 1
+
+    stale = client.post(
+        _url(ticket, "reassignments"),
+        headers=auth_headers(destination),
+        json={
+            **body,
+            "new_assignee_id": str(assigned.id),
+            "expected_updated_at": "2000-01-01T00:00:00+00:00",
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert stale.status_code == 409
+    assert _timeline(client, ticket, headers).json()["pagination"]["total_items"] == 1
+
+
+def test_assignee_change_entry_distinguishes_kind_and_serializes_levels(
+    client, db, seeded_assignee_change, auth_headers
+) -> None:
+    seed = seeded_assignee_change
+    ticket = seed.tickets["activo"]
+    assigned = seed.users["asignado"]
+    destination = seed.users["companero"]
+
+    reassignment = client.post(
+        _url(ticket, "reassignments"),
+        headers=auth_headers(assigned),
+        json={
+            "new_assignee_id": str(destination.id),
+            "reason": "Reasignación.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=auth_headers(assigned)
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert reassignment.status_code == 200, reassignment.text
+    assert reassignment.json()["timeline_entry"]["change_kind"] == "reassignment"
+
+    escalation = client.post(
+        _url(ticket, "escalations"),
+        headers=auth_headers(destination),
+        json={
+            "target_level": "especialista",
+            "reason": "Escalado.",
+            "expected_updated_at": client.get(
+                _url(ticket, "workflow"), headers=auth_headers(destination)
+            ).json()["ticket"]["updated_at"],
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+    assert escalation.status_code == 200, escalation.text
+    entry = escalation.json()["timeline_entry"]
+    assert entry["change_kind"] == "escalation"
+    assert entry["from_escalation_level"] == "nivel_1"
+    assert entry["to_escalation_level"] == "especialista"
+    assert entry["from_escalation_level_label"] == "Nivel 1"
+    assert entry["to_escalation_level_label"] == "Especialista"
+
+    payload = _timeline(client, ticket, auth_headers(assigned)).json()
+    kinds = [
+        item["change_kind"]
+        for item in payload["items"]
+        if item["type"] == "assignee_change"
+    ]
+    assert kinds == ["reassignment", "escalation"]

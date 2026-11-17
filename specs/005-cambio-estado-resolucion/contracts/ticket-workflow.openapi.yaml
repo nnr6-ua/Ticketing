@@ -394,8 +394,10 @@ components:
 
     TimelineEventType:
       type: string
-      description: Tipo de entrada de la línea temporal
-      enum: [created, status_change, resolution, internal_comment, information_request, user_response]
+      description: |-
+        Tipo de entrada de la línea temporal. `assignee_change` se añade de
+        forma aditiva en HU-06.
+      enum: [created, status_change, resolution, internal_comment, information_request, user_response, assignee_change]
       example: status_change
 
     UserRole:
@@ -462,6 +464,30 @@ components:
           type: [string, 'null']
           format: uuid
           description: Petición respondida; añadido de forma compatible en HU-03.
+        # Campos aditivos de HU-06. Son nulos en las entradas de HU-05.
+        change_kind:
+          oneOf:
+            - type: string
+              enum: [reassignment, escalation]
+            - type: 'null'
+        previous_assignee:
+          type: [object, 'null']
+        new_assignee:
+          type: [object, 'null']
+        from_escalation_level:
+          oneOf:
+            - type: string
+              enum: [nivel_1, nivel_2, especialista]
+            - type: 'null'
+        from_escalation_level_label:
+          type: [string, 'null']
+        to_escalation_level:
+          oneOf:
+            - type: string
+              enum: [nivel_1, nivel_2, especialista]
+            - type: 'null'
+        to_escalation_level_label:
+          type: [string, 'null']
       example:
         id: 8b1f2a3c-4d5e-4f60-8a7b-9c0d1e2f3a4b
         type: resolution
@@ -572,6 +598,11 @@ components:
           type: [string, 'null']
           format: date-time
           description: Añadido por HU-03.
+        # Capacidades aditivas de HU-06.
+        can_reassign:
+          type: boolean
+        can_escalate:
+          type: boolean
       example:
         ticket:
           id: 5c2b3d4e-6f7a-4b8c-9d0e-1f2a3b4c5d6e

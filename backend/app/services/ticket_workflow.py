@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError, WORKFLOW_WRITE_ERROR_MESSAGE
 from app.models import (
+    DEFAULT_ACTIVE_STATUSES,
+    EscalationLevel,
     Ticket,
     TicketStatus,
     TicketTimelineEntry,
@@ -203,6 +205,56 @@ def _ensure_writer(user: User, ticket: Ticket) -> None:
         raise _not_assignee()
 
 
+def ensure_assignee_change_actor(user: User, ticket: Ticket) -> None:
+    """Solo el técnico asignado vigente puede cambiar el responsable.
+
+    El creador con rol técnico no asignado recibe `403 forbidden` (RN-11) con
+    precedencia sobre `403 not_ticket_assignee`. Si el creador es el técnico
+    asignado, actúa en su capacidad de responsable y la operación se permite.
+    No modifica `_ensure_writer` de HU-05.
+    """
+
+    if user.role != UserRole.tecnico:
+        logger.warning(
+            "Acceso denegado code=forbidden ticket_id=%s", ticket.id
+        )
+        raise _forbidden()
+    if ticket.assignee_id is None or ticket.assignee_id != user.id:
+        if user.id == ticket.creator_id:
+            logger.warning(
+                "Acceso denegado code=forbidden ticket_id=%s", ticket.id
+            )
+            raise _forbidden()
+        logger.warning(
+            "Acceso denegado code=not_ticket_assignee ticket_id=%s", ticket.id
+        )
+        raise _not_assignee()
+
+
+def _current_escalation_level(user: User) -> EscalationLevel:
+    return user.escalation_level or EscalationLevel.nivel_1
+
+
+def assignee_change_capabilities(
+    user: User, ticket: Ticket
+) -> tuple[bool, bool]:
+    """Calcula `can_reassign` y `can_escalate` en servidor."""
+
+    is_current_assignee = (
+        ticket.assignee_id is not None and ticket.assignee_id == user.id
+    )
+    can_reassign = (
+        user.role == UserRole.tecnico
+        and is_current_assignee
+        and ticket.status in DEFAULT_ACTIVE_STATUSES
+    )
+    can_escalate = (
+        can_reassign
+        and _current_escalation_level(user) != EscalationLevel.especialista
+    )
+    return can_reassign, can_escalate
+
+
 def build_snapshot(ticket: Ticket, user: User) -> TicketWorkflowSnapshot:
     """Snapshot del ticket con las capacidades del usuario."""
 
@@ -232,6 +284,7 @@ def get_workflow(session: Session, ticket: Ticket, user: User) -> WorkflowRespon
 
     capabilities = viewer_capabilities(user, ticket)
     state = information_state(session, ticket)
+    can_reassign, can_escalate = assignee_change_capabilities(user, ticket)
     return WorkflowResponse(
         ticket=build_snapshot(ticket, user),
         can_change_status=capabilities.can_change_status,
@@ -247,6 +300,8 @@ def get_workflow(session: Session, ticket: Ticket, user: User) -> WorkflowRespon
         ),
         reminder_active=state.reminder_active,
         reminder_due_at=state.reminder_due_at,
+        can_reassign=can_reassign,
+        can_escalate=can_escalate,
     )
 
 

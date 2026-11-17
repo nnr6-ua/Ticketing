@@ -63,6 +63,8 @@ function makeWorkflow(overrides: Partial<WorkflowResponse> = {}): WorkflowRespon
     active_information_request: null,
     reminder_active: false,
     reminder_due_at: null,
+    can_reassign: false,
+    can_escalate: false,
     ...overrides,
   }
 }
@@ -78,6 +80,13 @@ function makeEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-04T10:00:00Z',
     reply_to_id: null,
+    change_kind: null,
+    previous_assignee: null,
+    new_assignee: null,
+    from_escalation_level: null,
+    from_escalation_level_label: null,
+    to_escalation_level: null,
+    to_escalation_level_label: null,
     ...overrides,
   }
 }

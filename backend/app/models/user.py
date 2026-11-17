@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Enum, String, Uuid
+from sqlalchemy import Boolean, Enum, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import UserRole
+from app.models.enums import EscalationLevel, UserRole
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        Index(
+            "ix_users_role_active_level_team",
+            "role",
+            "is_active",
+            "escalation_level",
+            "team",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -28,4 +37,14 @@ class User(Base):
     team: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
+    )
+    escalation_level: Mapped[EscalationLevel] = mapped_column(
+        Enum(
+            EscalationLevel,
+            name="escalation_level",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+        default=EscalationLevel.nivel_1,
+        server_default="nivel_1",
     )

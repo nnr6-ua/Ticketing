@@ -6,6 +6,7 @@ from app.api.v1 import (
     admin_configuration,
     dev_auth,
     my_tickets,
+    notifications,
     ticket_creation,
     tickets,
     work_queue,
@@ -18,6 +19,7 @@ api_router.include_router(my_tickets.router)
 api_router.include_router(ticket_creation.router)
 api_router.include_router(tickets.router)
 api_router.include_router(admin_configuration.router)
+api_router.include_router(notifications.router)
 
 # El stub de autenticación solo existe cuando se habilita explícitamente.
 if get_settings().auth_dev_stub_enabled:

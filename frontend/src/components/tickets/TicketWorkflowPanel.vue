@@ -6,6 +6,7 @@ import InformationRequestForm from '@/components/tickets/InformationRequestForm.
 import InformationResponseForm from '@/components/tickets/InformationResponseForm.vue'
 import InternalCommentForm from '@/components/tickets/InternalCommentForm.vue'
 import ResolutionForm from '@/components/tickets/ResolutionForm.vue'
+import TicketAssigneeChangePanel from '@/components/tickets/TicketAssigneeChangePanel.vue'
 import TicketStatusSelector from '@/components/tickets/TicketStatusSelector.vue'
 import TicketTimeline from '@/components/tickets/TicketTimeline.vue'
 import { useTicketDetailStore } from '@/stores/ticketDetail'
@@ -21,6 +22,8 @@ const {
   canChangeStatus,
   canComment,
   canSeeInternal,
+  canReassign,
+  canEscalate,
   loading,
   timelineLoading,
   submitting,
@@ -36,6 +39,7 @@ const {
   informationRequestText,
   informationResponseText,
   notice,
+  assigneeErrorCode,
 } = storeToRefs(store)
 
 const selectedTarget = ref<TicketStatus | null>(null)
@@ -71,6 +75,26 @@ const informationRequestIsValid = computed(
     informationRequestText.value.trim().length >= 1 &&
     informationRequestText.value.trim().length <= 5000,
 )
+
+const assignmentLost = computed(
+  () => assigneeErrorCode.value === 'not_ticket_assignee',
+)
+
+// Coherencia defensiva (HU06-RF-033): si la última entrada de cambio de
+// responsable no coincide con el responsable mostrado, se bloquean las
+// acciones de cambio de responsable hasta que el workflow se recargue.
+const assigneeInconsistent = computed(() => {
+  if (!ticket.value) {
+    return false
+  }
+  const latestChange = [...timeline.value]
+    .reverse()
+    .find((entry) => entry.type === 'assignee_change' && entry.new_assignee)
+  if (!latestChange?.new_assignee) {
+    return false
+  }
+  return latestChange.new_assignee.id !== ticket.value.assignee_id
+})
 
 const canSubmit = computed(() => {
   if (submitting.value || selectedTarget.value === null) {
@@ -187,7 +211,6 @@ async function submitTransition(): Promise<void> {
   }
 }
 
-
 async function submitInformationRequest(): Promise<void> {
   const body = informationRequestText.value.trim()
   if (body.length === 0) {
@@ -255,6 +278,10 @@ async function submitInternalComment(): Promise<void> {
     commentError.value = null
     resetCommentRequest()
   }
+}
+
+async function onAssigneeChanged(): Promise<void> {
+  await store.refreshAfterAssigneeChange(props.ticketId)
 }
 
 watch(resolutionText, () => {
@@ -388,6 +415,23 @@ onMounted(() => {
         {{ notice }}
       </p>
 
+      <p
+        v-if="assignmentLost"
+        role="alert"
+        class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+      >
+        Este ticket ya no está asignado a ti.
+      </p>
+
+      <p
+        v-if="assigneeInconsistent"
+        role="alert"
+        class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+      >
+        El responsable del ticket no coincide con el último cambio registrado.
+        Actualiza la información.
+      </p>
+
       <div
         v-if="error"
         role="alert"
@@ -466,6 +510,17 @@ onMounted(() => {
               </button>
             </div>
           </div>
+
+          <TicketAssigneeChangePanel
+            v-if="canReassign || canEscalate"
+            :ticket-id="ticketId"
+            :ticket="ticket"
+            :can-reassign="canReassign"
+            :can-escalate="canEscalate"
+            :disabled="submitting || assigneeInconsistent"
+            @changed="onAssigneeChanged"
+            @notice="notice = $event"
+          />
 
           <div
             v-if="canRespondToInformation"

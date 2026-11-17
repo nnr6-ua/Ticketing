@@ -117,15 +117,17 @@ function isHistoricalResolution(entryId: string): boolean {
         :key="entry.id"
         class="rounded-lg border p-4"
         :class="
-          entry.type === 'resolution'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : entry.type === 'internal_comment'
-              ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : entry.type === 'information_request'
-                ? 'border-sky-200 bg-sky-50 text-sky-900'
-                : entry.type === 'user_response'
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-900'
-                  : 'border-slate-200 bg-white text-slate-800'
+          entry.type === 'assignee_change'
+            ? 'border-sky-200 bg-sky-50 text-sky-900'
+            : entry.type === 'information_request'
+              ? 'border-sky-200 bg-sky-50 text-sky-900'
+              : entry.type === 'user_response'
+                ? 'border-indigo-200 bg-indigo-50 text-indigo-900'
+                : entry.type === 'resolution'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : entry.type === 'internal_comment'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-slate-200 bg-white text-slate-800'
         "
         :data-entry-type="entry.type"
       >
@@ -153,6 +155,54 @@ function isHistoricalResolution(entryId: string): boolean {
                 {{ statusLabel(entry.from_status) }} a
                 {{ statusLabel(entry.to_status) }}.
               </p>
+            </template>
+
+            <template v-else-if="entry.type === 'assignee_change'">
+              <span
+                class="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-900"
+              >
+                Cambio de responsable
+              </span>
+              <span
+                v-if="entry.change_kind === 'reassignment'"
+                class="ml-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-sky-900"
+              >
+                Reasignación
+              </span>
+              <span
+                v-else-if="entry.change_kind === 'escalation'"
+                class="ml-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-sky-900"
+              >
+                Escalado a {{ entry.to_escalation_level_label }}
+              </span>
+
+              <template v-if="entry.previous_assignee && entry.new_assignee">
+                <p
+                  v-if="entry.change_kind === 'escalation'"
+                  class="mt-2 text-sm"
+                >
+                  {{ entry.author.name }} escaló el ticket de
+                  {{ entry.previous_assignee.name }}
+                  ({{ entry.from_escalation_level_label }}) a
+                  {{ entry.new_assignee.name }}
+                  ({{ entry.to_escalation_level_label }}).
+                </p>
+                <p v-else class="mt-2 text-sm">
+                  {{ entry.author.name }} reasignó el ticket de
+                  {{ entry.previous_assignee.name }} a
+                  {{ entry.new_assignee.name }}.
+                </p>
+              </template>
+              <p v-else class="mt-2 text-sm">
+                Se cambió el responsable del ticket.
+              </p>
+
+              <div v-if="entry.body" class="mt-2">
+                <p class="text-xs font-semibold text-sky-900">Motivo</p>
+                <p class="whitespace-pre-wrap break-words text-sm">
+                  {{ entry.body }}
+                </p>
+              </div>
             </template>
 
             <template v-else-if="entry.type === 'resolution'">

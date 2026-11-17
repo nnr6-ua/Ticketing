@@ -13,7 +13,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import TicketStatus, TimelineEventType, UserRole
+from app.models.enums import (
+    AssigneeChangeKind,
+    EscalationLevel,
+    TicketStatus,
+    TimelineEventType,
+    UserRole,
+)
 
 
 class _Schema(BaseModel):
@@ -31,6 +37,15 @@ class AuthorRef(_Schema):
     role: UserRole
 
 
+class AssigneeRef(_Schema):
+    id: UUID
+    name: str
+    role: UserRole
+    team: str | None = None
+    escalation_level: EscalationLevel
+    escalation_level_label: str
+
+
 class TimelineEntry(_Schema):
     id: UUID
     type: TimelineEventType
@@ -41,6 +56,13 @@ class TimelineEntry(_Schema):
     author: AuthorRef
     created_at: datetime
     reply_to_id: UUID | None = None
+    change_kind: AssigneeChangeKind | None = None
+    previous_assignee: AssigneeRef | None = None
+    new_assignee: AssigneeRef | None = None
+    from_escalation_level: EscalationLevel | None = None
+    from_escalation_level_label: str | None = None
+    to_escalation_level: EscalationLevel | None = None
+    to_escalation_level_label: str | None = None
 
 
 class InformationRequestRef(_Schema):
@@ -75,6 +97,8 @@ class WorkflowResponse(_Schema):
     active_information_request: InformationRequestRef | None = None
     reminder_active: bool
     reminder_due_at: datetime | None = None
+    can_reassign: bool = False
+    can_escalate: bool = False
 
 
 class StatusTransitionRequest(_Schema):

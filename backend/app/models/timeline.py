@@ -1,4 +1,4 @@
-"""Modelo append-only de la línea temporal del ticket (HU-05)."""
+"""Modelo append-only de la línea temporal del ticket (HU-05/HU-06)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import TicketStatus, TimelineEventType
+from app.models.enums import (
+    AssigneeChangeKind,
+    EscalationLevel,
+    TicketStatus,
+    TimelineEventType,
+)
 from app.models.ticket import Ticket, utcnow
 from app.models.user import User
 
@@ -61,6 +66,26 @@ class TicketTimelineEntry(Base):
             "(from_status IS NULL AND to_status IS NULL "
             "AND body IS NOT NULL AND is_internal = false)",
             name="ck_timeline_user_response",
+        ),
+        CheckConstraint(
+            "(event_type <> 'assignee_change') OR ("
+            "body IS NOT NULL "
+            "AND is_internal = false "
+            "AND from_status IS NULL "
+            "AND to_status IS NULL "
+            "AND previous_assignee_id IS NOT NULL "
+            "AND new_assignee_id IS NOT NULL "
+            "AND previous_assignee_id <> new_assignee_id "
+            "AND change_kind IS NOT NULL "
+            "AND from_escalation_level IS NOT NULL "
+            "AND to_escalation_level IS NOT NULL "
+            "AND ("
+            "(change_kind = 'reassignment' "
+            "AND from_escalation_level = to_escalation_level) "
+            "OR (change_kind = 'escalation' "
+            "AND from_escalation_level <> to_escalation_level)"
+            "))",
+            name="ck_timeline_assignee_change",
         ),
         CheckConstraint(
             "body IS NULL OR (length(body) >= 1 AND length(body) <= 5000)",
@@ -133,5 +158,42 @@ class TicketTimelineEntry(Base):
         nullable=True,
     )
 
-    author: Mapped[User] = relationship(lazy="joined")
+    previous_assignee_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id"), nullable=True
+    )
+    new_assignee_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id"), nullable=True
+    )
+    change_kind: Mapped[AssigneeChangeKind | None] = mapped_column(
+        Enum(
+            AssigneeChangeKind,
+            name="assignee_change_kind",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=True,
+    )
+    from_escalation_level: Mapped[EscalationLevel | None] = mapped_column(
+        Enum(
+            EscalationLevel,
+            name="escalation_level",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=True,
+    )
+    to_escalation_level: Mapped[EscalationLevel | None] = mapped_column(
+        Enum(
+            EscalationLevel,
+            name="escalation_level",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=True,
+    )
+
+    author: Mapped[User] = relationship(lazy="joined", foreign_keys=[author_id])
+    previous_assignee: Mapped[User | None] = relationship(
+        lazy="joined", foreign_keys=[previous_assignee_id]
+    )
+    new_assignee: Mapped[User | None] = relationship(
+        lazy="joined", foreign_keys=[new_assignee_id]
+    )
     ticket: Mapped[Ticket] = relationship()

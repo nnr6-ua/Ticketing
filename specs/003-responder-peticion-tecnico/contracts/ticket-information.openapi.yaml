@@ -492,6 +492,7 @@ components:
         - internal_comment
         - information_request
         - user_response
+        - assignee_change
 
     UserRole:
       type: string
@@ -555,6 +556,30 @@ components:
             - type: string
               format: uuid
             - type: 'null'
+        # Campos aditivos de HU-06. Son nulos en las entradas de HU-03.
+        change_kind:
+          oneOf:
+            - type: string
+              enum: [reassignment, escalation]
+            - type: 'null'
+        previous_assignee:
+          type: [object, 'null']
+        new_assignee:
+          type: [object, 'null']
+        from_escalation_level:
+          oneOf:
+            - type: string
+              enum: [nivel_1, nivel_2, especialista]
+            - type: 'null'
+        from_escalation_level_label:
+          type: [string, 'null']
+        to_escalation_level:
+          oneOf:
+            - type: string
+              enum: [nivel_1, nivel_2, especialista]
+            - type: 'null'
+        to_escalation_level_label:
+          type: [string, 'null']
 
     InformationRequestRef:
       type: object
@@ -667,6 +692,11 @@ components:
             - type: string
               format: date-time
             - type: 'null'
+        # Capacidades aditivas de HU-06.
+        can_reassign:
+          type: boolean
+        can_escalate:
+          type: boolean
 
     InformationRequestRequest:
       type: object
