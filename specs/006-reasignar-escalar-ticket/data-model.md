@@ -161,7 +161,7 @@ class TimelineEventType(str, Enum):
 - `server_default` y `default` a `EscalationLevel.nivel_1`.
 - Los usuarios existentes quedan en Nivel 1 sin migración de datos manual.
 - El nivel solo se usa para candidatos, escalado y DTOs de cambio de responsable; no se añade a la cola de trabajo ni a las entradas históricas de HU-05.
-- La administración de niveles queda fuera de alcance (RN-02).
+- La administración de niveles queda fuera de alcance (HU06-RN-02).
 
 ---
 
@@ -318,7 +318,7 @@ La tabla guarda `ticket_number`, `ticket_title` y `previous_assignee_name` como 
 
 ## 7. Reglas de validación
 
-### 7.1. Motivo (RN-05)
+### 7.1. Motivo (HU06-RN-05)
 
 | Regla | Implementación |
 |---|---|
@@ -328,7 +328,7 @@ La tabla guarda `ticket_number`, `ticket_title` y `previous_assignee_name` como 
 | Inmutable | Solo `INSERT`; sin endpoints de edición/borrado |
 | Texto plano | Se guarda y se renderiza como texto; nunca `v-html` |
 
-### 7.2. Candidatos de reasignación (RN-03/RN-14)
+### 7.2. Candidatos de reasignación (HU06-RN-03/HU06-RN-14)
 
 | Regla | Implementación |
 |---|---|
@@ -342,7 +342,7 @@ La tabla guarda `ticket_number`, `ticket_title` y `previous_assignee_name` como 
 | Orden estable | `lower(name) ASC, id ASC` |
 | Revalidación en el comando | Se repite la consulta al confirmar |
 
-### 7.3. Escalado (RN-02/RN-04)
+### 7.3. Escalado (HU06-RN-02/HU06-RN-04)
 
 | Regla | Implementación |
 |---|---|
@@ -356,7 +356,7 @@ La tabla guarda `ticket_number`, `ticket_title` y `previous_assignee_name` como 
 
 Estados activos para la carga y para permitir la operación: `abierto`, `en_progreso`, `pendiente_usuario`.
 
-### 7.4. Estados y permisos (RN-06/RN-11)
+### 7.4. Estados y permisos (HU06-RN-06/HU06-RN-11)
 
 | Regla | Implementación |
 |---|---|
@@ -365,7 +365,7 @@ Estados activos para la carga y para permitir la operación: `abierto`, `en_prog
 | Identidad desde JWT | `get_current_user`; nunca desde cuerpo, query ni cabeceras manipulables |
 | Sin efectos en el flujo | No se modifica `status` ni se crea `status_change` |
 
-### 7.5. Idempotencia (RN-13)
+### 7.5. Idempotencia (HU06-RN-13)
 
 | Caso | Comportamiento |
 |---|---|
@@ -377,7 +377,7 @@ Estados activos para la carga y para permitir la operación: `abierto`, `en_prog
 | Replay de escalado | Se compara `target_level`, no la persona seleccionada; no se reselecciona |
 | `request_id` nuevo con destino igual al actual | `422 self_reassignment` (no hay no-op válido) |
 
-### 7.6. Concurrencia (RN-13)
+### 7.6. Concurrencia (HU06-RN-13)
 
 | Regla | Implementación |
 |---|---|

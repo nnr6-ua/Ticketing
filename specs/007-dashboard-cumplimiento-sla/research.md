@@ -107,7 +107,7 @@ Cada vencido se contabiliza exactamente una vez; el ranking agrupa por `atribuid
 
 ## R8 — Actualización ≤ 60 s y frescura en el frontend
 
-**Decision**: el store Pinia `slaDashboard.ts` replica el patrón probado de `workQueue.ts`: sondeo cada 60 s con `AbortController`, pausa con pestaña oculta, refresco al recuperar foco/visibilidad, actualización manual, filtros persistidos en la URL (query en español: `desde`, `hasta`, `categorias`, `prioridades`), y degradación: si falla una actualización con datos previos, se conservan con aviso de posible desactualización y acción de reintento (HU07-RN-12, RF-045/046). La fecha/hora de última actualización sale de `meta.generated_at` (ISO UTC) y se muestra en `Europe/Madrid`.
+**Decision**: el store Pinia `slaDashboard.ts` replica el patrón probado de `workQueue.ts`: sondeo cada 60 s con `AbortController`, pausa con pestaña oculta, refresco al recuperar foco/visibilidad, actualización manual, filtros persistidos en la URL (query en español: `desde`, `hasta`, `categorias`, `prioridades`), y degradación: si falla una actualización con datos previos, se conservan con aviso de posible desactualización y acción de reintento (HU07-RN-12, HU07-RF-045/046). La fecha/hora de última actualización sale de `meta.generated_at` (ISO UTC) y se muestra en `Europe/Madrid`.
 
 **Rationale**: mismo patrón, mismo riesgo cero; cumple el plazo máximo sin tiempo real (fuera de alcance). La instantánea única del backend garantiza que todas las secciones se refrescan juntas.
 

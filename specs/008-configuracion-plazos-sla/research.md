@@ -86,7 +86,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Alternativas descartadas**:
 
-- Recalcular el SLA al leer: viola FR-017 y FR-018.
+- Recalcular el SLA al leer: viola HU08-RF-017 y HU08-RF-018.
 - Guardar solo `sla_version` como cadena: no permite mostrar las horas aplicadas ni auditar la regla exacta.
 - Duplicar el nombre de la categoría/prioridad: el requisito pide conservar la referencia; el nombre actual puede cambiar y no afecta al plazo.
 
@@ -96,7 +96,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Decisión**: `work_queue.py` usa `COALESCE(Ticket.sla_priority_level, Priority.level)` para ordenar, filtrar por nivel y construir las opciones de filtro. El `PriorityRef.level` devuelto usa también el valor congelado. Para tickets legados sin snapshot, el `COALESCE` cae al nivel actual de la prioridad.
 
-**Motivo**: FR-018 y SC-009 exigen que cambiar el nivel de una prioridad no altere la posición de tickets existentes. Mantener el join a `Priority` para nombre y color conserva la UI actual.
+**Motivo**: HU08-RF-018 y HU08-SC-009 exigen que cambiar el nivel de una prioridad no altere la posición de tickets existentes. Mantener el join a `Priority` para nombre y color conserva la UI actual.
 
 **Alternativas descartadas**:
 
@@ -113,7 +113,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 - Reglas: el cliente envía `expected_rule_id` con la regla vigente que leyó. Si la regla ya fue sustituida o retirada, `409 stale_configuration`.
 - Lote: cada cambio lleva su propia expectativa; cualquier discrepancia cancela todo el lote.
 
-**Motivo**: cumple FR-025 y SC-010 sin bloqueos pesimistas de larga duración. El bloqueo de la versión vigente protege la coherencia global, pero no se mantiene durante la edición en el navegador.
+**Motivo**: cumple HU08-RF-025 y HU08-SC-010 sin bloqueos pesimistas de larga duración. El bloqueo de la versión vigente protege la coherencia global, pero no se mantiene durante la edición en el navegador.
 
 **Alternativas descartadas**:
 
@@ -141,7 +141,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Decisión**: `POST /admin/sla-rules/batch` recibe todas las operaciones de la matriz, las valida completas y las escribe en una transacción con una única `ConfigurationVersion`. Si una celda falla, se hace `rollback` y no se crea versión ni auditoría.
 
-**Motivo**: cumple el escenario 3.7 y FR-024. También reduce el número de versiones cuando el administrador guarda varias celdas de una vez.
+**Motivo**: cumple el escenario 3.7 y HU08-RF-024. También reduce el número de versiones cuando el administrador guarda varias celdas de una vez.
 
 **Alternativas descartadas**:
 
@@ -174,7 +174,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Decisión**: permitir eliminación solo si no hay tickets ni reglas asociadas, no es `is_system` y no es `is_default`. En caso contrario, `409 catalog_in_use` o `409 default_catalog_item` con un mensaje que propone desactivar.
 
-**Motivo**: cumple FR-006 y SC-004. Las claves foráneas existentes ya protegen la integridad; la comprobación previa permite un error de negocio claro en lugar de un `IntegrityError` genérico.
+**Motivo**: cumple HU08-RF-006 y HU08-SC-004. Las claves foráneas existentes ya protegen la integridad; la comprobación previa permite un error de negocio claro en lugar de un `IntegrityError` genérico.
 
 **Alternativas descartadas**:
 
@@ -187,7 +187,7 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Decisión**: `configuration_audit_entries` registra una entrada por entidad afectada y versión, con `previous_values` y `new_values` en JSON. La API solo expone lectura; no hay endpoints de actualización ni borrado.
 
-**Motivo**: cumple FR-022 y FR-023, y permite explicar cada cambio con autor, fecha y valores. El JSON es portable entre PostgreSQL y SQLite; los valores se serializan como texto/ISO 8601 para conservar precisión.
+**Motivo**: cumple HU08-RF-022 y HU08-RF-023, y permite explicar cada cambio con autor, fecha y valores. El JSON es portable entre PostgreSQL y SQLite; los valores se serializan como texto/ISO 8601 para conservar precisión.
 
 **Alternativas descartadas**:
 

@@ -95,66 +95,66 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 
 ## Requisitos Funcionales
 
-### RF-01: Gestión de tickets
-- RF-01.1: Crear ticket con descripción, adjuntos, categoría y prioridad
-- RF-01.2: Generar número de ticket único secuencial
-- RF-01.3: Sugerir categoría y prioridad automáticamente (basado en palabras clave de la descripción)
-- RF-01.4: Listar tickets con filtros (estado, prioridad, categoría, asignado, fechas)
-- RF-01.5: Ver detalle de ticket con línea temporal completa
+### HU00-RF-01: Gestión de tickets
+- HU00-RF-01.1: Crear ticket con descripción, adjuntos, categoría y prioridad
+- HU00-RF-01.2: Generar número de ticket único secuencial
+- HU00-RF-01.3: Sugerir categoría y prioridad automáticamente (basado en palabras clave de la descripción)
+- HU00-RF-01.4: Listar tickets con filtros (estado, prioridad, categoría, asignado, fechas)
+- HU00-RF-01.5: Ver detalle de ticket con línea temporal completa
 
-### RF-02: Flujo de estados
-- RF-02.1: Estados definidos: Abierto, En progreso, Pendiente de usuario, Resuelto, Cerrado
-- RF-02.2: Transiciones válidas entre estados (no se puede ir de Cerrado a Abierto directamente)
-- RF-02.3: Cambio automático a "En progreso" cuando usuario responde a "Pendiente de usuario"
-- RF-02.4: Requerir descripción de solución al pasar a "Resuelto"
+### HU00-RF-02: Flujo de estados
+- HU00-RF-02.1: Estados definidos: Abierto, En progreso, Pendiente de usuario, Resuelto, Cerrado
+- HU00-RF-02.2: Transiciones válidas entre estados (no se puede ir de Cerrado a Abierto directamente)
+- HU00-RF-02.3: Cambio automático a "En progreso" cuando usuario responde a "Pendiente de usuario"
+- HU00-RF-02.4: Requerir descripción de solución al pasar a "Resuelto"
 
-### RF-03: Asignación y escalado
-- RF-03.1: Asignar ticket a técnico (manual o automático por categoría)
-- RF-03.2: Reasignar a otro técnico del mismo nivel
-- RF-03.3: Escalar a nivel superior
-- RF-03.4: Notificación inmediata al nuevo responsable (en app y email)
-- RF-03.5: Registro en línea temporal de cada cambio de responsable
+### HU00-RF-03: Asignación y escalado
+- HU00-RF-03.1: Asignar ticket a técnico (manual o automático por categoría)
+- HU00-RF-03.2: Reasignar a otro técnico del mismo nivel
+- HU00-RF-03.3: Escalar a nivel superior
+- HU00-RF-03.4: Notificación inmediata al nuevo responsable (en app y email)
+- HU00-RF-03.5: Registro en línea temporal de cada cambio de responsable
 
-### RF-04: Cola de trabajo del técnico
-- RF-04.1: Vista personalizada con tickets asignados al técnico logueado
-- RF-04.2: Ordenación por prioridad (desc) + tiempo restante SLA (asc)
-- RF-04.3: Indicador visual de urgencia (próximo a vencer, vencido)
-- RF-04.4: Filtros por estado y prioridad
+### HU00-RF-04: Cola de trabajo del técnico
+- HU00-RF-04.1: Vista personalizada con tickets asignados al técnico logueado
+- HU00-RF-04.2: Ordenación por prioridad (desc) + tiempo restante SLA (asc)
+- HU00-RF-04.3: Indicador visual de urgencia (próximo a vencer, vencido)
+- HU00-RF-04.4: Filtros por estado y prioridad
 
-### RF-05: Adjuntos
-- RF-05.1: Subir imágenes (PNG, JPG, GIF) al crear ticket o comentar
-- RF-05.2: Límite de tamaño por archivo (ej: 5 MB) y total por ticket
-- RF-05.3: Visualización inline de imágenes en ticket y línea temporal
+### HU00-RF-05: Adjuntos
+- HU00-RF-05.1: Subir imágenes (PNG, JPG, GIF) al crear ticket o comentar
+- HU00-RF-05.2: Límite de tamaño por archivo (ej: 5 MB) y total por ticket
+- HU00-RF-05.3: Visualización inline de imágenes en ticket y línea temporal
 
-### RF-06: Dashboard de supervisión
-- RF-06.1: Métricas agregadas por prioridad y categoría
-- RF-06.2: % cumplimiento SLA, tiempo medio respuesta, tickets vencidos
-- RF-06.3: Ranking de técnicos con tickets vencidos
-- RF-06.4: Filtros temporales y por dimensión (categoría, prioridad, técnico)
-- RF-06.5: Semáforo visual por umbrales configurables
+### HU00-RF-06: Dashboard de supervisión
+- HU00-RF-06.1: Métricas agregadas por prioridad y categoría
+- HU00-RF-06.2: % cumplimiento SLA, tiempo medio respuesta, tickets vencidos
+- HU00-RF-06.3: Ranking de técnicos con tickets vencidos
+- HU00-RF-06.4: Filtros temporales y por dimensión (categoría, prioridad, técnico)
+- HU00-RF-06.5: Semáforo visual por umbrales configurables
 
-### RF-07: Administración de catálogos y SLA
-- RF-07.1: CRUD Categorías
-- RF-07.2: CRUD Prioridades (con nivel numérico y plazo base en horas)
-- RF-07.3: Matriz SLA: plazo por categoría × prioridad (sobrescribe plazo base de prioridad)
-- RF-07.4: Versionado de SLA: cada ticket guarda la configuración vigente al crearse
-- RF-07.5: Desactivar (no borrar) categorías/prioridades en uso
+### HU00-RF-07: Administración de catálogos y SLA
+- HU00-RF-07.1: CRUD Categorías
+- HU00-RF-07.2: CRUD Prioridades (con nivel numérico y plazo base en horas)
+- HU00-RF-07.3: Matriz SLA: plazo por categoría × prioridad (sobrescribe plazo base de prioridad)
+- HU00-RF-07.4: Versionado de SLA: cada ticket guarda la configuración vigente al crearse
+- HU00-RF-07.5: Desactivar (no borrar) categorías/prioridades en uso
 
-### RF-08: Notificaciones
-- RF-08.1: Notificación en app (campana) para eventos clave
-- RF-08.2: Email opcional para eventos críticos (asignación, escalado, SLA próximo a vencer)
-- RF-08.3: Preferencias de notificación por usuario
+### HU00-RF-08: Notificaciones
+- HU00-RF-08.1: Notificación en app (campana) para eventos clave
+- HU00-RF-08.2: Email opcional para eventos críticos (asignación, escalado, SLA próximo a vencer)
+- HU00-RF-08.3: Preferencias de notificación por usuario
 
 ## Requisitos No Funcionales
 
-- **RNF-01**: Interfaz 100% en español de España
-- **RNF-02**: Moneda en euros (si aplica en futuras extensiones)
-- **RNF-03**: Accesibilidad WCAG 2.1 AA
-- **RNF-04**: Responsive (funciona en desktop y tablet)
-- **RNF-05**: Tiempo de carga de vistas principales < 2 segundos
-- **RNF-06**: Disponibilidad 99.5% en horario laboral
-- **RNF-07**: Sin claves ni secretos en código (configuración por variables de entorno)
-- **RNF-08**: Solo datos imprescindibles del usuario (nombre, email, rol, equipo)
+- **HU00-RNF-01**: Interfaz 100% en español de España
+- **HU00-RNF-02**: Moneda en euros (si aplica en futuras extensiones)
+- **HU00-RNF-03**: Accesibilidad WCAG 2.1 AA
+- **HU00-RNF-04**: Responsive (funciona en desktop y tablet)
+- **HU00-RNF-05**: Tiempo de carga de vistas principales < 2 segundos
+- **HU00-RNF-06**: Disponibilidad 99.5% en horario laboral
+- **HU00-RNF-07**: Sin claves ni secretos en código (configuración por variables de entorno)
+- **HU00-RNF-08**: Solo datos imprescindibles del usuario (nombre, email, rol, equipo)
 
 ## Entidades Clave
 

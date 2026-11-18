@@ -8,7 +8,7 @@
 
 ## Summary
 
-HU-05 añade al técnico asignado la capacidad de hacer avanzar el ticket por la máquina de estados definida en RN-02 y de documentar obligatoriamente la solución al pasar a «Resuelto». La solución se persiste como una **entrada estructurada e inmutable de la línea temporal** (`event_type = resolution`), no como un campo nuevo en `tickets`, para conservar el histórico de reaperturas y no alterar el modelo base. El cambio de estado y sus entradas de línea temporal se escriben en **una única transacción**, con bloqueo de fila y token de concurrencia (`updated_at`). El frontend incorpora un panel de trabajo con selector de estados permitidos, formulario de resolución con bloqueo de envío y formulario de comentarios internos; el backend sigue siendo la fuente de verdad de la máquina de estados y de la visibilidad.
+HU-05 añade al técnico asignado la capacidad de hacer avanzar el ticket por la máquina de estados definida en HU05-RN-02 y de documentar obligatoriamente la solución al pasar a «Resuelto». La solución se persiste como una **entrada estructurada e inmutable de la línea temporal** (`event_type = resolution`), no como un campo nuevo en `tickets`, para conservar el histórico de reaperturas y no alterar el modelo base. El cambio de estado y sus entradas de línea temporal se escriben en **una única transacción**, con bloqueo de fila y token de concurrencia (`updated_at`). El frontend incorpora un panel de trabajo con selector de estados permitidos, formulario de resolución con bloqueo de envío y formulario de comentarios internos; el backend sigue siendo la fuente de verdad de la máquina de estados y de la visibilidad.
 
 **Decisiones clave**:
 
@@ -40,10 +40,10 @@ HU-05 añade al técnico asignado la capacidad de hacer avanzar el ticket por la
 - Listado de línea temporal paginado (50 por defecto, 200 máximo) para tickets con historial largo.
 
 **Constraints**:
-- Interfaz y mensajes 100 % en español de España (RNF-01).
-- Accesibilidad WCAG 2.1 AA (RNF-03) y diseño responsive (RNF-04).
+- Interfaz y mensajes 100 % en español de España (HU05-RNF-01).
+- Accesibilidad WCAG 2.1 AA (HU05-RNF-03) y diseño responsive (HU05-RNF-04).
 - Autenticación JWT existente; identidad solo desde `Authorization: Bearer` (nunca por query string).
-- Sin secretos en código (RNF-07).
+- Sin secretos en código (HU05-RNF-07).
 - No se introducen nuevas tecnologías ni se modifican las columnas base de `tickets`.
 
 **Scale/Scope**: Mesa de ayuda interna; miles de tickets y decenas de entradas por ticket. La tabla de línea temporal crece de forma append-only; se indexa por ticket y fecha.
@@ -223,7 +223,7 @@ Propiedades que las pruebas deben cubrir:
 - No hay auto-transiciones en la matriz; el mismo estado se trata como no-op idempotente antes de consultar la matriz.
 - `FINAL_STATUSES` existente (`resuelto`, `cerrado`) se reutiliza para etiquetas y coherencia con la cola de trabajo; no se redefine.
 - `allowed_transitions` conserva un orden estable y legible para la UI (por ejemplo, el orden de `TicketStatus`).
-- **RF-005 no se implementa aquí**: la transición automática `pendiente_usuario → en_progreso` al responder el usuario creador pertenece a HU-03. HU-05 solo declara la transición como válida en la matriz y garantiza que, cuando HU-03 la ejecute, se registre con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información quedan fuera de esta historia.
+- **HU03-RF-005 no se implementa aquí**: la transición automática `pendiente_usuario → en_progreso` al responder el usuario creador pertenece a HU-03. HU-05 solo declara la transición como válida en la matriz y garantiza que, cuando HU-03 la ejecute, se registre con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información quedan fuera de esta historia.
 
 #### 1.2. Orden de validación en el servicio transaccional
 
@@ -242,7 +242,7 @@ Fichero: `backend/app/services/ticket_workflow.py`, función `change_status(...)
 | 9 | `target_status ∈ allowed_transitions(ticket.status)` | `409 invalid_transition` (incluye estados disponibles) |
 | 10 | Si `target_status == resuelto`: resolución presente, no vacía tras `strip()`, ≤ 5.000 caracteres | `422 resolution_required` / `422 resolution_too_long` |
 
-La comprobación 5 se adelanta al no-op (6): una petición con `resolution` y destino distinto de `resuelto` es inválida aunque coincida con el estado actual (RF-034). Para un destino `resuelto` sobre un ticket ya `resuelto`, se conserva el no-op `200 changed=false` sin escribir. La comprobación 4 (replay idempotente) sigue teniendo prioridad sobre las validaciones de payload.
+La comprobación 5 se adelanta al no-op (6): una petición con `resolution` y destino distinto de `resuelto` es inválida aunque coincida con el estado actual (HU05-RF-034). Para un destino `resuelto` sobre un ticket ya `resuelto`, se conserva el no-op `200 changed=false` sin escribir. La comprobación 4 (replay idempotente) sigue teniendo prioridad sobre las validaciones de payload.
 
 La comprobación 4 va antes que la 6 para que un reintento con el mismo `request_id` devuelva el mismo resultado lógico (snapshot actual del ticket, `changed=false`, `timeline_entries=[]`) aunque el ticket haya avanzado. La 6 va antes que la 7 para que un doble envío del mismo destino sea idempotente aunque el primer envío ya haya actualizado `updated_at`. La 7 va antes que 8 y 9 para pedir al cliente que refresque antes de diagnosticar una transición sobre datos obsoletos.
 
@@ -384,9 +384,9 @@ La lectura y la escritura usan dependencias distintas:
   - `can_change_status = (user.id == ticket.assignee_id) and ticket.status != cerrado and allowed_transitions(ticket.status) no vacío`.
   - `can_comment_internally = (user.id == ticket.assignee_id)` (incluido `cerrado`).
 - `allowed_transitions` del snapshot se rellena solo si `can_change_status` es verdadero; en el resto es `[]`. Así el creador, el técnico no asignado y el supervisor no reciben acciones que no pueden ejecutar.
-- El usuario creador solo accede a la proyección pública (`status_change` y `resolution`). Supervisores y administradores leen la proyección interna, pero no ejecutan comandos en esta historia (RN-07).
+- El usuario creador solo accede a la proyección pública (`status_change` y `resolution`). Supervisores y administradores leen la proyección interna, pero no ejecutan comandos en esta historia (HU05-RN-07).
 
-#### 1.7. Contrato de integración con HU-03 (RF-005)
+#### 1.7. Contrato de integración con HU-03 (HU03-RF-005)
 
 HU-03 no usa el endpoint público. Invoca la función interna `apply_user_response_transition(...)` de `ticket_workflow.py` dentro de la misma transacción en la que registra la respuesta del creador:
 
@@ -413,7 +413,7 @@ HU-03 no usa el endpoint público. Invoca la función interna `apply_user_respon
 
 Ventajas frente a un campo único en `tickets`:
 
-1. **Histórico completo**: al reabrir «Resuelto» → «En progreso» y volver a resolver, se conservan todas las resoluciones como entradas independientes (RN-05, RF-014).
+1. **Histórico completo**: al reabrir «Resuelto» → «En progreso» y volver a resolver, se conservan todas las resoluciones como entradas independientes (HU05-RN-05, HU05-RF-014).
 2. **Coherencia con la especificación**: la entidad «Resolución» ya se define como vinculada a una entrada de la línea temporal.
 3. **Modelo base intacto**: `tickets` mantiene sus columnas y restricciones; solo se añade una tabla append-only.
 4. **Inmutabilidad natural**: no hay ruta de actualización ni borrado; cada resolución es un hecho histórico.
@@ -525,7 +525,7 @@ loadWorkflow(), loadTimeline(), refresh(), transitionStatus(), addComment(), res
 
 1. Valida en cliente: destino seleccionado y, si es `resuelto`, resolución no vacía tras `trim()` y ≤ 5.000.
 2. Deshabilita el botón (`submitting = true`) para bloquear el doble clic.
-3. `POST /tickets/{id}/status-transitions` con `target_status`, `expected_updated_at` y `request_id`; incluir `resolution` **solo** si `target_status === 'resuelto'`. Enviarla con cualquier otro destino produce `422 resolution_not_allowed` (RF-034), incluso si el destino coincide con el estado actual.
+3. `POST /tickets/{id}/status-transitions` con `target_status`, `expected_updated_at` y `request_id`; incluir `resolution` **solo** si `target_status === 'resuelto'`. Enviarla con cualquier otro destino produce `422 resolution_not_allowed` (HU05-RF-034), incluso si el destino coincide con el estado actual.
 4. En éxito: `applyTransitionTicket` reemplaza `ticket` (incluidos `status`, `allowed_transitions` y `updated_at`) y recalcula `canChangeStatus`; el panel limpia selección y resolución, recarga la línea temporal y anuncia el cambio con `aria-live="polite"`.
 5. En `409 stale_ticket`: muestra el aviso de conflicto, recarga `workflow` y `timeline`, conserva el texto de resolución para que el técnico no lo pierda y permite reintentar.
 6. En `409 invalid_transition` / `ticket_closed`: recarga el estado y muestra el mensaje del backend.
@@ -672,7 +672,7 @@ El botón «Guardar cambio» queda `disabled` cuando `canSubmit === false`, por 
 - `<textarea>` con etiqueta «Comentario interno», ayuda «Solo visible para el técnico asignado, supervisores y administradores.»
 - Contador `0 / 5000`; valida no vacío tras `trim()` y ≤ 5.000.
 - Botón «Añadir comentario interno» deshabilitado si no es válido o si hay un envío en curso.
-- Visible también cuando el ticket está «Cerrado» (RN-06/RF-021).
+- Visible también cuando el ticket está «Cerrado» (HU05-RN-06/HU05-RF-021).
 - Genera un `request_id` estable (`crypto.randomUUID()`) al iniciar el envío; lo reutiliza solo para reintentos con el mismo texto y lo regenera si el usuario edita el comentario o tras un alta correcta. Un `request_id` reutilizado con otro `body` devuelve `409 request_id_reused` y no escribe.
 - No cambia el estado del ticket; tras éxito, el padre recarga la línea temporal.
 
@@ -765,8 +765,8 @@ Reutiliza el cliente HTTP existente (GET/POST, `Authorization: Bearer`, `credent
 
 #### 4.3. Invariantes de coherencia
 
-1. **Estado ↔ línea temporal**: el último `status_change` de un ticket coincide siempre con `tickets.status` (RF-033). Se comprueba en pruebas tras cada transición y tras reaperturas.
-2. **Resuelto ⇒ resolución (post-migración)**: toda transición `status_change` con `to_status = 'resuelto'` ejecutada por HU-05 debe tener su entrada `resolution` no vacía con el mismo `request_id` (RN-03/RF-008). Los tickets `resuelto`/`cerrado` anteriores a `0003_ticket_timeline` no se modifican retroactivamente: se listan como legado en la auditoría y quedan excluidos de la aserción. La migración no crea resoluciones sintéticas.
+1. **Estado ↔ línea temporal**: el último `status_change` de un ticket coincide siempre con `tickets.status` (HU05-RF-033). Se comprueba en pruebas tras cada transición y tras reaperturas.
+2. **Resuelto ⇒ resolución (post-migración)**: toda transición `status_change` con `to_status = 'resuelto'` ejecutada por HU-05 debe tener su entrada `resolution` no vacía con el mismo `request_id` (HU05-RN-03/HU05-RF-008). Los tickets `resuelto`/`cerrado` anteriores a `0003_ticket_timeline` no se modifican retroactivamente: se listan como legado en la auditoría y quedan excluidos de la aserción. La migración no crea resoluciones sintéticas.
 3. **`finalized_at` ↔ estado final**: se respeta `ck_tickets_finalized_at`; resolver/cerrar lo rellenan, reabrir lo limpia.
 4. **`closed_at`**: solo no nulo cuando `status = cerrado`.
 5. **Inmutabilidad**: no hay endpoints de actualización/borrado de entradas; las resoluciones y comentarios son append-only.

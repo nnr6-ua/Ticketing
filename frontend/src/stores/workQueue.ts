@@ -331,8 +331,8 @@ export const useWorkQueueStore = defineStore('workQueue', () => {
       }
       // Si ya había datos se conservan; la vista muestra un aviso discreto.
       error.value = mapError(caught)
-      if (error.value.kind === 'unauthorized') {
-        // No dejar datos de una sesión anterior visibles tras un 401.
+      if (error.value.kind === 'unauthorized' || error.value.kind === 'forbidden') {
+        // No dejar datos de una sesión anterior visibles tras un 401 o 403.
         items.value = []
         counts.value = { active: 0, finalized: 0 }
         lastUpdatedAt.value = null

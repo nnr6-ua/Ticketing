@@ -43,7 +43,7 @@ No quedan incógnitas marcadas como `NEEDS CLARIFICATION`. Las decisiones siguie
 
 ## 7. Identidad del empleado y autenticación
 
-- **Decisión**: La autenticación queda fuera de alcance. El backend expone una dependencia `get_current_employee` que lee la cabecera `X-Employee-Id` y resuelve un empleado activo. En producción, esa cabecera la establece el gateway/middleware de autenticación existente. En desarrollo, el frontend envía el id del empleado demo sembrado (`VITE_DEV_EMPLOYEE_ID=1`). Si falta o no es válido, se responde 401.
+- **Decisión**: La identidad se obtiene exclusivamente del token JWT (`Authorization: Bearer`) validado en el backend; no se aceptan cabeceras de identidad manipulables. En desarrollo, `POST /api/v1/dev/login` emite un token de prueba cuando `AUTH_DEV_STUB_ENABLED=true`. Sin token válido se responde 401. La resolución del usuario activo y su rol se realiza siempre en servidor.
 - **Rationale**: Permite completar el flujo y probar la autoría sin inventar un sistema de login (alcance fantasma). Deja un punto de integración claro para la autenticación real.
 - **Alternativas consideradas**: Incluir login local (fuera de alcance), confiar en un `creator_id` del cuerpo (inseguro y no representa identidad autenticada), JWT propio (demasiada complejidad para v1).
 - **Nota de seguridad**: La cabecera debe ser inyectada por un proxy de confianza y no aceptada directamente desde Internet en producción. Queda documentado en `quickstart.md` y en el contrato.
@@ -80,7 +80,7 @@ No quedan incógnitas marcadas como `NEEDS CLARIFICATION`. Las decisiones siguie
 
 ## 11. Configuración y ejecución local
 
-- **Decisión**: `compose.yaml` con PostgreSQL 16 y volumen nombrado. Backend y frontend se ejecutan en local con Uvicorn y Vite. Variables en `.env` (backend) y `.env.local` (frontend); `.env.example` sin secretos. Migraciones y siembra por comandos documentados.
+- **Decisión**: `docker-compose.yml` con PostgreSQL 16 y volumen nombrado. Backend y frontend se ejecutan en local con Uvicorn y Vite. Variables en `.env` (backend) y `.env.local` (frontend); `.env.example` sin secretos. Migraciones y siembra por comandos documentados.
 - **Rationale**: Un solo contenedor para la base de datos mantiene el arranque simple y evita reconstruir imágenes en cada cambio de código.
 - **Alternativas consideradas**: Compose completo con backend/frontend (más lento para desarrollo), base de datos instalada en el host (menos reproducible).
 

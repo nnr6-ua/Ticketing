@@ -26,9 +26,9 @@ La HU-04 es de solo lectura. No crea tickets, no cambia estados, no reasigna y n
 **Decisión**: el endpoint aplica visibilidad, filtros, orden y paginación en PostgreSQL. El frontend no filtra ni ordena el conjunto completo.
 
 **Razón**:
-- Garantiza que la primera página contenga siempre los tickets más urgentes del conjunto (FR-017).
+- Garantiza que la primera página contenga siempre los tickets más urgentes del conjunto (HU04-RF-017).
 - Evita enviar tickets que no se van a mostrar y mantiene la respuesta pequeña.
-- La regla de propiedad se aplica una sola vez, en la consulta base, lo que reduce el riesgo de fuga (FR-001, FR-002, FR-029).
+- La regla de propiedad se aplica una sola vez, en la consulta base, lo que reduce el riesgo de fuga (HU04-RF-001, HU04-RF-002, HU04-RF-029).
 - Con ≤ 100 tickets por técnico el coste es trivial y los índices cubren la consulta.
 
 **Alternativas descartadas**:
@@ -43,7 +43,7 @@ La HU-04 es de solo lectura. No crea tickets, no cambia estados, no reasigna y n
 **Decisión**: el endpoint `GET /api/v1/me/work-queue` obtiene el técnico del token JWT enviado en `Authorization: Bearer`. No existe parámetro `technician_id` ni equivalente. La consulta siempre incluye `assignee_id = current_user.id`.
 
 **Razón**:
-- Cumple FR-001/FR-002 y el principio de datos con respeto.
+- Cumple HU04-RF-001/HU04-RF-002 y el principio de datos con respeto.
 - Elimina una clase entera de vulnerabilidades IDOR: no hay identificador que manipular.
 - Simplifica el contrato y las pruebas.
 
@@ -88,7 +88,7 @@ La HU-04 es de solo lectura. No crea tickets, no cambia estados, no reasigna y n
 - *Enviar solo `deadline` y calcular en el cliente con `new Date()`*: un reloj de cliente desajustado produce cuentas atrás erróneas.
 - *Usar `datetime.utcnow()`*: devuelve un datetime naive y es una fuente clásica de errores; se prohíbe.
 
-**Detalle**: `remaining_seconds = floor((deadline - now_utc).total_seconds())`, puede ser negativo. La clasificación usa segundos exactos; la visualización redondea a la baja (RN-04).
+**Detalle**: `remaining_seconds = floor((deadline - now_utc).total_seconds())`, puede ser negativo. La clasificación usa segundos exactos; la visualización redondea a la baja (HU04-RN-04).
 
 ---
 
@@ -99,7 +99,7 @@ La HU-04 es de solo lectura. No crea tickets, no cambia estados, no reasigna y n
 **Razón**:
 - `performance.now()` es monotónico y no retrocede si el usuario cambia la hora del sistema.
 - El servidor sigue siendo la autoridad: cada poll reemplaza el ancla.
-- Cumple FR-005 y RN-14 sin WebSockets ni temporizadores de servidor.
+- Cumple HU04-RF-005 y HU04-RN-14 sin WebSockets ni temporizadores de servidor.
 
 **Alternativas descartadas**:
 - *`setInterval` restando 1 s a un contador*: deriva con pestañas en segundo plano y suspensión del equipo.
@@ -138,7 +138,7 @@ si duración_total >= 60 min: umbral = max(60 min, 25 % de duración_total)
 - Ordenar los finalizados por `finalized_at DESC`.
 
 **Razón**:
-- El modelo base tiene `fecha_cierre`, pero no garantiza que se rellene al pasar a `Resuelto` (solo al cerrar). RN-13 exige el primer paso a cualquiera de los dos estados finales.
+- El modelo base tiene `fecha_cierre`, pero no garantiza que se rellene al pasar a `Resuelto` (solo al cerrar). HU04-RN-13 exige el primer paso a cualquiera de los dos estados finales.
 - Sin una fecha fiable no se puede mostrar "Dentro de plazo"/"Incumplido" ni ordenar finalizados de forma determinista.
 - Es una columna de soporte, no funcionalidad nueva.
 
@@ -175,7 +175,7 @@ si duración_total >= 60 min: umbral = max(60 min, 25 % de duración_total)
 
 **Razón**:
 - Volumen máximo previsto: 100 tickets por técnico; offset es suficiente y mucho más simple.
-- La UI necesita "página X de Y" y el total filtrado (FR-026).
+- La UI necesita "página X de Y" y el total filtrado (HU04-RF-026).
 - El orden total evita duplicados/huecos entre páginas.
 
 **Alternativas descartadas**:
@@ -191,14 +191,14 @@ si duración_total >= 60 min: umbral = max(60 min, 25 % de duración_total)
 **Decisión**: `setInterval` de 60 s en el store, pausado cuando la pestaña está oculta, con recarga inmediata al volver a visible o al recuperar foco.
 
 **Razón**:
-- Cumple FR-005/RN-14 con la infraestructura más simple.
+- Cumple HU04-RF-005/HU04-RN-14 con la infraestructura más simple.
 - El volumen es bajo y la vista es de consulta.
 - No requiere servidor de eventos ni reconexión.
 
 **Alternativas descartadas**:
 - *WebSockets*: sobreingeniería para una vista de 100 filas.
 - *SSE*: algo más simple que WebSockets, pero sigue requiriendo gestión de conexión, proxies y reconexión.
-- *Refresco manual*: incumple FR-005.
+- *Refresco manual*: incumple HU04-RF-005.
 
 **Detalle**: cada petición cancela la anterior con `AbortController`; solo se aplica la respuesta de la última petición.
 
@@ -209,7 +209,7 @@ si duración_total >= 60 min: umbral = max(60 min, 25 % de duración_total)
 **Decisión**: los filtros y la página se reflejan en la query string (`estado`, `prioridad`, `pagina`) y en un store Pinia. El store es la fuente de verdad durante la sesión; la URL permite recarga, atrás/adelante y enlaces.
 
 **Razón**:
-- FR-028 exige mantener los filtros durante la navegación.
+- HU04-RF-028 exige mantener los filtros durante la navegación.
 - La URL hace el estado observable y compartible sin añadir persistencia local.
 - Evita duplicar estado entre componentes.
 
@@ -273,7 +273,7 @@ si duración_total >= 60 min: umbral = max(60 min, 25 % de duración_total)
 **Decisión**: cada estado de SLA combina color + icono + texto; la tabla es semántica; los filtros son `fieldset`/`legend` con checkboxes; foco visible; contraste ≥ 4.5:1; el número de resultados no se anuncia cada segundo.
 
 **Razón**:
-- FR-022 y RN-16 exigen que el riesgo sea perceptible sin color.
+- HU04-RF-022 y HU04-RN-16 exigen que el riesgo sea perceptible sin color.
 - Una tabla real permite navegación por lector de pantalla y encabezados asociados.
 - Anunciar cada tick sería ruidoso; se anuncia el cambio de estado, no cada segundo.
 

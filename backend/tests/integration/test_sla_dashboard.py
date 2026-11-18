@@ -8,7 +8,7 @@ import pytest
 
 from app.models import Ticket, TicketTimelineEntry
 from app.models.enums import TicketStatus
-from tests.integration._hu07 import API, get_dashboard
+from tests.integration._hu07 import API, assert_vary_authorization, get_dashboard
 
 
 @pytest.fixture()
@@ -29,7 +29,7 @@ def test_snapshot_returns_all_sections_with_headers(dashboard):
 
     assert response.status_code == 200, response.text
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert_vary_authorization(response)
 
     body = response.json()
     assert set(body) == {"data", "meta"}

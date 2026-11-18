@@ -4,20 +4,19 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { ApiClientError, setAccessToken } from '@/api/client'
 import { devLogin } from '@/api/devAuth'
-import { setStoredUserRole } from '@/auth/session'
-import { landingForRole, WORK_QUEUE_PATH } from '@/router/landing'
+import { isAllowedRedirect, landingForRole } from '@/router/landing'
 
 const route = useRoute()
 const router = useRouter()
 
 const DEV_USERS = [
-  { email: 'tecnico.a@example.com', label: 'Técnico A · 5 activos + finalizados' },
-  { email: 'tecnico.b@example.com', label: 'Técnico B · 2 activos' },
-  { email: 'tecnico.c@example.com', label: 'Técnico C · solo finalizados' },
-  { email: 'tecnico.d@example.com', label: 'Técnico D · cola vacía' },
-  { email: 'supervisor@example.com', label: 'Supervisor · 403 en la cola' },
-  { email: 'admin@example.com', label: 'Administración · configuración' },
-  { email: 'usuario@example.com', label: 'Solicitante · mis tickets' },
+  { email: 'tecnico.a@example.com', label: 'Técnico A · 5 activos + finalizados', role: 'tecnico' },
+  { email: 'tecnico.b@example.com', label: 'Técnico B · 2 activos', role: 'tecnico' },
+  { email: 'tecnico.c@example.com', label: 'Técnico C · solo finalizados', role: 'tecnico' },
+  { email: 'tecnico.d@example.com', label: 'Técnico D · cola vacía', role: 'tecnico' },
+  { email: 'supervisor@example.com', label: 'Supervisor · 403 en la cola', role: 'supervisor' },
+  { email: 'admin@example.com', label: 'Administración · configuración', role: 'admin' },
+  { email: 'usuario@example.com', label: 'Solicitante · mis tickets', role: 'usuario' },
 ]
 
 const email = ref(DEV_USERS[0].email)
@@ -32,7 +31,18 @@ function requestedRedirect(): string | null {
   return null
 }
 
-const redirectTarget = computed(() => requestedRedirect() ?? WORK_QUEUE_PATH)
+const selectedRole = computed(
+  () => DEV_USERS.find((user) => user.email === email.value)?.role ?? null,
+)
+
+function destinationFor(role: string): string {
+  const requested = requestedRedirect()
+  return requested && isAllowedRedirect(requested, role) ? requested : landingForRole(role)
+}
+
+const redirectTarget = computed(() =>
+  selectedRole.value ? destinationFor(selectedRole.value) : landingForRole(null),
+)
 
 async function submit(): Promise<void> {
   if (loading.value) {
@@ -43,10 +53,7 @@ async function submit(): Promise<void> {
   try {
     const response = await devLogin(email.value)
     setAccessToken(response.access_token)
-    setStoredUserRole(response.user.role)
-    await router.replace(
-      requestedRedirect() ?? landingForRole(response.user.role),
-    )
+    await router.replace(destinationFor(response.user.role))
   } catch (caught) {
     errorMessage.value =
       caught instanceof ApiClientError
@@ -67,7 +74,7 @@ async function submit(): Promise<void> {
     <p class="mt-4 text-sm text-slate-600">
       Tras iniciar sesión se te redirigirá a
       <code class="rounded bg-slate-100 px-1 py-0.5">{{ redirectTarget }}</code>.
-      El rol de solicitante entra directamente al formulario de creación.
+      El rol de solicitante entra en «Mis tickets»; un destino incompatible con su rol se ignora.
     </p>
 
     <section class="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-6">

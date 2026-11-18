@@ -10,7 +10,7 @@
 ## 1. Principios del modelo
 
 1. **El ticket es la unidad de visibilidad**. La cola se construye con `tickets.assignee_id = current_user.id`; no hay tabla de cola materializada ni caché.
-2. **El SLA está congelado en el ticket**. `sla_deadline` se fija al crear el ticket y no cambia con configuraciones posteriores (RN-03). Prioridad y categoría también se leen del ticket.
+2. **El SLA está congelado en el ticket**. `sla_deadline` se fija al crear el ticket y no cambia con configuraciones posteriores (HU04-RN-03). Prioridad y categoría también se leen del ticket.
 3. **Una sola columna nueva**. `finalized_at` permite el resultado histórico y el orden de finalizados; todo lo demás ya existe en el modelo base.
 4. **Sin duplicación de datos derivados**. `remaining_seconds`, `warning_threshold_seconds`, `sla_state` y `sla_outcome` se calculan al responder; no se persisten, para que no queden obsoletos.
 5. **Nombres físicos en `snake_case` inglés**, con mapeo explícito a los términos de la spec en español.
@@ -167,7 +167,7 @@ Al entrar por primera vez en resuelto o cerrado:
   finalized_at = COALESCE(finalized_at, now())
 ```
 
-`finalized_at` no se sobrescribe si el ticket pasa de `resuelto` a `cerrado`. La fecha que cuenta es la del primer estado final (RN-13).
+`finalized_at` no se sobrescribe si el ticket pasa de `resuelto` a `cerrado`. La fecha que cuenta es la del primer estado final (HU04-RN-13).
 
 ### 3.2 `priorities` (tabla existente)
 
@@ -218,13 +218,13 @@ Se calculan en `services/work_queue.py` / `utils/sla.py` para cada ticket de la 
 
 | Campo | Tipo | Fórmula | Regla |
 |-------|------|---------|-------|
-| `is_final` | `boolean` | `status ∈ {resuelto, cerrado}` | FR-003, RN-13 |
+| `is_final` | `boolean` | `status ∈ {resuelto, cerrado}` | HU04-RF-003, HU04-RN-13 |
 | `sla.started_at` | `timestamptz` | `tickets.created_at` | Inicio del SLA congelado |
 | `sla.total_seconds` | `integer` | `floor(sla_deadline - created_at)` | `NULL` si no hay deadline |
 | `sla.remaining_seconds` | `integer` | `floor(sla_deadline - now_utc)`, solo en tickets activos | Puede ser negativo; `NULL` si no hay deadline **o si el ticket está finalizado** |
-| `sla.warning_threshold_seconds` | `integer` | ver fórmula, solo en tickets activos | `NULL` si no hay deadline **o si el ticket está finalizado**; FR-020 |
-| `sla.state` | `enum` | ver tabla de estados | FR-008, FR-018, FR-019 |
-| `sla.outcome` | `enum` | `met` / `breached` / `no_sla` | Solo finalizados, FR-034 |
+| `sla.warning_threshold_seconds` | `integer` | ver fórmula, solo en tickets activos | `NULL` si no hay deadline **o si el ticket está finalizado**; HU04-RF-020 |
+| `sla.state` | `enum` | ver tabla de estados | HU04-RF-008, HU04-RF-018, HU04-RF-019 |
+| `sla.outcome` | `enum` | `met` / `breached` / `no_sla` | Solo finalizados, HU04-RF-034 |
 | `sla.breach_delay_seconds` | `integer` | `max(0, finalized_at - deadline)` | Solo finalizados incumplidos |
 
 ### 4.1 Umbral de aviso
@@ -313,7 +313,7 @@ Prioridad de evaluación: `finalized` → `no_sla` → `overdue` → `at_risk` �
 
 - `closed_at` puede ser `NULL` en tickets `resuelto` que nunca pasaron por `cerrado`; por eso se usa `updated_at` como respaldo. Es una aproximación de migración, no del comportamiento futuro.
 - La migración es idempotente en el sentido de que no vuelve a escribir `finalized_at` si ya tiene valor.
-- No se reescriben `sla_deadline`, `priority_id` ni `category_id`: los tickets conservan sus valores congelados (RN-03).
+- No se reescriben `sla_deadline`, `priority_id` ni `category_id`: los tickets conservan sus valores congelados (HU04-RN-03).
 - Si la tabla es grande, el `UPDATE` debe hacerse por lotes; con el volumen previsto (decenas de miles) no es necesario en la v1. Se puede añadir `WHERE finalized_at IS NULL` para reejecutar sin coste.
 
 ### 6.3 Rollback
@@ -372,7 +372,7 @@ Los finalizados E y F van después de todos los activos, aunque E sea Crítica. 
 
 | Elemento | Cambio | Justificación |
 |----------|--------|---------------|
-| `tickets.finalized_at` | Nueva columna `TIMESTAMPTZ NULL` | FR-034, FR-035, RN-13 |
+| `tickets.finalized_at` | Nueva columna `TIMESTAMPTZ NULL` | HU04-RF-034, HU04-RF-035, HU04-RN-13 |
 | `ck_tickets_finalized_at` | Nueva restricción | Coherencia estado/fecha |
 | `ck_tickets_finalized_after_created` | Nueva restricción | Integridad temporal |
 | `ck_tickets_sla_deadline_after_created` | Nueva restricción | Integridad del SLA |

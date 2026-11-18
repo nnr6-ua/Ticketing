@@ -33,13 +33,16 @@ from app.models import (
     ConfigurationAuditEntry,
     ConfigurationVersion,
     EscalationLevel,
+    Notification,
     Priority,
     SlaRule,
     Ticket,
     TicketStatus,
+    TicketTimelineEntry,
     User,
     UserRole,
 )
+from app.models.enums import NotificationType, TimelineEventType
 
 NAMESPACE = uuid.UUID("6f1f4c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70")
 
@@ -164,6 +167,62 @@ def upsert_ticket(
     ticket.updated_at = finalized_at or created_at
     ticket.sla_version = "v1"
     return ticket
+
+
+def upsert_status_timeline_entry(
+    session: Session,
+    *,
+    ticket: Ticket,
+    author: User,
+    from_status: TicketStatus,
+    to_status: TicketStatus,
+    created_at: datetime,
+) -> TicketTimelineEntry:
+    key = f"timeline-status-{ticket.number}"
+    entry = session.get(TicketTimelineEntry, sid(key))
+    if entry is None:
+        entry = TicketTimelineEntry(
+            id=sid(key), request_id=sid(f"request-{key}")
+        )
+        session.add(entry)
+    entry.ticket_id = ticket.id
+    entry.event_type = TimelineEventType.status_change
+    entry.from_status = from_status
+    entry.to_status = to_status
+    entry.body = None
+    entry.is_internal = False
+    entry.author_id = author.id
+    entry.created_at = created_at
+    entry.event_order = 0
+    session.flush()
+    return entry
+
+
+def upsert_notification(
+    session: Session,
+    *,
+    ticket: Ticket,
+    recipient: User,
+    entry: TicketTimelineEntry,
+    previous_assignee_name: str,
+    created_at: datetime,
+) -> Notification:
+    key = f"notification-{ticket.number}"
+    notification = session.get(Notification, sid(key))
+    if notification is None:
+        notification = Notification(id=sid(key))
+        session.add(notification)
+    notification.recipient_id = recipient.id
+    notification.ticket_id = ticket.id
+    notification.timeline_entry_id = entry.id
+    notification.type = NotificationType.ticket_reassigned
+    notification.ticket_number = ticket.number
+    notification.ticket_title = ticket.title
+    notification.previous_assignee_name = previous_assignee_name
+    notification.is_read = False
+    notification.created_at = created_at
+    notification.read_at = None
+    return notification
 
 
 def seed_configuration(
@@ -344,7 +403,7 @@ def main() -> None:
             email="admin@example.com",
             role=UserRole.admin,
         )
-        upsert_user(
+        solicitante = upsert_user(
             session,
             key="user-solicitante",
             name="Solicitante",
@@ -569,6 +628,98 @@ def main() -> None:
             finalized_at=now - timedelta(hours=6),
         )
 
+        req_401 = upsert_ticket(
+            session,
+            number="TK-000401",
+            title="El correo corporativo no envía mensajes",
+            status=TicketStatus.en_progreso,
+            priority=alta,
+            category=software,
+            creator=solicitante,
+            assignee=tecnico_a,
+            created_at=now - timedelta(hours=2),
+            sla_deadline=now + timedelta(hours=6),
+            finalized_at=None,
+        )
+        req_402 = upsert_ticket(
+            session,
+            number="TK-000402",
+            title="Solicitud de monitor adicional",
+            status=TicketStatus.pendiente_usuario,
+            priority=media,
+            category=hardware,
+            creator=solicitante,
+            assignee=tecnico_b,
+            created_at=now - timedelta(hours=5),
+            sla_deadline=None,
+            finalized_at=None,
+        )
+        req_403 = upsert_ticket(
+            session,
+            number="TK-000403",
+            title="Acceso al gestor documental",
+            status=TicketStatus.resuelto,
+            priority=baja,
+            category=otros,
+            creator=solicitante,
+            assignee=tecnico_a,
+            created_at=now - timedelta(days=1),
+            sla_deadline=now - timedelta(hours=10),
+            finalized_at=now - timedelta(hours=12),
+        )
+
+        entry_401 = upsert_status_timeline_entry(
+            session,
+            ticket=req_401,
+            author=tecnico_a,
+            from_status=TicketStatus.abierto,
+            to_status=TicketStatus.en_progreso,
+            created_at=now - timedelta(hours=1, minutes=30),
+        )
+        entry_402 = upsert_status_timeline_entry(
+            session,
+            ticket=req_402,
+            author=tecnico_b,
+            from_status=TicketStatus.en_progreso,
+            to_status=TicketStatus.pendiente_usuario,
+            created_at=now - timedelta(hours=3),
+        )
+        entry_403 = upsert_status_timeline_entry(
+            session,
+            ticket=req_403,
+            author=tecnico_a,
+            from_status=TicketStatus.en_progreso,
+            to_status=TicketStatus.resuelto,
+            created_at=now - timedelta(hours=12),
+        )
+
+        upsert_notification(
+            session,
+            ticket=req_401,
+            recipient=solicitante,
+            entry=entry_401,
+            previous_assignee_name="Mesa de ayuda",
+            created_at=now - timedelta(hours=1, minutes=30),
+        )
+        upsert_notification(
+            session,
+            ticket=req_402,
+            recipient=solicitante,
+            entry=entry_402,
+            previous_assignee_name="Técnico B",
+            created_at=now - timedelta(hours=3),
+        )
+        read_notification = upsert_notification(
+            session,
+            ticket=req_403,
+            recipient=solicitante,
+            entry=entry_403,
+            previous_assignee_name="Técnico A",
+            created_at=now - timedelta(hours=12),
+        )
+        read_notification.is_read = True
+        read_notification.read_at = now - timedelta(hours=11)
+
         # Técnico D no tiene tickets (cola vacía).
 
         seed_configuration(
@@ -586,6 +737,7 @@ def main() -> None:
     print("  Técnico B: 2 activos")
     print("  Técnico C: 1 resuelto (solo finalizados)")
     print("  Técnico D: sin tickets")
+    print("  Solicitante: 3 tickets propios + 3 notificaciones (2 sin leer)")
     print("  Supervisor: rol no autorizado (403)")
     print("  Configuración: versión 2 con 16 reglas SLA vigentes e historial")
 

@@ -94,8 +94,8 @@
 - [x] T014 [P] Localización es-ES: todos los mensajes de usuario en español de España y fechas mostradas en `Europe/Madrid`, almacenadas en UTC
 - [x] T015 Ejecutar escenarios de validación de `quickstart.md` de extremo a extremo (estado, timeline, comentarios internos ocultos, acceso denegado a ticket ajeno)
 - [x] T016 [P] Lint y typecheck: backend (`ruff`/`mypy` según configuración del proyecto) y frontend (`vue-tsc`, ESLint)
-- [x] T017 [US1] Verificar que `TicketDetailPage.vue` y `TicketWorkflowPanel.vue` ocultan los controles de escritura (cambio de estado, resolución, comentario interno) cuando el usuario es creador pero no técnico asignado, cumpliendo RF-008 en `frontend/src/views/TicketDetailPage.vue` y `frontend/src/components/tickets/TicketWorkflowPanel.vue`
-- [x] T018 [P] Medir p95 < 2 segundos de `GET /tickets/{ticket_id}/workflow` y `GET /tickets/{ticket_id}/timeline` (SC-003) en `backend/app/api/v1/tickets.py` y `backend/app/services/ticket_timeline.py`
+- [x] T017 [US1] Verificar que `TicketDetailPage.vue` y `TicketWorkflowPanel.vue` ocultan los controles de escritura (cambio de estado, resolución, comentario interno) cuando el usuario es creador pero no técnico asignado, cumpliendo HU02-RF-008 en `frontend/src/views/TicketDetailPage.vue` y `frontend/src/components/tickets/TicketWorkflowPanel.vue`
+- [x] T018 [P] Medir p95 < 2 segundos de `GET /tickets/{ticket_id}/workflow` y `GET /tickets/{ticket_id}/timeline` (HU02-SC-003) en `backend/app/api/v1/tickets.py` y `backend/app/services/ticket_timeline.py`
 
 ---
 

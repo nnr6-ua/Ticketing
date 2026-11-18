@@ -546,8 +546,8 @@ verificación es HU07-SC-012.
 - HU-05: línea temporal «append-only», cambios de estado, resoluciones y permisos (HU05-RN-02, HU05-RN-05, HU05-RN-07).
 - HU-06: reasignación y escalado, histórico de responsables y notificaciones (HU06-RN-07, HU06-RN-09).
 - HU-08: configuración de categorías, prioridades y plazos de SLA, y conservación de la configuración vigente al crear cada ticket (HU08-RN-04).
-- RF-06 del sistema: dashboard de supervisión.
-- RF-07 del sistema: administración de catálogos y SLA.
+- HU07-RF-06 del sistema: dashboard de supervisión.
+- HU07-RF-07 del sistema: administración de catálogos y SLA.
 - Sistema de autenticación y autorización por roles.
 - Información histórica de tickets, SLA y asignaciones.
 

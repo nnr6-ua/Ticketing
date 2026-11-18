@@ -33,5 +33,5 @@
 
 - All [NEEDS CLARIFICATION] markers resolved in the Clarifications section of the spec.
 - Decisions recorded: solicitud con mensaje obligatorio en la acción de HU-03 (sin romper la transición genérica de HU-05), respuesta de texto obligatoria, aviso solo dentro de la aplicación y sin adjuntos en la respuesta.
-- Compatibility with HU-02, HU-04 and HU-05 is explicitly covered by RN-08 and RF-021.
+- Compatibility with HU-02, HU-04 and HU-05 is explicitly covered by HU03-RN-08 and HU03-RF-021.
 - All checklist items pass. Specification is ready for planning.

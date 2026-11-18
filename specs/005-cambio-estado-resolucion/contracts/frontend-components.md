@@ -365,7 +365,7 @@ const canSubmit = computed(
 
 ### Payload de transición
 
-- `resolution` solo se incluye cuando `selectedTarget === 'resuelto'`; en el resto se omite (no se envía `null`) para no disparar `422 resolution_not_allowed` (RF-034).
+- `resolution` solo se incluye cuando `selectedTarget === 'resuelto'`; en el resto se omite (no se envía `null`) para no disparar `422 resolution_not_allowed` (HU05-RF-034).
 - El texto escrito se conserva localmente aunque se cambie de destino, pero no se envía.
 
 ### Manejo de errores

@@ -89,24 +89,24 @@ Al describir la incidencia, el sistema propone una categoría y una prioridad in
 
 ### Requisitos Funcionales
 
-- **RF-001**: El sistema DEBE permitir a un empleado autenticado crear un ticket indicando un título y una descripción.
-- **RF-002**: El sistema DEBE validar que el título y la descripción están presentes y dentro de las longitudes mínima y máxima definidas.
-- **RF-003**: El sistema DEBE permitir adjuntar cero, uno o varios archivos de imagen al ticket.
-- **RF-004**: El sistema DEBE validar el tipo de cada adjunto contra los tipos de imagen permitidos e informar de los tipos admitidos cuando lo rechace.
-- **RF-005**: El sistema DEBE validar el tamaño de cada adjunto y el número máximo de adjuntos por ticket, informando del límite incumplido.
-- **RF-006**: El sistema DEBE generar un número de ticket único e irrepetible con formato secuencial y prefijo (por ejemplo, TK-000001), y mostrarlo al empleado como referencia.
-- **RF-007**: El sistema DEBE registrar en el ticket el empleado creador y la fecha y hora de creación.
-- **RF-008**: El sistema DEBE asignar al ticket un estado inicial definido en el momento de su creación.
-- **RF-009**: El sistema DEBE registrar la creación del ticket como primer evento de su historial, con fecha y hora.
-- **RF-010**: El sistema DEBE sugerir una categoría inicial a partir del texto del título y la descripción.
-- **RF-011**: El sistema DEBE sugerir una prioridad inicial a partir del texto del título y la descripción.
-- **RF-012**: El sistema DEBE limitar las sugerencias a categorías y prioridades activas configuradas por la administración.
-- **RF-013**: El sistema DEBE aplicar la categoría sugerida sin permitir su modificación y DEBE permitir al empleado cambiar la prioridad antes de confirmar el envío.
-- **RF-014**: El sistema DEBE crear el ticket sin bloquear al empleado cuando no sea posible determinar una sugerencia, usando la categoría y prioridad por defecto activas; si no existe valor por defecto, el primer valor activo; si no hay ningún valor activo, "Sin clasificar".
-- **RF-015**: El sistema DEBE evitar la creación de tickets duplicados cuando el mismo empleado envía el mismo título y la misma descripción, sin límite de tiempo, devolviendo la referencia del ticket ya creado.
-- **RF-016**: El sistema DEBE conservar los datos introducidos cuando falle la subida de un adjunto o se pierda la conexión durante el envío, permitiendo reintentar.
-- **RF-017**: El sistema NO DEBE crear el ticket hasta que todos los adjuntos seleccionados se hayan subido correctamente, ni dejar tickets en estado parcial; si falla alguno, conserva los datos introducidos y permite reintentar.
-- **RF-018**: El sistema DEBE conservar y mostrar correctamente caracteres especiales y código pegado en el título y la descripción.
+- **HU01-RF-001**: El sistema DEBE permitir a un empleado autenticado crear un ticket indicando un título y una descripción.
+- **HU01-RF-002**: El sistema DEBE validar que el título y la descripción están presentes y dentro de las longitudes mínima y máxima definidas.
+- **HU01-RF-003**: El sistema DEBE permitir adjuntar cero, uno o varios archivos de imagen al ticket.
+- **HU01-RF-004**: El sistema DEBE validar el tipo de cada adjunto contra los tipos de imagen permitidos e informar de los tipos admitidos cuando lo rechace.
+- **HU01-RF-005**: El sistema DEBE validar el tamaño de cada adjunto y el número máximo de adjuntos por ticket, informando del límite incumplido.
+- **HU01-RF-006**: El sistema DEBE generar un número de ticket único e irrepetible con formato secuencial y prefijo (por ejemplo, TK-000001), y mostrarlo al empleado como referencia.
+- **HU01-RF-007**: El sistema DEBE registrar en el ticket el empleado creador y la fecha y hora de creación.
+- **HU01-RF-008**: El sistema DEBE asignar al ticket un estado inicial definido en el momento de su creación.
+- **HU01-RF-009**: El sistema DEBE registrar la creación del ticket como primer evento de su historial, con fecha y hora.
+- **HU01-RF-010**: El sistema DEBE sugerir una categoría inicial a partir del texto del título y la descripción.
+- **HU01-RF-011**: El sistema DEBE sugerir una prioridad inicial a partir del texto del título y la descripción.
+- **HU01-RF-012**: El sistema DEBE limitar las sugerencias a categorías y prioridades activas configuradas por la administración.
+- **HU01-RF-013**: El sistema DEBE aplicar la categoría sugerida sin permitir su modificación y DEBE permitir al empleado cambiar la prioridad antes de confirmar el envío.
+- **HU01-RF-014**: El sistema DEBE crear el ticket sin bloquear al empleado cuando no sea posible determinar una sugerencia, usando la categoría y prioridad por defecto activas; si no existe valor por defecto, el primer valor activo; si no hay ningún valor activo, "Sin clasificar".
+- **HU01-RF-015**: El sistema DEBE evitar la creación de tickets duplicados cuando el mismo empleado envía el mismo título y la misma descripción, sin límite de tiempo, devolviendo la referencia del ticket ya creado.
+- **HU01-RF-016**: El sistema DEBE conservar los datos introducidos cuando falle la subida de un adjunto o se pierda la conexión durante el envío, permitiendo reintentar.
+- **HU01-RF-017**: El sistema NO DEBE crear el ticket hasta que todos los adjuntos seleccionados se hayan subido correctamente, ni dejar tickets en estado parcial; si falla alguno, conserva los datos introducidos y permite reintentar.
+- **HU01-RF-018**: El sistema DEBE conservar y mostrar correctamente caracteres especiales y código pegado en el título y la descripción.
 
 ### Entidades Clave
 
@@ -121,14 +121,14 @@ Al describir la incidencia, el sistema propone una categoría y una prioridad in
 
 ### Resultados Medibles
 
-- **CE-001**: Un empleado puede crear un ticket completo en menos de 60 segundos desde que empieza a rellenarlo.
-- **CE-002**: El 100% de los tickets creados reciben un número de referencia único y visible para el empleado.
-- **CE-003**: El 100% de los tickets creados registran creador, fecha y hora, estado inicial y primer evento de historial.
-- **CE-004**: Al menos el 70% de las prioridades sugeridas son aceptadas por el empleado sin cambios.
-- **CE-005**: El 100% de los intentos con adjuntos de tipo o tamaño no permitido son rechazados con un mensaje que explica el motivo.
-- **CE-006**: El 100% de los envíos repetidos del mismo empleado con idéntico título y descripción, incluidos dobles envíos y reintentos de red, producen un único ticket y devuelven la misma referencia.
-- **CE-007**: El 100% de los tickets creados sin sugerencia disponible se crean correctamente con los valores por defecto o, en su defecto, con "Sin clasificar", sin bloqueo.
-- **CE-008**: Ninguna pérdida de conexión ni fallo de subida deja tickets parciales o duplicados; el 100% de los fallos de subida conserva los datos y permite reintentar sin crear el ticket.
+- **HU01-SC-001**: Un empleado puede crear un ticket completo en menos de 60 segundos desde que empieza a rellenarlo.
+- **HU01-SC-002**: El 100% de los tickets creados reciben un número de referencia único y visible para el empleado.
+- **HU01-SC-003**: El 100% de los tickets creados registran creador, fecha y hora, estado inicial y primer evento de historial.
+- **HU01-SC-004**: Al menos el 70% de las prioridades sugeridas son aceptadas por el empleado sin cambios.
+- **HU01-SC-005**: El 100% de los intentos con adjuntos de tipo o tamaño no permitido son rechazados con un mensaje que explica el motivo.
+- **HU01-SC-006**: El 100% de los envíos repetidos del mismo empleado con idéntico título y descripción, incluidos dobles envíos y reintentos de red, producen un único ticket y devuelven la misma referencia.
+- **HU01-SC-007**: El 100% de los tickets creados sin sugerencia disponible se crean correctamente con los valores por defecto o, en su defecto, con "Sin clasificar", sin bloqueo.
+- **HU01-SC-008**: Ninguna pérdida de conexión ni fallo de subida deja tickets parciales o duplicados; el 100% de los fallos de subida conserva los datos y permite reintentar sin crear el ticket.
 
 ## Supuestos
 

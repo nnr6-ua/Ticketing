@@ -392,7 +392,7 @@ jq . /tmp/hu06.json
 | Sin token | `401` | `not_authenticated` |
 | Ticket inexistente | `404` | `ticket_not_found` |
 
-La fila de B verifica la precedencia de RN-11: es técnico activo y creador de `TK-000102`, pero no su responsable; recibe `forbidden` y no `not_ticket_assignee`. A es creador y responsable de `TK-000101`, y por eso sí puede consultar las opciones en 6.1 (opera como responsable, no como creador).
+La fila de B verifica la precedencia de HU06-RN-11: es técnico activo y creador de `TK-000102`, pero no su responsable; recibe `forbidden` y no `not_ticket_assignee`. A es creador y responsable de `TK-000101`, y por eso sí puede consultar las opciones en 6.1 (opera como responsable, no como creador).
 
 ### 6.4. Rechazos de reasignación sin escritura
 
@@ -592,7 +592,7 @@ jq . /tmp/hu06.json
 
 **Esperado**: `can_reassign == false`, `can_escalate == false` y `403 forbidden`.
 
-Técnico A es el creador de `TK-000101`; al no ser el responsable vigente, RN-11
+Técnico A es el creador de `TK-000101`; al no ser el responsable vigente, HU06-RN-11
 (creador técnico no asignado) tiene precedencia sobre `not_ticket_assignee`, por
 lo que el código es `forbidden`. Un técnico no creador y no asignado sí recibe
 `403 not_ticket_assignee` (ver §6.3).
@@ -1247,7 +1247,7 @@ Se creó exactamente una notificación por cambio (4 entradas → 4 notificacion
 ### Correcciones de documentación detectadas al ejecutar §6
 
 - §6.7: Técnico A es el **creador** de `TK-000101`; al perder la asignación recibe
-  `403 forbidden` (RN-11, precedencia del creador técnico no asignado) y no
+  `403 forbidden` (HU06-RN-11, precedencia del creador técnico no asignado) y no
   `not_ticket_assignee`. El caso `not_ticket_assignee` queda cubierto por §6.3 con
   un técnico no creador y no asignado.
 - §6.17 y §7 (escenario 13): `can_reassign` expresa **permiso**, no disponibilidad

@@ -15,8 +15,6 @@ import {
   updateCategory as updateCategoryRequest,
   updatePriority as updatePriorityRequest,
 } from '@/services/adminConfiguration'
-import { getStoredUserRole } from '@/auth/session'
-import { landingForRole } from '@/router/landing'
 import router from '@/router'
 import type {
   CategoryAdmin,
@@ -66,7 +64,7 @@ export const useAdminConfigurationStore = defineStore(
         })
       }
       if (apiError.kind === 'forbidden') {
-        void router.replace(landingForRole(getStoredUserRole()))
+        void router.replace({ name: 'forbidden', replace: true })
       }
       throw apiError
     }

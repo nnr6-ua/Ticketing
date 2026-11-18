@@ -46,7 +46,7 @@ La inmutabilidad append-only no se altera; el dashboard nunca inserta, actualiza
 |---|---|
 | `id`, `name`, `team`, `is_active` | Ranking: identidad mínima del técnico («(inactivo)» si `is_active = false`) |
 | `role` | Guard `require_supervisor_or_admin` (`supervisor`/`admin`) |
-| `email` | **Nunca se expone** (HU07-RN-13, RF-026) |
+| `email` | **Nunca se expone** (HU07-RN-13, HU07-RF-026) |
 
 ### 2.4. `priorities` y `categories`
 
@@ -62,8 +62,8 @@ Derivada en una única sentencia SQL (CTE; ver `plan.md` §1 y `research.md` R1/
 
 | Campo derivado | Regla de derivación | Referencia |
 |---|---|---|
-| `priority_id`, `priority_level`, `priority_name`, `priority_is_active` | FK del ticket | HU07-RN-02, RF-012 |
-| `category_id` (nullable), `category_name` (`NULL` ⇒ «Sin categoría»), `category_is_active` | FK del ticket | RF-012, HU07-RN-07 |
+| `priority_id`, `priority_level`, `priority_name`, `priority_is_active` | FK del ticket | HU07-RN-02, HU07-RF-012 |
+| `category_id` (nullable), `category_name` (`NULL` ⇒ «Sin categoría»), `category_is_active` | FK del ticket | HU07-RF-012, HU07-RN-07 |
 | `con_sla` | `sla_deadline IS NOT NULL` | HU07-RN-02 |
 | `primera_finalizacion` | Primera entrada `status_change → 'resuelto'` por `(created_at, event_order, id)`; fallback `tickets.finalized_at` solo si no hay entrada (ticket heredado); `NULL` si ninguna | HU07-RN-03 (Q1), HU04-RN-13 |
 | `atendido` | `primera_finalizacion IS NOT NULL` | HU07-RN-03 (Q1) |
@@ -73,7 +73,7 @@ Derivada en una única sentencia SQL (CTE; ver `plan.md` §1 y `research.md` R1/
 | `vencido` | `con_sla AND ((atendido AND primera_finalizacion > sla_deadline) OR (NOT atendido AND :ahora > sla_deadline))` | HU07-RN-06 |
 | `retraso_s` | Si vencido y no atendido: `:ahora - sla_deadline`; si vencido y atendido: `primera_finalizacion - sla_deadline`; `NULL` si no vencido | HU07-RN-06, Q5 |
 | `atendido_por` | Si `atendido`: `author_id` de la primera entrada `status_change → 'resuelto'` por `(created_at, event_order, id)`; fallback `assignee_id` si no hay entrada (ticket legado) | HU07-RN-09 (regla mixta) |
-| `atribuido_a` | Si `vencido`: `atendido_por` si `atendido`, si no `assignee_id`; `NULL` ⇒ «Sin asignar». Si no vencido: `NULL` | HU07-RN-09, RF-023 |
+| `atribuido_a` | Si `vencido`: `atendido_por` si `atendido`, si no `assignee_id`; `NULL` ⇒ «Sin asignar». Si no vencido: `NULL` | HU07-RN-09, HU07-RF-023 |
 | `status_actual`, `assignee_id` | Estado y responsable vigentes | Regla mixta |
 
 Parámetros de la consulta: `:desde_utc`, `:hasta_utc` (semirrango `[desde 00:00 Madrid, (hasta+1d) 00:00 Madrid)` en UTC), `:categorias` (lista de UUID + marcador `sin_categoria`), `:prioridades` (niveles 1–4), `:ahora` (instante de la instantánea, generado en servidor).
@@ -103,26 +103,26 @@ Parámetros de la consulta: `:desde_utc`, `:hasta_utc` (semirrango `[desde 00:00
 
 | Campo | Regla | Referencia |
 |---|---|---|
-| `ticket_count` | Tickets de la combinación | RF-006 |
-| `no_sla_count` | Tickets sin SLA (excluidos de % y media) | RF-014 |
-| `attended_with_sla` | Denominador | RN-04 |
-| `on_time` | Numerador | RN-04 |
-| `compliance_pct` | `Decimal(100 × on_time / attended_with_sla).quantize(0.1, HALF_UP)`; `NULL` si denominador 0 («Sin datos») | RN-04, RN-15 |
-| `avg_response_seconds` | Media exacta de `tiempo_respuesta_s` (segundos, float); `NULL` si no hay atendidos con SLA | RN-05 |
-| `overdue_count` | Recuento de vencidos | RN-06 |
-| `semaphore` | `compliance_band(compliance_pct)` ⇒ `verde | ambar | rojo`; `sin_datos` si `compliance_pct = NULL` | RN-11 |
+| `ticket_count` | Tickets de la combinación | HU07-RF-006 |
+| `no_sla_count` | Tickets sin SLA (excluidos de % y media) | HU07-RF-014 |
+| `attended_with_sla` | Denominador | HU07-RN-04 |
+| `on_time` | Numerador | HU07-RN-04 |
+| `compliance_pct` | `Decimal(100 × on_time / attended_with_sla).quantize(0.1, HALF_UP)`; `NULL` si denominador 0 («Sin datos») | HU07-RN-04, HU07-RN-15 |
+| `avg_response_seconds` | Media exacta de `tiempo_respuesta_s` (segundos, float); `NULL` si no hay atendidos con SLA | HU07-RN-05 |
+| `overdue_count` | Recuento de vencidos | HU07-RN-06 |
+| `semaphore` | `compliance_band(compliance_pct)` ⇒ `verde | ambar | rojo`; `sin_datos` si `compliance_pct = NULL` | HU07-RN-11 |
 
-Las mismas fórmulas recalculadas sobre tickets subyacentes producen los totales por prioridad, por categoría y el global (nunca promedios de celdas, RF-015). Las combinaciones sin tickets no generan fila; los totales siempre se emiten.
+Las mismas fórmulas recalculadas sobre tickets subyacentes producen los totales por prioridad, por categoría y el global (nunca promedios de celdas, HU07-RF-015). Las combinaciones sin tickets no generan fila; los totales siempre se emiten.
 
 ### 4.3. Ranking de técnicos (vencidos)
 
 | Campo | Regla | Referencia |
 |---|---|---|
-| `technician_id` (UUID o `NULL`), `technician_name`, `team`, `is_active` | Identidad mínima; `NULL` = fila «Sin asignar» | RN-08, RF-021/024 |
-| `overdue_count` | Vencidos atribuidos | RF-019 |
-| `avg_delay_seconds` | Media exacta de `retraso_s` de sus vencidos; desempate usa el valor exacto | RN-08, Q5 |
+| `technician_id` (UUID o `NULL`), `technician_name`, `team`, `is_active` | Identidad mínima; `NULL` = fila «Sin asignar» | HU07-RN-08, HU07-RF-021/024 |
+| `overdue_count` | Vencidos atribuidos | HU07-RF-019 |
+| `avg_delay_seconds` | Media exacta de `retraso_s` de sus vencidos; desempate usa el valor exacto | HU07-RN-08, Q5 |
 
-Orden: `overdue_count DESC` → `avg_delay_seconds DESC` (exacto) → `lower(name) ASC` → `team ASC`; orden estable. Solo técnicos con ≥ 1 vencido; «Sin asignar» al final, sin contar como técnico. La suma de `overdue_count` del ranking + «Sin asignar» = total de vencidos del dashboard (RF-024, HU07-SC-014).
+Orden: `overdue_count DESC` → `avg_delay_seconds DESC` (exacto) → `lower(name) ASC` → `team ASC`; orden estable. Solo técnicos con ≥ 1 vencido; «Sin asignar» al final, sin contar como técnico. La suma de `overdue_count` del ranking + «Sin asignar» = total de vencidos del dashboard (HU07-RF-024, HU07-SC-014).
 
 ### 4.4. Semáforo (valor embebido en cada métrica)
 
@@ -133,7 +133,7 @@ Orden: `overdue_count DESC` → `avg_delay_seconds DESC` (exacto) → `lower(nam
 | `rojo` | `< 70.0` | «Fuera de objetivo» |
 | `sin_datos` | `compliance_pct = NULL` | «Sin datos» (color neutro) |
 
-Umbral exacto ⇒ banda superior (Q2, RF-041). Umbrales emitidos en `meta.thresholds`; única fuente `backend/app/utils/sla.py`.
+Umbral exacto ⇒ banda superior (Q2, HU07-RF-041). Umbrales emitidos en `meta.thresholds`; única fuente `backend/app/utils/sla.py`.
 
 ### 4.5. Opciones de filtro (`/options`)
 

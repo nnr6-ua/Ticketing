@@ -20,7 +20,7 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- RN-07 exige que el cambio de responsable sea una entrada de la línea temporal con autor, responsables, tipo, nivel, motivo y fecha. La tabla ya ofrece autoría, orden, visibilidad pública/interna y la restricción `UNIQUE (ticket_id, request_id, event_type)` que sirve de defensa en profundidad para la idempotencia.
+- HU06-RN-07 exige que el cambio de responsable sea una entrada de la línea temporal con autor, responsables, tipo, nivel, motivo y fecha. La tabla ya ofrece autoría, orden, visibilidad pública/interna y la restricción `UNIQUE (ticket_id, request_id, event_type)` que sirve de defensa en profundidad para la idempotencia.
 - El motivo se guarda en `body`, por lo que hereda el límite de 5.000 caracteres y la renderización como texto plano ya probada en HU-05.
 - La entrada es pública (`is_internal = false`), de modo que el usuario creador la ve sin añadir lógica de visibilidad nueva; el filtrado por `is_internal` ya se aplica en SQL.
 - El orden cronológico existente (`created_at`, `event_order`, `id`) sigue siendo válido: `assignee_change` usa `event_order = 0` y no comparte `created_at` con otras entradas del mismo comando.
@@ -29,7 +29,7 @@ La línea de base verificada el 2026-11-10 es:
 **Alternatives considered**:
 
 - *Tabla paralela `ticket_assignments`*: duplica la trazabilidad, obliga a unir dos históricos para pintar la línea temporal y crea dos fuentes de verdad para la visibilidad.
-- *Actualizar solo `tickets.assignee_id` sin registrar el hecho*: incumple RN-07 y RF-011; no habría autor ni motivo auditables.
+- *Actualizar solo `tickets.assignee_id` sin registrar el hecho*: incumple HU06-RN-07 y HU06-RF-011; no habría autor ni motivo auditables.
 - *Añadir una columna `previous_assignee_id` a `tickets`*: solo conserva el valor inmediatamente anterior y se pierde en el siguiente cambio; no es un histórico.
 
 **Detalle de la restricción**: `ck_timeline_assignee_change` valida que, cuando `event_type = 'assignee_change'`, existan `body`, responsables distintos, tipo y niveles coherentes (reasignación con niveles iguales, escalado con niveles distintos). La dirección estricta del escalado (`to > from`) se valida en el servicio para no depender de la comparación de enums en SQLite.
@@ -42,7 +42,7 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- El catálogo es fijo y de tres valores (RN-02); una tabla de configuración añadiría una entidad, un CRUD y una consulta extra sin aportar nada en esta versión.
+- El catálogo es fijo y de tres valores (HU06-RN-02); una tabla de configuración añadiría una entidad, un CRUD y una consulta extra sin aportar nada en esta versión.
 - El valor por defecto cubre a todos los usuarios existentes sin migración de datos manual y encaja con el supuesto 5 de la especificación.
 - El orden se define una sola vez en Python y se comparte entre validación, opciones y pruebas; no se depende del orden físico del enum de PostgreSQL.
 - La administración de niveles queda fuera de alcance, pero el atributo ya existe para futuras historias.
@@ -66,10 +66,10 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- Reproduce literalmente RN-04 y hace la operación reproducible ante el mismo estado del sistema.
+- Reproduce literalmente HU06-RN-04 y hace la operación reproducible ante el mismo estado del sistema.
 - El desempate por `id` evita que dos técnicos con el mismo nombre y la misma carga dependan del plan de ejecución o del orden de inserción.
 - La consulta usa la columna ya indexada `tickets.assignee_id` y el nuevo índice `ix_users_role_active_level_team`; no requiere materializar cargas ni mantener contadores.
-- El pool se recalcula al confirmar, cumpliendo RN-14: un destino válido al abrir el formulario puede dejar de serlo.
+- El pool se recalcula al confirmar, cumpliendo HU06-RN-14: un destino válido al abrir el formulario puede dejar de serlo.
 
 **Alternatives considered**:
 
@@ -86,17 +86,17 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- RF-018 exige visibilidad en 30 segundos o menos; un intervalo de 15 s deja margen para la latencia y el renderizado.
-- RF-020 exige conservar la notificación si el destinatario está desconectado: una fila en base de datos lo cumple de forma natural, mientras que un evento efímero no.
+- HU06-RF-018 exige visibilidad en 30 segundos o menos; un intervalo de 15 s deja margen para la latencia y el renderizado.
+- HU06-RF-020 exige conservar la notificación si el destinatario está desconectado: una fila en base de datos lo cumple de forma natural, mientras que un evento efímero no.
 - No requiere servidor de mensajería, broker, SSE ni WebSocket; reutiliza el cliente HTTP `apiGet`, el patrón de sondeo ya usado por la cola de trabajo y el ciclo de vida de Pinia.
-- La notificación se crea en la misma transacción que el cambio y la entrada de línea temporal, cumpliendo RN-12/RF-028.
+- La notificación se crea en la misma transacción que el cambio y la entrada de línea temporal, cumpliendo HU06-RN-12/HU06-RF-028.
 - El contador de no leídas se calcula en el servidor (`unread_count`), no contando la página recibida, para que sea correcto aunque la campana solo cargue 20 elementos.
 
 **Alternatives considered**:
 
 - *SSE*: mantiene conexiones largas, requiere gestionar reconexión, proxies y el ciclo de vida en FastAPI; para una campana personal es más complejo que un sondeo.
 - *WebSocket*: comunicación bidireccional innecesaria y autenticación/heartbeat adicionales; la historia solo necesita lectura periódica.
-- *Correo o push*: explícitamente fuera de alcance (RF-08.2).
+- *Correo o push*: explícitamente fuera de alcance (HU06-RF-08.2).
 - *Aviso solo en el cliente que ejecuta el cambio*: el nuevo responsable puede estar en otra pestaña o equipo, y se perdería al recargar.
 
 ---
@@ -167,7 +167,7 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- Evita duplicar la lógica de rol/asignación y mantiene un único mensaje para `403 forbidden` y `403 not_ticket_assignee`, con la precedencia fijada en RN-11: rol no técnico primero y creador técnico no asignado antes que `not_ticket_assignee`.
+- Evita duplicar la lógica de rol/asignación y mantiene un único mensaje para `403 forbidden` y `403 not_ticket_assignee`, con la precedencia fijada en HU06-RN-11: rol no técnico primero y creador técnico no asignado antes que `not_ticket_assignee`.
 - La autorización se evalúa contra el `assignee_id` recargado tras el bloqueo, no contra datos del cliente.
 - Al cambiar `assignee_id`, `viewer_capabilities` ya revoca automáticamente `can_view_internal`, `can_change_status` y `can_comment_internally` al técnico anterior; HU-06 solo añade dos capacidades con la misma regla.
 - Los roles no técnicos y el creador técnico no asignado reciben `false` y un `403 forbidden` si intentan la operación directamente. El creador que es el técnico asignado vigente puede operar como responsable; como creador sigue excluido como destino y del pool de escalado.
@@ -191,7 +191,7 @@ La línea de base verificada el 2026-11-10 es:
 
 **Rationale**:
 
-- RN-14 y los casos límite exigen rechazar destinos que dejaron de ser válidos entre la apertura del formulario y la confirmación.
+- HU06-RN-14 y los casos límite exigen rechazar destinos que dejaron de ser válidos entre la apertura del formulario y la confirmación.
 - La validación en el servicio permite devolver códigos estables (`invalid_reassignment_target`, `assignee_unavailable`, `invalid_escalation_level`, `no_higher_level`, `no_technicians_available`) en lugar de un `422` genérico de Pydantic.
 - Pydantic solo valida forma y tipos; el handler existente normaliza cualquier payload mal formado a `422 invalid_request`.
 
@@ -261,7 +261,7 @@ El `downgrade()` es explícitamente destructivo para los datos de HU-06:
 **Rationale**:
 
 - La cola es una proyección en vivo del ticket, no una entidad persistida; duplicarla introduciría desincronización.
-- RN-09 y RF-021/RF-022 ya se cumplen con el refresco existente (60 s) y el refresco al recuperar foco/visibilidad.
+- HU06-RN-09 y HU06-RF-021/HU06-RF-022 ya se cumplen con el refresco existente (60 s) y el refresco al recuperar foco/visibilidad.
 - La prioridad, el SLA y el orden se recalculan con las reglas de HU-04 porque `priority_id`, `sla_deadline`, `created_at` y `status` no cambian.
 - El técnico anterior conserva lectura pública, pero pierde escritura y visibilidad interna en la siguiente lectura del workflow.
 

@@ -40,10 +40,10 @@ Esta historia no crea, edita, reasigna ni cambia estados de tickets: consume el 
 **Despliegue**: Docker Compose v2 sobre Docker Engine. Servicios `db` (PostgreSQL 16), `backend` (FastAPI/Uvicorn) y `frontend` (Nginx con la SPA compilada y proxy `/api`). El backend ejecuta `alembic upgrade head` con reintentos en el entrypoint. Los datos viven en el volumen nombrado `ticketing_db_data`; la configuración se inyecta por variables de entorno desde `.env` (documentadas en `.env.example`). El frontend se publica en `http://localhost:8080` y la API en `http://localhost:8000`.
 
 **Objetivos de rendimiento**:
-- p95 de la vista completa < 2 s con hasta 100 tickets asignados (SC-005).
+- p95 de la vista completa < 2 s con hasta 100 tickets asignados (HU04-SC-005).
 - Consulta SQL de la página < 300 ms con 100 tickets y los índices propuestos.
-- Actualización automática cada 60 s sin recargar la página (FR-005).
-- Primera página con los tickets más urgentes del conjunto completo, no solo de la página (FR-017).
+- Actualización automática cada 60 s sin recargar la página (HU04-RF-005).
+- Primera página con los tickets más urgentes del conjunto completo, no solo de la página (HU04-RF-017).
 
 **Restricciones**:
 - Solo lectura: ningún endpoint `POST`, `PUT`, `PATCH` o `DELETE` en esta historia.
@@ -61,13 +61,13 @@ Esta historia no crea, edita, reasigna ni cambia estados de tickets: consume el 
 
 *GATE: debe pasar antes de la Fase 0 y re-evaluarse tras la Fase 1.*
 
-> La constitución aplicable está ratificada en `.specify/memory/constitution.md` (copia de `CONSTITUTION.md` en la raíz del repositorio). Se aplican sus cinco principios rectores.
+> La constitución aplicable está ratificada en `.specify/memory/constitution.md` (v1.0.0). `CONSTITUTION.md` en la raíz es solo un resumen informativo; ante conflicto prevalece la constitución ratificada. Se aplican sus cinco principios rectores.
 
 | Principio | Cumplimiento | Evidencia en el diseño |
 |-----------|--------------|------------------------|
 | **1. Simplicidad ante todo** | ✅ Pasa | Un endpoint, una vista, un store, sin caché, sin WebSockets, sin ordenación configurable ni columnas personalizables. La paginación por offset es suficiente para ≤ 100 tickets. El umbral de SLA se deriva de fechas ya almacenadas. |
 | **2. Idioma y mercado** | ✅ Pasa | Toda la interfaz, etiquetas, estados vacíos y errores en español de España. Fechas y horas con `Intl` y `Europe/Madrid`. No hay importes monetarios en esta historia. |
-| **3. Cero alcance fantasma** | ✅ Pasa | Solo se implementa lo exigido por `spec.md`: consulta, orden, filtros, destacado, estados vacíos, error, paginación y refresco. No se añaden reasignación, cambio de estado, notificaciones ni edición. `finalized_at` e índices son soporte mínimo de requisitos existentes (FR-034, FR-035, SC-005), no funcionalidad nueva. |
+| **3. Cero alcance fantasma** | ✅ Pasa | Solo se implementa lo exigido por `spec.md`: consulta, orden, filtros, destacado, estados vacíos, error, paginación y refresco. No se añaden reasignación, cambio de estado, notificaciones ni edición. `finalized_at` e índices son soporte mínimo de requisitos existentes (HU04-RF-034, HU04-RF-035, HU04-SC-005), no funcionalidad nueva. |
 | **4. Verificable por persona no técnica** | ✅ Pasa | [quickstart.md](./quickstart.md) describe escenarios manuales observables (cola propia, orden, colores, filtros, vacíos, error) sin leer código. |
 | **5. Datos del usuario con respeto** | ✅ Pasa | La consulta se limita al usuario autenticado; no se expone ni se acepta el identificador de otro técnico. La respuesta incluye solo los campos necesarios para la fila. Sin secretos en código; configuración por entorno. |
 
@@ -204,7 +204,7 @@ No existe endpoint `/meta` separado: las opciones de filtro y la marca de tiempo
 | `page` | entero ≥ 1 | No | Por defecto `1`. |
 | `page_size` | entero 1-100 | No | Por defecto `25`. |
 
-Los filtros se combinan con lógica **Y** (FR-025). El orden no es configurable por el cliente: la spec fija un único orden por urgencia.
+Los filtros se combinan con lógica **Y** (HU04-RF-025). El orden no es configurable por el cliente: la spec fija un único orden por urgencia.
 
 **Respuesta `200 OK`** (resumen; contrato completo en [work-queue.openapi.yaml](./contracts/work-queue.openapi.yaml)):
 
@@ -278,8 +278,8 @@ Los filtros se combinan con lógica **Y** (FR-025). El orden no es configurable 
 ```
 
 **Cálculo de `counts`**:
-- `counts.active` y `counts.finalized` se calculan sobre **toda** la cola del técnico, sin aplicar los filtros actuales, y solo se usan para distinguir el estado vacío por falta de asignaciones del estado "solo finalizados" (FR-030).
-- `pagination.total_items` es el número de tickets que cumplen los filtros (FR-026).
+- `counts.active` y `counts.finalized` se calculan sobre **toda** la cola del técnico, sin aplicar los filtros actuales, y solo se usan para distinguir el estado vacío por falta de asignaciones del estado "solo finalizados" (HU04-RF-030).
+- `pagination.total_items` es el número de tickets que cumplen los filtros (HU04-RF-026).
 
 **Errores**: `401` token ausente, inválido o caducado; `403` rol no autorizado; `422` parámetros inválidos; `500` error inesperado con mensaje genérico en español y sin filtrar detalles internos. La respuesta de error sigue el formato `{ "detail": { "code": "...", "message": "..." } }`.
 
@@ -295,11 +295,11 @@ if current_user.role != "tecnico": 403
 assignee_filter = Ticket.assignee_id == current_user.id
 ```
 
-La condición de propiedad se añade **siempre** a la consulta, antes de filtros y paginación. No existe ninguna ruta alternativa que reciba el técnico por parámetro. Los filtros se aplican como predicados adicionales (`AND`), por lo que nunca pueden ampliar el conjunto (FR-002, FR-029).
+La condición de propiedad se añade **siempre** a la consulta, antes de filtros y paginación. No existe ninguna ruta alternativa que reciba el técnico por parámetro. Los filtros se aplican como predicados adicionales (`AND`), por lo que nunca pueden ampliar el conjunto (HU04-RF-002, HU04-RF-029).
 
 #### 1.3 Ordenación SQL
 
-El orden se aplica al conjunto completo y antes de paginar (FR-017). La consulta usa una única cláusula `ORDER BY` que separa activos y finalizados:
+El orden se aplica al conjunto completo y antes de paginar (HU04-RF-017). La consulta usa una única cláusula `ORDER BY` que separa activos y finalizados:
 
 ```sql
 SELECT ...
@@ -330,16 +330,16 @@ LIMIT :page_size OFFSET :offset;
 Equivalencias y justificación:
 
 - **Prioridad descendente**: `p.level ASC` porque el modelo base define `nivel` 1-4 y se asume 1 = Crítica, 4 = Baja (documentado en [data-model.md](./data-model.md)). Si el proyecto confirma la convención inversa, se cambia únicamente este término y sus pruebas.
-- **Tiempo restante ascendente**: con un límite SLA fijo, ordenar por `sla_deadline ASC` equivale a ordenar por `deadline - now ASC`; los vencidos tienen deadlines pasados y quedan primero dentro de su prioridad (FR-014). Los tickets sin SLA (`sla_deadline IS NULL`) quedan al final de su prioridad (`NULLS LAST`, FR-015).
-- **Finalizados al final**: la primera clave los agrupa después de todos los activos, con independencia de su prioridad (FR-035, RN-17).
+- **Tiempo restante ascendente**: con un límite SLA fijo, ordenar por `sla_deadline ASC` equivale a ordenar por `deadline - now ASC`; los vencidos tienen deadlines pasados y quedan primero dentro de su prioridad (HU04-RF-014). Los tickets sin SLA (`sla_deadline IS NULL`) quedan al final de su prioridad (`NULLS LAST`, HU04-RF-015).
+- **Finalizados al final**: la primera clave los agrupa después de todos los activos, con independencia de su prioridad (HU04-RF-035, HU04-RN-17).
 - **Finalizados por fecha de finalización**: `finalized_at DESC NULLS LAST` y desempate por `number ASC`.
-- **Desempate global**: `number ASC` garantiza un orden total y estable para la paginación (FR-016).
+- **Desempate global**: `number ASC` garantiza un orden total y estable para la paginación (HU04-RF-016).
 - **Categoría opcional**: el `LEFT JOIN` con `categories` evita excluir tickets sin categoría, que deben mostrarse como "Sin categoría" (caso límite de la spec).
 
 **Recuentos y paginación**: se ejecutan tres consultas sobre la misma consulta base (tickets del técnico autenticado):
-- `COUNT(*)` con los predicados de filtro para `pagination.total_items` (FR-026).
+- `COUNT(*)` con los predicados de filtro para `pagination.total_items` (HU04-RF-026).
 - La consulta paginada para `items`, con el orden total y `LIMIT/OFFSET`.
-- Una consulta agregada **sin predicados de filtro** (solo `assignee_id = current_user.id`) que devuelve, en una sola pasada, `counts.finalized = COUNT(*) FILTER (WHERE status IN ('resuelto','cerrado'))` y `counts.active` como el resto. Es imprescindible para distinguir «sin asignaciones» de «solo finalizados» (FR-030) aunque haya filtros activos.
+- Una consulta agregada **sin predicados de filtro** (solo `assignee_id = current_user.id`) que devuelve, en una sola pasada, `counts.finalized = COUNT(*) FILTER (WHERE status IN ('resuelto','cerrado'))` y `counts.active` como el resto. Es imprescindible para distinguir «sin asignaciones» de «solo finalizados» (HU04-RF-030) aunque haya filtros activos.
 
 `offset = (page - 1) * page_size`. Si `page` supera el total de páginas, el servidor la ajusta a la última página disponible (`total_pages`) y devuelve esa página efectiva en `pagination.page`; si no hay resultados, devuelve `items: []` con `page: 1`. El frontend sincroniza la URL con la página efectiva, de modo que nunca se muestra una página vacía por un número fuera de rango.
 
@@ -369,14 +369,14 @@ Migración Alembic mínima:
    - `ix_tickets_assignee_priority (assignee_id, priority_id)`.
    - `ix_tickets_number (number)`.
 
-No se modifican `sla_deadline`, prioridad ni categoría: esta historia solo lee los valores congelados del ticket (RN-03).
+No se modifican `sla_deadline`, prioridad ni categoría: esta historia solo lee los valores congelados del ticket (HU04-RN-03).
 
 ### 2. Frontend Vue 3: vista, componentes y formato condicional
 
 #### 2.1 Ruta y estado
 
 - Ruta: `/cola-de-trabajo`, nombre `work-queue`, componente `WorkQueuePage.vue`.
-- Los filtros viven en la query de la URL (`estado`, `prioridad`, `pagina`) y en el store Pinia. Esto cumple FR-028 (se mantienen durante la navegación) y permite atrás/adelante y recarga sin perder el estado.
+- Los filtros viven en la query de la URL (`estado`, `prioridad`, `pagina`) y en el store Pinia. Esto cumple HU04-RF-028 (se mantienen durante la navegación) y permite atrás/adelante y recarga sin perder el estado.
 - El número y el título de cada fila enlazan a la ruta de detalle `/tickets/:id`, que pertenece a la HU-06. Esta historia no crea ni modifica esa vista: hasta que exista, el enlace puede devolver 404 y no se valida su contenido.
 - Al montar, el store lee la URL, valida los valores contra `available_filters` y normaliza los inválidos. Si no hay filtros explícitos, se aplica el conjunto activo por defecto sin enviar `status` al backend.
 - Cambios de filtro: actualizan la URL con `router.replace`, reinician `page = 1` y lanzan una petición con debounce de 250 ms.
@@ -418,7 +418,7 @@ Acciones/getters:
 | `WorkQueuePage.vue` | Orquesta cabecera, filtros, número de resultados, tabla, paginación y estados. Inicia/detiene polling. |
 | `WorkQueueFilters.vue` | Dos grupos de filtros accesibles (`fieldset` + `legend`): estados y prioridades. Checkboxes tipo chip y botón "Limpiar filtros". Emite cambios; no llama a la API. |
 | `WorkQueueTable.vue` | Tabla semántica con `<caption>` oculto, columnas Ticket, Título, Categoría, Prioridad, Estado y SLA. Renderiza filas o el estado vacío/error que corresponda. |
-| `WorkQueueRow.vue` | Fila con los cinco datos exigidos (FR-006) más estado. Aplica el mapa estático de clases de riesgo. El número/título enlaza a `/tickets/:id` (detalle de la HU-06, solo lectura; no se implementa aquí). |
+| `WorkQueueRow.vue` | Fila con los cinco datos exigidos (HU04-RF-006) más estado. Aplica el mapa estático de clases de riesgo. El número/título enlaza a `/tickets/:id` (detalle de la HU-06, solo lectura; no se implementa aquí). |
 | `SlaIndicator.vue` | Muestra icono + texto + duración. Recibe `state` y `remainingSeconds`; usa `formatRemaining` y `aria-hidden` en el icono, con texto visible suficiente. |
 | `PriorityBadge.vue` | Etiqueta de prioridad con color estático por nivel y texto. |
 | `StatusBadge.vue` | Etiqueta de estado en español. |
@@ -543,7 +543,7 @@ Notas:
 - Se captura un único `now` UTC por petición y se reutiliza para todos los elementos y para `meta.server_time`; así no hay diferencias de milisegundos entre filas de la misma respuesta.
 - `total_seconds` se deriva de `sla_deadline - created_at` (inicio del SLA congelado en la creación). No se introduce una columna adicional.
 - Si `deadline <= created_at` por datos corruptos, se trata como `no_sla` y se registra una advertencia; no se muestra una alarma engañosa.
-- El umbral se compara con segundos exactos; la visualización redondea a la baja (RN-04). Ejemplo de borde: con un SLA de 30 min (umbral 15:00) y 15:30 restantes, la fila muestra «15 min» y permanece `on_time`; pasa a `at_risk` cuando `remaining_seconds <= 900`. Los ejemplos de la spec se cumplen: SLA 30 min → umbral 15 min; SLA 4 h → 60 min; SLA 24 h → 6 h; SLA exactamente 60 min → 60 min (por la rama `>= 60`).
+- El umbral se compara con segundos exactos; la visualización redondea a la baja (HU04-RN-04). Ejemplo de borde: con un SLA de 30 min (umbral 15:00) y 15:30 restantes, la fila muestra «15 min» y permanece `on_time`; pasa a `at_risk` cuando `remaining_seconds <= 900`. Los ejemplos de la spec se cumplen: SLA 30 min → umbral 15 min; SLA 4 h → 60 min; SLA 24 h → 6 h; SLA exactamente 60 min → 60 min (por la rama `>= 60`).
 - Para finalizados: `outcome = "met"` si `finalized_at <= deadline`; `"breached"` si `finalized_at > deadline`; `"no_sla"` si falta deadline. `breach_delay_seconds = max(0, finalized_at - deadline)`.
 
 #### 3.2.1 Duración mostrada: dinámica en activos, estática en finalizados
@@ -568,7 +568,7 @@ function tick() {
 - No se usa `new Date()` para calcular la diferencia con `deadline`; así un reloj de sistema adelantado o atrasado no altera la cuenta atrás.
 - Al recibir una nueva respuesta, se reemplaza el ancla con el nuevo `remaining_seconds` y `performance.now()`.
 - Si la pestaña estuvo oculta, al volver se fuerza una petición inmediata en lugar de confiar en el tiempo transcurrido.
-- El tick local es de 30 s para que los cambios de minuto se reflejen con precisión; el poll de red sigue siendo de 60 s (RN-14, FR-005).
+- El tick local es de 30 s para que los cambios de minuto se reflejen con precisión; el poll de red sigue siendo de 60 s (HU04-RN-14, HU04-RF-005).
 
 #### 3.4 Cambio de hora oficial (DST)
 

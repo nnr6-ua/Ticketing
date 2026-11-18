@@ -121,8 +121,8 @@ SLA_AMBER_THRESHOLD_PCT = 70.0   # ámbar: 70 % <= cumplimiento < 90 %
 |---|---|
 | Ruta `/dashboard-sla` (`SlaDashboardPage.vue`) | Vista de solo lectura; guard de cliente por rol (supervisor/admin) que redirige a `/login?redirect=…` o muestra el estado `forbidden`; el servidor es la defensa real |
 | `stores/slaDashboard.ts` | Filtros sincronizados con la URL (query params en español: `desde`, `hasta`, `categorias`, `prioridades`), carga con `AbortController`, sondeo ≤ 60 s pausado con pestaña oculta y refresco al recuperar foco, actualización manual, aviso de desactualización conservando los últimos datos válidos, `mapError` con mensajes es-ES (patrón de `workQueue.ts`) |
-| `SlaDashboardFilters.vue` | Barra de filtros: rango de fechas (`type="date"`), multiselección de categorías y prioridades con opciones de `/options`, resumen de filtros activos (RF-037), acción de restablecer; bloquea aplicar si `desde > hasta` |
-| `SlaSummary.vue` | Resumen global (RF-005): tickets considerados, atendidos con SLA, cumplimiento, tiempo medio, vencidos, sin SLA |
+| `SlaDashboardFilters.vue` | Barra de filtros: rango de fechas (`type="date"`), multiselección de categorías y prioridades con opciones de `/options`, resumen de filtros activos (HU07-RF-037), acción de restablecer; bloquea aplicar si `desde > hasta` |
+| `SlaSummary.vue` | Resumen global (HU07-RF-005): tickets considerados, atendidos con SLA, cumplimiento, tiempo medio, vencidos, sin SLA |
 | `ComplianceMatrix.vue` | Matriz prioridad (Crítica, Alta, Media, Baja) × categorías alfabéticas; celdas solo para combinaciones con datos; totales por fila/columna y global siempre visibles |
 | `SemaphoreBadge.vue` | Semáforo reutilizable (verde/ámbar/rojo/sin datos) con **color + icono lucide + texto** (nunca solo color, HU07-RF-040); clases Tailwind estáticas en `utils/slaStyles.ts` |
 | `SemaphoreLegend.vue` | Leyenda con los umbrales vigentes leídos de `meta.thresholds` |

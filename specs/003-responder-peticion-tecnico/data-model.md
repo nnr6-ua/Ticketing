@@ -82,7 +82,7 @@ Nuevas:
 | `ck_timeline_information_request` | `(event_type <> 'information_request') OR (from_status IS NULL AND to_status IS NULL AND body IS NOT NULL AND is_internal = false AND reply_to_id IS NULL)` | Forma de una petición |
 | `ck_timeline_user_response` | `(event_type <> 'user_response') OR (from_status IS NULL AND to_status IS NULL AND body IS NOT NULL AND is_internal = false)` | Forma de una respuesta |
 
-La obligatoriedad de `reply_to_id` en respuestas nuevas se valida en servicio porque los tickets legados pueden responder sin petición previa (RF-020). La respuesta legada se registra con `reply_to_id = NULL`; el `CHECK` no la rechaza.
+La obligatoriedad de `reply_to_id` en respuestas nuevas se valida en servicio porque los tickets legados pueden responder sin petición previa (HU03-RF-020). La respuesta legada se registra con `reply_to_id = NULL`; el `CHECK` no la rechaza.
 
 ### 2.5. Índices
 

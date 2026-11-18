@@ -28,12 +28,12 @@ Esta historia se centra en la consulta (lectura) del estado y el historial. Los 
 
 ## Reglas de Negocio
 
-### RN-01 — Consulta del estado actual
+### HU02-RN-01 — Consulta del estado actual
 
 - El usuario creador puede consultar el estado actual de cualquiera de sus propios tickets en cualquier momento.
 - El estado mostrado es siempre el último estado registrado en el ticket.
 
-### RN-02 — Línea temporal del ticket
+### HU02-RN-02 — Línea temporal del ticket
 
 - Cada cambio de estado genera una entrada en la línea temporal con: estado anterior, estado nuevo, autor y fecha y hora.
 - Cada resolución genera una entrada de tipo «Resolución» con la descripción de la solución, el autor y la fecha y hora.
@@ -41,12 +41,12 @@ Esta historia se centra en la consulta (lectura) del estado y el historial. Los 
 - La línea temporal se muestra en orden cronológico (de lo más antiguo a lo más reciente).
 - Las entradas de la línea temporal no se pueden editar ni eliminar desde esta historia.
 
-### RN-03 — Visibilidad de las entradas
+### HU02-RN-03 — Visibilidad de las entradas
 
 - El usuario creador ve los cambios de estado y las resoluciones de sus tickets.
 - El usuario creador ve únicamente los comentarios del técnico marcados como públicos en la línea temporal; los comentarios internos del técnico quedan ocultos para el usuario creador.
 
-### RN-04 — Alcance de consulta
+### HU02-RN-04 — Alcance de consulta
 
 - El usuario solo puede consultar el estado y la línea temporal de los tickets que ha creado.
 - Esta historia no permite al usuario cambiar estados, añadir comentarios ni editar entradas.
@@ -82,7 +82,7 @@ Como usuario creador, quiero revisar el historial visible de mi ticket con una l
 
 1. **Dado** un ticket con varios cambios de estado, **cuando** el usuario consulta la línea temporal, **entonces** el sistema muestra cada cambio con estado anterior, estado nuevo, autor y fecha y hora, en orden cronológico.
 2. **Dado** un ticket con una resolución documentada, **cuando** el usuario consulta la línea temporal, **entonces** ve una entrada de tipo «Resolución» con la solución, el autor y la fecha y hora.
-3. **Dado** un ticket con comentarios del técnico, **cuando** el usuario consulta la línea temporal, **entonces** ve los comentarios que corresponda según RN-03, identificados como comentarios, con su autor, texto y fecha y hora.
+3. **Dado** un ticket con comentarios del técnico, **cuando** el usuario consulta la línea temporal, **entonces** ve los comentarios que corresponda según HU02-RN-03, identificados como comentarios, con su autor, texto y fecha y hora.
 4. **Dado** un ticket sin cambios de estado ni comentarios, **cuando** el usuario consulta la línea temporal, **entonces** el sistema muestra un historial vacío o un mensaje indicando que no hay entradas.
 5. **Dado** un ticket que no pertenece al usuario, **cuando** el usuario consulta la línea temporal, **entonces** el sistema deniega el acceso.
 
@@ -103,16 +103,16 @@ Como usuario creador, quiero saber quién realizó cada cambio o comentario y cu
 
 ## Requisitos Funcionales
 
-- **RF-001**: El sistema DEBE permitir al usuario creador consultar el estado actual de cada uno de sus propios tickets.
-- **RF-002**: El sistema DEBE mostrar el estado actual como el último estado registrado en el ticket.
-- **RF-003**: El sistema DEBE mostrar la línea temporal de un ticket en orden cronológico.
-- **RF-004**: El sistema DEBE incluir en la línea temporal cada cambio de estado con estado anterior, estado nuevo, autor y fecha y hora.
-- **RF-005**: El sistema DEBE incluir en la línea temporal cada resolución con la descripción de la solución, el autor y la fecha y hora.
-- **RF-006**: El sistema DEBE incluir en la línea temporal los comentarios del técnico que correspondan según RN-03, identificados como comentarios, con autor, texto y fecha y hora.
-- **RF-007**: El sistema DEBE denegar al usuario la consulta del estado y la línea temporal de tickets que no ha creado.
-- **RF-008**: El sistema DEBE impedir al usuario, desde esta historia, cambiar estados, añadir comentarios o editar entradas de la línea temporal.
-- **RF-009**: El sistema DEBE mostrar el autor y la fecha y hora en cada entrada de la línea temporal (cambio de estado, resolución o comentario público).
-- **RF-010**: El sistema DEBE mostrar un mensaje claro cuando un ticket no tenga entradas en su línea temporal.
+- **HU02-RF-001**: El sistema DEBE permitir al usuario creador consultar el estado actual de cada uno de sus propios tickets.
+- **HU02-RF-002**: El sistema DEBE mostrar el estado actual como el último estado registrado en el ticket.
+- **HU02-RF-003**: El sistema DEBE mostrar la línea temporal de un ticket en orden cronológico.
+- **HU02-RF-004**: El sistema DEBE incluir en la línea temporal cada cambio de estado con estado anterior, estado nuevo, autor y fecha y hora.
+- **HU02-RF-005**: El sistema DEBE incluir en la línea temporal cada resolución con la descripción de la solución, el autor y la fecha y hora.
+- **HU02-RF-006**: El sistema DEBE incluir en la línea temporal los comentarios del técnico que correspondan según HU02-RN-03, identificados como comentarios, con autor, texto y fecha y hora.
+- **HU02-RF-007**: El sistema DEBE denegar al usuario la consulta del estado y la línea temporal de tickets que no ha creado.
+- **HU02-RF-008**: El sistema DEBE impedir al usuario, desde esta historia, cambiar estados, añadir comentarios o editar entradas de la línea temporal.
+- **HU02-RF-009**: El sistema DEBE mostrar el autor y la fecha y hora en cada entrada de la línea temporal (cambio de estado, resolución o comentario público).
+- **HU02-RF-010**: El sistema DEBE mostrar un mensaje claro cuando un ticket no tenga entradas en su línea temporal.
 
 ## Entidades Clave
 
@@ -135,12 +135,12 @@ Como usuario creador, quiero saber quién realizó cada cambio o comentario y cu
 
 | ID | Métrica | Objetivo |
 |---|---|---|
-| SC-001 | Verifica RF-002: consultas del estado actual que muestran el último estado registrado | 100% |
-| SC-002 | Verifica RF-003: entradas de la línea temporal mostradas en orden cronológico | 100% |
-| SC-003 | Tiempo de respuesta para cargar el estado y la línea temporal | Menos de 2 segundos |
-| SC-004 | Consultas de usuarios sobre tickets que no han creado denegadas | 100% |
-| SC-005 | Usuarios que completan el seguimiento de la evolución sin contactar al técnico | Al menos 90% |
-| SC-006 | Comentarios internos del técnico visibles para el usuario creador | 0 casos (según RN-03) |
+| HU02-SC-001 | Verifica HU02-RF-002: consultas del estado actual que muestran el último estado registrado | 100% |
+| HU02-SC-002 | Verifica HU02-RF-003: entradas de la línea temporal mostradas en orden cronológico | 100% |
+| HU02-SC-003 | Tiempo de respuesta para cargar el estado y la línea temporal | Menos de 2 segundos |
+| HU02-SC-004 | Consultas de usuarios sobre tickets que no han creado denegadas | 100% |
+| HU02-SC-005 | Usuarios que completan el seguimiento de la evolución sin contactar al técnico | Al menos 90% |
+| HU02-SC-006 | Comentarios internos del técnico visibles para el usuario creador | 0 casos (según HU02-RN-03) |
 
 ## Supuestos
 
@@ -165,7 +165,7 @@ Como usuario creador, quiero saber quién realizó cada cambio o comentario y cu
 
 - HU-01: creación de tickets y asignación inicial (provee el ticket y su usuario creador).
 - HU-05: cambio de estado, resolución y comentarios internos (provee las entradas de la línea temporal que esta historia consulta).
-- RF-02: definición del flujo de estados del sistema.
+- HU02-RF-02: definición del flujo de estados del sistema.
 - Sistema de autenticación y autorización por roles.
 - Mecanismo de registro cronológico de la línea temporal del ticket.
 
@@ -173,7 +173,7 @@ Como usuario creador, quiero saber quién realizó cada cambio o comentario y cu
 
 | Criterio de aceptación | Reglas de negocio | Requisitos funcionales |
 |---|---|---|
-| El usuario consulta el estado actual de su ticket | RN-01, RN-04 | RF-001, RF-002, RF-007 |
-| El usuario revisa la línea temporal cronológica con cambios de estado | RN-02, RN-03, RN-04 | RF-003, RF-004, RF-007, RF-009, RF-010 |
-| El usuario ve las resoluciones y los comentarios aplicables con autor y fecha | RN-02, RN-03 | RF-005, RF-006, RF-007, RF-009 |
-| El usuario no puede modificar estados ni entradas desde la consulta | RN-04 | RF-008 |
+| El usuario consulta el estado actual de su ticket | HU02-RN-01, HU02-RN-04 | HU02-RF-001, HU02-RF-002, HU02-RF-007 |
+| El usuario revisa la línea temporal cronológica con cambios de estado | HU02-RN-02, HU02-RN-03, HU02-RN-04 | HU02-RF-003, HU02-RF-004, HU02-RF-007, HU02-RF-009, HU02-RF-010 |
+| El usuario ve las resoluciones y los comentarios aplicables con autor y fecha | HU02-RN-02, HU02-RN-03 | HU02-RF-005, HU02-RF-006, HU02-RF-007, HU02-RF-009 |
+| El usuario no puede modificar estados ni entradas desde la consulta | HU02-RN-04 | HU02-RF-008 |

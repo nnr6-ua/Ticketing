@@ -382,4 +382,4 @@ HU-03 se considera validada cuando:
 5. El recordatorio de 48 h aparece una sola vez, no crea entradas ni cambia el estado, y desaparece al responder.
 6. Los tickets legados pendientes siguen siendo respondibles.
 7. No se ha roto ninguna prueba de HU-01/02/04/05.
-8. SC-008: un usuario no técnico completa petición y respuesta solo con la app, sin crear tickets ni comentarios externos.
+8. HU03-SC-008: un usuario no técnico completa petición y respuesta solo con la app, sin crear tickets ni comentarios externos.

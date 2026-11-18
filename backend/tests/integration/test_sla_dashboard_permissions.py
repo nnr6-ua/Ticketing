@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration._hu07 import API, OPTIONS_API
+from tests.integration._hu07 import API, OPTIONS_API, assert_vary_authorization
 
 FORBIDDEN_MESSAGE = "No tienes permiso para acceder a este dashboard."
 
@@ -15,7 +15,7 @@ def test_without_token_returns_401(client, dashboard_seed, path):
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "not_authenticated"
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert_vary_authorization(response)
 
 
 @pytest.mark.parametrize("role", ["tecnico_a", "usuario"])
@@ -29,7 +29,7 @@ def test_technicians_and_users_are_forbidden(client, dashboard_seed, role, path)
     assert detail["message"] == FORBIDDEN_MESSAGE
     assert "data" not in response.json()
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert_vary_authorization(response)
 
 
 @pytest.mark.parametrize("role", ["supervisor", "admin"])
@@ -38,7 +38,7 @@ def test_supervisor_and_admin_have_access(client, dashboard_seed, role):
 
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert_vary_authorization(response)
 
 
 def test_response_does_not_leak_personal_data(client, dashboard_seed):

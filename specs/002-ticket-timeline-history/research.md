@@ -25,7 +25,7 @@ No hay `[NEEDS CLARIFICATION]` pendientes en la especificación; todos los campo
 
 **Decision**: El usuario creador ve solo las entradas de línea temporal con `is_internal = false` (cambios de estado, resoluciones y comentarios públicos del técnico). Los comentarios internos (`is_internal = true`) se filtran en SQL cuando `can_view_internal` es falso, reutilizando la lógica ya existente de `ticket_timeline.get_timeline`.
 
-**Rationale**: Cumple la constitución (principio III, mínimo privilegio) y RN-03 de la especificación (acordado en clarificación: solo comentarios públicos visibles al usuario creador).
+**Rationale**: Cumple la constitución (principio III, mínimo privilegio) y HU02-RN-03 de la especificación (acordado en clarificación: solo comentarios públicos visibles al usuario creador).
 
 **Alternatives considered**:
 - Exponer comentarios internos al creador: rechazado (violaría privacidad de notas internas).
@@ -47,7 +47,7 @@ No hay `[NEEDS CLARIFICATION]` pendientes en la especificación; todos los campo
 
 **Decision**: Página y page_size (máx. 200), orden cronológico por `created_at` asc, `event_order` asc, `id` asc. Total items, total_pages, has_next, has_previous.
 
-**Rationale**: El historial se paga (supuesto 6 de la especificación y restricción de rendimiento de la constitución: p95 < 300 ms). El orden cronológico cumple RF-003/RF-009.
+**Rationale**: El historial se paga (supuesto 6 de la especificación y restricción de rendimiento de la constitución: p95 < 300 ms). El orden cronológico cumple HU02-RF-003/HU02-RF-009.
 
 **Alternatives considered**:
 - Cargar todo el historial sin paginar: rechazado (riesgo de rendimiento en historiales largos).

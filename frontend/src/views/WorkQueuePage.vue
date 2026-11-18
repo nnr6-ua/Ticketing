@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+import { getStoredUserRole } from '@/api/client'
 import WorkQueueEmptyState from '@/components/work-queue/WorkQueueEmptyState.vue'
 import WorkQueueErrorState from '@/components/work-queue/WorkQueueErrorState.vue'
 import WorkQueueFilters from '@/components/work-queue/WorkQueueFilters.vue'
@@ -12,9 +13,11 @@ import WorkQueueTable from '@/components/work-queue/WorkQueueTable.vue'
 import { useSlaClock } from '@/composables/useSlaClock'
 import { useWorkQueueStore } from '@/stores/workQueue'
 import type { TicketStatus } from '@/types/workQueue'
+import { MY_TICKETS_PATH } from '@/router/landing'
 
 const store = useWorkQueueStore()
 const router = useRouter()
+const route = useRoute()
 const clock = useSlaClock()
 
 const {
@@ -77,7 +80,9 @@ function onPageChange(page: number): void {
 
 watch(error, (current) => {
   if (current?.kind === 'unauthorized') {
-    void router.replace({ name: 'login', query: { redirect: '/cola-de-trabajo' } })
+    void router.replace({ name: 'login', query: { redirect: route.fullPath } })
+  } else if (current?.kind === 'forbidden' && getStoredUserRole() === 'usuario') {
+    void router.replace(MY_TICKETS_PATH)
   }
 })
 

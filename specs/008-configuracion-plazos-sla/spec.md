@@ -149,34 +149,34 @@ Como administrador, quiero consultar quién cambió cada categoría, prioridad o
 
 ### Requisitos Funcionales
 
-- **FR-001**: El sistema MUST permitir únicamente al perfil de administración consultar o modificar la configuración administrativa: catálogos completos, incluidas entidades inactivas y de sistema, reglas de plazo e histórico. El catálogo operativo de categorías y prioridades activas necesario para crear tickets sigue disponible para los perfiles autenticados.
-- **FR-002**: El sistema MUST rechazar cualquier intento de consulta o modificación de la configuración administrativa o de su histórico realizado por un perfil distinto de administración, sin bloquear el catálogo operativo de creación de tickets.
-- **FR-003**: El sistema MUST permitir crear y editar categorías con nombre obligatorio y descripción opcional.
-- **FR-004**: El sistema MUST validar que el nombre de una categoría sea único, ignorando mayúsculas, minúsculas y espacios sobrantes.
-- **FR-005**: El sistema MUST permitir desactivar y reactivar categorías sin eliminar su información histórica.
-- **FR-006**: El sistema MUST impedir la eliminación definitiva de una categoría o prioridad que esté asociada a tickets o a reglas de plazo.
-- **FR-007**: El sistema MUST permitir crear y editar prioridades con nombre, nivel numérico, color y plazo base de atención.
-- **FR-008**: El sistema MUST validar que el nivel de prioridad esté dentro del rango 1–4 y sea único entre prioridades no-sistema activas. Las prioridades inactivas no reservan nivel y la prioridad de sistema de reserva queda excluida.
-- **FR-009**: El sistema MUST validar que el plazo base de una prioridad sea un número positivo expresado en horas.
-- **FR-010**: El sistema MUST permitir desactivar y reactivar prioridades sin eliminar su información histórica.
-- **FR-011**: El sistema MUST impedir que se desactive la última categoría activa o la última prioridad activa disponible para nuevos tickets.
-- **FR-012**: El sistema MUST mantener una categoría por defecto y una prioridad por defecto entre las activas, y MUST exigir designar un reemplazo antes de desactivar la vigente.
-- **FR-013**: El sistema MUST permitir definir un plazo de atención para cada combinación de categoría y prioridad.
-- **FR-014**: El sistema MUST validar que el plazo de una regla de matriz sea un número positivo expresado en horas.
-- **FR-015**: El sistema MUST impedir que existan dos reglas vigentes simultáneas para la misma combinación de categoría y prioridad.
-- **FR-016**: El sistema MUST aplicar, para cada nuevo ticket, el plazo de la regla de matriz de su combinación categoría × prioridad y, si no existe, el plazo base de su prioridad, contando las horas de forma continua desde la creación.
-- **FR-017**: El sistema MUST fijar y conservar de forma inmutable, en el momento de creación de cada ticket, el plazo aplicado, el límite de atención resultante, el nivel de urgencia de la prioridad y la versión de configuración utilizada. La respuesta del ticket MUST exponer la versión aplicada y los valores congelados para su consulta.
-- **FR-018**: El sistema MUST garantizar que ningún cambio posterior de categorías, prioridades o reglas de plazo modifique el plazo aplicado, el límite de atención, el nivel de urgencia, el orden en la cola ni el resultado de SLA de un ticket ya creado, esté abierto o cerrado.
-- **FR-019**: El sistema MUST aplicar los cambios de configuración únicamente a los tickets creados después de su confirmación.
-- **FR-020**: El sistema MUST permitir retirar una regla de la matriz conservando su histórico, de modo que los nuevos tickets de esa combinación usen el plazo base de la prioridad.
-- **FR-021**: El sistema MUST impedir que una categoría o prioridad desactivada se ofrezca en el catálogo operativo para clasificar nuevos tickets, manteniéndola visible en los tickets que ya la tenían asociada.
-- **FR-022**: El sistema MUST registrar cada cambio de configuración de forma append-only con identificador de versión, autor, fecha y hora, entidad afectada, acción, valores anteriores y valores nuevos.
-- **FR-023**: El sistema MUST impedir la modificación o eliminación de versiones de configuración pasadas; cualquier corrección MUST realizarse mediante una nueva versión.
-- **FR-024**: El sistema MUST aplicar cada cambio de configuración de forma atómica: o se guardan todos sus efectos, o no se guarda ninguno.
-- **FR-025**: El sistema MUST resolver conflictos de edición concurrente sobre la misma entidad mediante bloqueo optimista, rechazando con un error de conflicto toda edición basada en una versión ya superada y sin sobrescribir silenciosamente cambios confirmados.
-- **FR-026**: El sistema MUST mostrar los plazos, fechas y horas en español de España y en la zona horaria `Europe/Madrid`, conservando internamente los instantes en UTC.
-- **FR-027**: El sistema MUST exponer los errores de validación y de permisos con mensajes comprensibles en español y códigos estables, sin filtrar detalles internos.
-- **FR-028**: El sistema MUST aplicar todo cambio de configuración en el instante de su confirmación y MUST impedir fecharlo en el pasado o programarlo para una fecha futura.
+- **HU08-RF-001**: El sistema MUST permitir únicamente al perfil de administración consultar o modificar la configuración administrativa: catálogos completos, incluidas entidades inactivas y de sistema, reglas de plazo e histórico. El catálogo operativo de categorías y prioridades activas necesario para crear tickets sigue disponible para los perfiles autenticados.
+- **HU08-RF-002**: El sistema MUST rechazar cualquier intento de consulta o modificación de la configuración administrativa o de su histórico realizado por un perfil distinto de administración, sin bloquear el catálogo operativo de creación de tickets.
+- **HU08-RF-003**: El sistema MUST permitir crear y editar categorías con nombre obligatorio y descripción opcional.
+- **HU08-RF-004**: El sistema MUST validar que el nombre de una categoría sea único, ignorando mayúsculas, minúsculas y espacios sobrantes.
+- **HU08-RF-005**: El sistema MUST permitir desactivar y reactivar categorías sin eliminar su información histórica.
+- **HU08-RF-006**: El sistema MUST impedir la eliminación definitiva de una categoría o prioridad que esté asociada a tickets o a reglas de plazo.
+- **HU08-RF-007**: El sistema MUST permitir crear y editar prioridades con nombre, nivel numérico, color y plazo base de atención.
+- **HU08-RF-008**: El sistema MUST validar que el nivel de prioridad esté dentro del rango 1–4 y sea único entre prioridades no-sistema activas. Las prioridades inactivas no reservan nivel y la prioridad de sistema de reserva queda excluida.
+- **HU08-RF-009**: El sistema MUST validar que el plazo base de una prioridad sea un número positivo expresado en horas.
+- **HU08-RF-010**: El sistema MUST permitir desactivar y reactivar prioridades sin eliminar su información histórica.
+- **HU08-RF-011**: El sistema MUST impedir que se desactive la última categoría activa o la última prioridad activa disponible para nuevos tickets.
+- **HU08-RF-012**: El sistema MUST mantener una categoría por defecto y una prioridad por defecto entre las activas, y MUST exigir designar un reemplazo antes de desactivar la vigente.
+- **HU08-RF-013**: El sistema MUST permitir definir un plazo de atención para cada combinación de categoría y prioridad.
+- **HU08-RF-014**: El sistema MUST validar que el plazo de una regla de matriz sea un número positivo expresado en horas.
+- **HU08-RF-015**: El sistema MUST impedir que existan dos reglas vigentes simultáneas para la misma combinación de categoría y prioridad.
+- **HU08-RF-016**: El sistema MUST aplicar, para cada nuevo ticket, el plazo de la regla de matriz de su combinación categoría × prioridad y, si no existe, el plazo base de su prioridad, contando las horas de forma continua desde la creación.
+- **HU08-RF-017**: El sistema MUST fijar y conservar de forma inmutable, en el momento de creación de cada ticket, el plazo aplicado, el límite de atención resultante, el nivel de urgencia de la prioridad y la versión de configuración utilizada. La respuesta del ticket MUST exponer la versión aplicada y los valores congelados para su consulta.
+- **HU08-RF-018**: El sistema MUST garantizar que ningún cambio posterior de categorías, prioridades o reglas de plazo modifique el plazo aplicado, el límite de atención, el nivel de urgencia, el orden en la cola ni el resultado de SLA de un ticket ya creado, esté abierto o cerrado.
+- **HU08-RF-019**: El sistema MUST aplicar los cambios de configuración únicamente a los tickets creados después de su confirmación.
+- **HU08-RF-020**: El sistema MUST permitir retirar una regla de la matriz conservando su histórico, de modo que los nuevos tickets de esa combinación usen el plazo base de la prioridad.
+- **HU08-RF-021**: El sistema MUST impedir que una categoría o prioridad desactivada se ofrezca en el catálogo operativo para clasificar nuevos tickets, manteniéndola visible en los tickets que ya la tenían asociada.
+- **HU08-RF-022**: El sistema MUST registrar cada cambio de configuración de forma append-only con identificador de versión, autor, fecha y hora, entidad afectada, acción, valores anteriores y valores nuevos.
+- **HU08-RF-023**: El sistema MUST impedir la modificación o eliminación de versiones de configuración pasadas; cualquier corrección MUST realizarse mediante una nueva versión.
+- **HU08-RF-024**: El sistema MUST aplicar cada cambio de configuración de forma atómica: o se guardan todos sus efectos, o no se guarda ninguno.
+- **HU08-RF-025**: El sistema MUST resolver conflictos de edición concurrente sobre la misma entidad mediante bloqueo optimista, rechazando con un error de conflicto toda edición basada en una versión ya superada y sin sobrescribir silenciosamente cambios confirmados.
+- **HU08-RF-026**: El sistema MUST mostrar los plazos, fechas y horas en español de España y en la zona horaria `Europe/Madrid`, conservando internamente los instantes en UTC.
+- **HU08-RF-027**: El sistema MUST exponer los errores de validación y de permisos con mensajes comprensibles en español y códigos estables, sin filtrar detalles internos.
+- **HU08-RF-028**: El sistema MUST aplicar todo cambio de configuración en el instante de su confirmación y MUST impedir fecharlo en el pasado o programarlo para una fecha futura.
 
 ### Entidades Clave
 
@@ -191,16 +191,16 @@ Como administrador, quiero consultar quién cambió cada categoría, prioridad o
 
 ### Resultados Medibles
 
-- **SC-001**: El 100 % de los tickets cerrados conserva exactamente el mismo límite y resultado de SLA después de cualquier cambio de configuración posterior.
-- **SC-002**: El 100 % de los tickets abiertos conserva el límite fijado en su creación tras un cambio de plazos.
-- **SC-003**: El 100 % de los tickets creados después de un cambio utilizan la nueva versión de configuración vigente.
-- **SC-004**: El 100 % de los intentos de eliminar categorías o prioridades en uso son rechazados y se ofrece la alternativa de desactivación.
-- **SC-005**: El 100 % de los cambios de configuración quedan registrados con autor, fecha y valores anteriores y nuevos.
-- **SC-006**: Un administrador puede crear una categoría o prioridad en menos de 2 minutos y actualizar una regla de la matriz en menos de 3 minutos, contando desde que abre el formulario hasta que recibe confirmación.
-- **SC-007**: Al menos el 95 % de las operaciones de configuración válidas se completan en el primer intento sin errores de validación inesperados.
-- **SC-008**: Cero tickets históricos modificados por cambios de configuración en las pruebas de regresión de la historia.
-- **SC-009**: El 100 % de los tickets existentes conserva su nivel de urgencia y su posición relativa en la cola tras cambiar el nivel numérico de una prioridad.
-- **SC-010**: El 100 % de las ediciones concurrentes basadas en una versión superada se rechazan con un aviso de conflicto y no producen pérdida silenciosa de cambios.
+- **HU08-SC-001**: El 100 % de los tickets cerrados conserva exactamente el mismo límite y resultado de SLA después de cualquier cambio de configuración posterior.
+- **HU08-SC-002**: El 100 % de los tickets abiertos conserva el límite fijado en su creación tras un cambio de plazos.
+- **HU08-SC-003**: El 100 % de los tickets creados después de un cambio utilizan la nueva versión de configuración vigente.
+- **HU08-SC-004**: El 100 % de los intentos de eliminar categorías o prioridades en uso son rechazados y se ofrece la alternativa de desactivación.
+- **HU08-SC-005**: El 100 % de los cambios de configuración quedan registrados con autor, fecha y valores anteriores y nuevos.
+- **HU08-SC-006**: Un administrador puede crear una categoría o prioridad en menos de 2 minutos y actualizar una regla de la matriz en menos de 3 minutos, contando desde que abre el formulario hasta que recibe confirmación.
+- **HU08-SC-007**: Al menos el 95 % de las operaciones de configuración válidas se completan en el primer intento sin errores de validación inesperados.
+- **HU08-SC-008**: Cero tickets históricos modificados por cambios de configuración en las pruebas de regresión de la historia.
+- **HU08-SC-009**: El 100 % de los tickets existentes conserva su nivel de urgencia y su posición relativa en la cola tras cambiar el nivel numérico de una prioridad.
+- **HU08-SC-010**: El 100 % de las ediciones concurrentes basadas en una versión superada se rechazan con un aviso de conflicto y no producen pérdida silenciosa de cambios.
 
 ## Supuestos
 

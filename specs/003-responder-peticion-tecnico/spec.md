@@ -38,7 +38,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 
 ## Reglas de Negocio
 
-### RN-01 — Solicitud de información del técnico
+### HU03-RN-01 — Solicitud de información del técnico
 
 - Solo el técnico actualmente asignado puede solicitar información sobre el ticket.
 - La solicitud se realiza sobre un ticket en estado «En progreso» y lo mueve a «Pendiente de usuario».
@@ -49,7 +49,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - Solo puede existir una solicitud activa por ticket. Mientras el ticket esté «Pendiente de usuario», no se puede crear otra solicitud hasta que el usuario responda.
 - La solicitud no se puede editar ni eliminar una vez enviada.
 
-### RN-02 — Aviso al usuario
+### HU03-RN-02 — Aviso al usuario
 
 - Cuando un ticket pasa a «Pendiente de usuario» por una solicitud de información, el usuario creador recibe un aviso contextual dentro de la aplicación.
 - El aviso identifica el ticket afectado e indica que se requiere su respuesta.
@@ -60,7 +60,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - Si el usuario no responde en las 48 horas siguientes al paso a «Pendiente de usuario», el sistema muestra un único recordatorio contextual en la lista de tickets y en la vista del ticket.
 - El recordatorio no se repite y no provoca escalado automático ni cambio de estado.
 
-### RN-03 — Respuesta del usuario
+### HU03-RN-03 — Respuesta del usuario
 
 - Solo el usuario creador del ticket puede responder a la solicitud.
 - La respuesta solo se admite cuando el ticket está en estado «Pendiente de usuario».
@@ -72,7 +72,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - La respuesta no se puede editar ni eliminar una vez enviada.
 - Una respuesta enviada con éxito no puede repetirse sobre el mismo ciclo de solicitud; los reintentos no generan entradas duplicadas.
 
-### RN-04 — La pelota vuelve al equipo técnico
+### HU03-RN-04 — La pelota vuelve al equipo técnico
 
 - Tras la respuesta del usuario, el ticket deja de estar «Pendiente de usuario» y pasa a «En progreso».
 - El ticket vuelve a estar visible como activo en la cola de trabajo del técnico asignado.
@@ -81,7 +81,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - El aviso de respuesta pendiente del usuario queda resuelto en el mismo momento en que se registra la respuesta.
 - Si el ticket no tiene técnico asignado en el momento de la respuesta, el ticket pasa igualmente a «En progreso» y queda disponible en la cola colectiva del equipo técnico.
 
-### RN-05 — Permisos y visibilidad
+### HU03-RN-05 — Permisos y visibilidad
 
 - El usuario creador solo puede responder a sus propios tickets.
 - El usuario creador no puede cambiar el estado del ticket a ningún otro valor ni solicitar información.
@@ -91,7 +91,7 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - Los comentarios internos del técnico siguen ocultos para el usuario creador, conforme a HU-05.
 - Un ticket ajeno se trata como no accesible: no se revela su existencia ni su contenido.
 
-### RN-06 — Trazabilidad e inmutabilidad
+### HU03-RN-06 — Trazabilidad e inmutabilidad
 
 - La petición de información y la respuesta del usuario generan entradas independientes en la línea temporal.
 - Cada entrada muestra su autor, fecha y hora.
@@ -99,14 +99,14 @@ Esta historia se apoya en lo ya construido: reutiliza los estados y la línea te
 - Las entradas de petición y respuesta no se pueden editar ni eliminar.
 - El cambio de estado asociado a la respuesta aparece en la línea temporal con estado anterior «Pendiente de usuario» y estado nuevo «En progreso».
 
-### RN-07 — Concurrencia e idempotencia
+### HU03-RN-07 — Concurrencia e idempotencia
 
 - Un doble envío de la misma respuesta no debe generar dos entradas ni dos cambios de estado.
 - Si el ticket ha cambiado entre la carga de la vista y el envío, el sistema rechaza la respuesta y pide actualizar la información, sin modificar el ticket.
 - Si dos intentos de respuesta compiten por el mismo ticket, solo uno puede aplicarse; el otro se rechaza sin dejar cambios parciales.
 - La respuesta solo se aplica si el ticket sigue en «Pendiente de usuario» en el momento de guardar.
 
-### RN-08 — Compatibilidad con lo ya construido
+### HU03-RN-08 — Compatibilidad con lo ya construido
 
 - Se mantienen los cinco estados existentes: «Abierto», «En progreso», «Pendiente de usuario», «Resuelto» y «Cerrado».
 - Se mantiene el flujo de estados de HU-05, incluida la transición manual de «Pendiente de usuario» a «En progreso».
@@ -185,29 +185,29 @@ Como usuario creador, quiero que al responder el ticket vuelva al equipo técnic
 
 ## Requisitos Funcionales
 
-- **RF-001**: El sistema DEBE permitir al técnico asignado solicitar información concreta sobre un ticket en estado «En progreso».
-- **RF-002**: El sistema DEBE exigir un mensaje de solicitud de entre 1 y 5.000 caracteres al usar la acción de solicitar información de esta historia.
-- **RF-003**: El sistema DEBE mover el ticket a «Pendiente de usuario» al registrar la solicitud de información.
-- **RF-004**: El sistema DEBE registrar la solicitud en la línea temporal pública con el texto, el autor, la fecha y la hora, y el cambio de estado asociado.
-- **RF-005**: El sistema DEBE impedir más de una solicitud activa mientras el ticket permanezca en «Pendiente de usuario».
-- **RF-006**: El sistema DEBE mostrar al usuario creador un aviso contextual dentro de la aplicación de que su ticket requiere una respuesta, sin campana ni centro de notificaciones.
-- **RF-007**: El sistema DEBE mostrar el ticket como «Pendiente de usuario» en la lista de tickets del usuario creador y mostrar la petición concreta en la vista del ticket.
-- **RF-008**: El sistema DEBE permitir al usuario creador responder únicamente a sus propios tickets y únicamente cuando estén en «Pendiente de usuario».
-- **RF-009**: El sistema DEBE exigir una respuesta de entre 1 y 5.000 caracteres y rechazar respuestas vacías o compuestas solo por espacios.
-- **RF-010**: El sistema DEBE cambiar el estado del ticket a «En progreso» al registrar la respuesta del usuario.
-- **RF-011**: El sistema DEBE registrar la respuesta en la línea temporal pública con el texto, el autor, la fecha y la hora, y el cambio de estado asociado.
-- **RF-012**: El sistema DEBE aplicar el cambio de estado y el registro de la respuesta como una única operación atómica.
-- **RF-013**: El sistema DEBE devolver el ticket respondido a la cola de trabajo del técnico asignado o, si no lo hay, a la cola colectiva del equipo técnico.
-- **RF-014**: El sistema DEBE resolver el aviso de respuesta pendiente en cuanto el usuario responde.
-- **RF-015**: El sistema DEBE impedir que la solicitud o la respuesta se editen o eliminen una vez registradas.
-- **RF-016**: El sistema DEBE evitar respuestas y entradas de línea temporal duplicadas ante reintentos o dobles envíos.
-- **RF-017**: El sistema DEBE rechazar la respuesta sin modificar el ticket si este cambió desde que se cargó la vista.
-- **RF-018**: El sistema DEBE denegar el acceso a la respuesta de tickets ajenos sin revelar su existencia.
-- **RF-019**: El sistema DEBE mantener ocultos para el usuario creador los comentarios internos del técnico.
-- **RF-020**: El sistema DEBE permitir responder a tickets ya «Pendiente de usuario» aunque no tengan un mensaje de solicitud previo, mostrando un aviso genérico.
-- **RF-021**: El sistema DEBE conservar los estados, transiciones y patrones visuales ya existentes, sin alterar el funcionamiento previo de HU-02, HU-04 y HU-05.
-- **RF-022**: El sistema DEBE mostrar un único recordatorio contextual al usuario creador si no responde en las 48 horas siguientes al paso a «Pendiente de usuario», sin repetirlo, sin escalar el ticket y sin cambiar su estado.
-- **RF-023**: El sistema DEBE integrar la escritura de la petición en el panel de cambio de estado existente, mostrando el campo de mensaje al seleccionar «Pendiente de usuario» y sin añadir una pantalla o acción separada.
+- **HU03-RF-001**: El sistema DEBE permitir al técnico asignado solicitar información concreta sobre un ticket en estado «En progreso».
+- **HU03-RF-002**: El sistema DEBE exigir un mensaje de solicitud de entre 1 y 5.000 caracteres al usar la acción de solicitar información de esta historia.
+- **HU03-RF-003**: El sistema DEBE mover el ticket a «Pendiente de usuario» al registrar la solicitud de información.
+- **HU03-RF-004**: El sistema DEBE registrar la solicitud en la línea temporal pública con el texto, el autor, la fecha y la hora, y el cambio de estado asociado.
+- **HU03-RF-005**: El sistema DEBE impedir más de una solicitud activa mientras el ticket permanezca en «Pendiente de usuario».
+- **HU03-RF-006**: El sistema DEBE mostrar al usuario creador un aviso contextual dentro de la aplicación de que su ticket requiere una respuesta, sin campana ni centro de notificaciones.
+- **HU03-RF-007**: El sistema DEBE mostrar el ticket como «Pendiente de usuario» en la lista de tickets del usuario creador y mostrar la petición concreta en la vista del ticket.
+- **HU03-RF-008**: El sistema DEBE permitir al usuario creador responder únicamente a sus propios tickets y únicamente cuando estén en «Pendiente de usuario».
+- **HU03-RF-009**: El sistema DEBE exigir una respuesta de entre 1 y 5.000 caracteres y rechazar respuestas vacías o compuestas solo por espacios.
+- **HU03-RF-010**: El sistema DEBE cambiar el estado del ticket a «En progreso» al registrar la respuesta del usuario.
+- **HU03-RF-011**: El sistema DEBE registrar la respuesta en la línea temporal pública con el texto, el autor, la fecha y la hora, y el cambio de estado asociado.
+- **HU03-RF-012**: El sistema DEBE aplicar el cambio de estado y el registro de la respuesta como una única operación atómica.
+- **HU03-RF-013**: El sistema DEBE devolver el ticket respondido a la cola de trabajo del técnico asignado o, si no lo hay, a la cola colectiva del equipo técnico.
+- **HU03-RF-014**: El sistema DEBE resolver el aviso de respuesta pendiente en cuanto el usuario responde.
+- **HU03-RF-015**: El sistema DEBE impedir que la solicitud o la respuesta se editen o eliminen una vez registradas.
+- **HU03-RF-016**: El sistema DEBE evitar respuestas y entradas de línea temporal duplicadas ante reintentos o dobles envíos.
+- **HU03-RF-017**: El sistema DEBE rechazar la respuesta sin modificar el ticket si este cambió desde que se cargó la vista.
+- **HU03-RF-018**: El sistema DEBE denegar el acceso a la respuesta de tickets ajenos sin revelar su existencia.
+- **HU03-RF-019**: El sistema DEBE mantener ocultos para el usuario creador los comentarios internos del técnico.
+- **HU03-RF-020**: El sistema DEBE permitir responder a tickets ya «Pendiente de usuario» aunque no tengan un mensaje de solicitud previo, mostrando un aviso genérico.
+- **HU03-RF-021**: El sistema DEBE conservar los estados, transiciones y patrones visuales ya existentes, sin alterar el funcionamiento previo de HU-02, HU-04 y HU-05.
+- **HU03-RF-022**: El sistema DEBE mostrar un único recordatorio contextual al usuario creador si no responde en las 48 horas siguientes al paso a «Pendiente de usuario», sin repetirlo, sin escalar el ticket y sin cambiar su estado.
+- **HU03-RF-023**: El sistema DEBE integrar la escritura de la petición en el panel de cambio de estado existente, mostrando el campo de mensaje al seleccionar «Pendiente de usuario» y sin añadir una pantalla o acción separada.
 
 ## Entidades Clave
 
@@ -223,15 +223,15 @@ Como usuario creador, quiero que al responder el ticket vuelva al equipo técnic
 
 | ID | Métrica | Objetivo |
 |---|---|---|
-| SC-001 | Verifica RF-001 a RF-005: solicitudes de información registradas con mensaje y paso a «Pendiente de usuario» | 100% |
-| SC-002 | Verifica RF-008 a RF-012: respuestas válidas que cambian el ticket a «En progreso» y quedan en la línea temporal | 100% |
-| SC-003 | Verifica RF-006 y RF-007: usuarios creadores que ven el aviso y la petición concreta | 100% |
-| SC-004 | Verifica RF-016: reintentos o dobles envíos que generan entradas duplicadas | 0 casos |
-| SC-005 | Verifica RF-018: intentos de respuesta sobre tickets ajenos denegados | 100% |
-| SC-006 | Verifica RF-013: tickets respondidos que vuelven a la cola del técnico como «En progreso» | 100% |
-| SC-007 | Tiempo que tarda el usuario en localizar la petición y enviar su respuesta | Menos de 2 minutos |
-| SC-008 | Un usuario no técnico completa la petición y la respuesta usando solo la app, sin crear un ticket nuevo ni un comentario externo | 100% de los casos del quickstart |
-| SC-009 | Verifica RF-022: tickets pendientes que reciben exactamente un recordatorio a las 48 horas sin respuesta | 100% |
+| HU03-SC-001 | Verifica HU03-RF-001 a HU03-RF-005: solicitudes de información registradas con mensaje y paso a «Pendiente de usuario» | 100% |
+| HU03-SC-002 | Verifica HU03-RF-008 a HU03-RF-012: respuestas válidas que cambian el ticket a «En progreso» y quedan en la línea temporal | 100% |
+| HU03-SC-003 | Verifica HU03-RF-006 y HU03-RF-007: usuarios creadores que ven el aviso y la petición concreta | 100% |
+| HU03-SC-004 | Verifica HU03-RF-016: reintentos o dobles envíos que generan entradas duplicadas | 0 casos |
+| HU03-SC-005 | Verifica HU03-RF-018: intentos de respuesta sobre tickets ajenos denegados | 100% |
+| HU03-SC-006 | Verifica HU03-RF-013: tickets respondidos que vuelven a la cola del técnico como «En progreso» | 100% |
+| HU03-SC-007 | Tiempo que tarda el usuario en localizar la petición y enviar su respuesta | Menos de 2 minutos |
+| HU03-SC-008 | Un usuario no técnico completa la petición y la respuesta usando solo la app, sin crear un ticket nuevo ni un comentario externo | 100% de los casos del quickstart |
+| HU03-SC-009 | Verifica HU03-RF-022: tickets pendientes que reciben exactamente un recordatorio a las 48 horas sin respuesta | 100% |
 
 ## Supuestos
 
@@ -275,11 +275,11 @@ Como usuario creador, quiero que al responder el ticket vuelva al equipo técnic
 
 | Criterio de aceptación | Reglas de negocio | Requisitos funcionales |
 |---|---|---|
-| El técnico solicita información concreta y el ticket pasa a «Pendiente de usuario» | RN-01, RN-08 | RF-001, RF-002, RF-003, RF-004, RF-005, RF-021, RF-023 |
-| El usuario ve el aviso y la petición concreta | RN-02 | RF-006, RF-007 |
-| El usuario responde desde el ticket y el estado pasa a «En progreso» | RN-03, RN-04 | RF-008, RF-009, RF-010, RF-012, RF-013 |
-| La respuesta y la petición quedan registradas en la línea temporal | RN-03, RN-06 | RF-004, RF-011, RF-015 |
-| El aviso desaparece al responder y el ticket vuelve al equipo técnico | RN-02, RN-04 | RF-013, RF-014 |
-| El usuario no puede responder tickets ajenos ni en estados no válidos | RN-03, RN-05 | RF-008, RF-017, RF-018 |
-| El usuario no responde en 48 horas | El sistema muestra un único recordatorio contextual | RN-02 | RF-006, RF-022 |
-| Los comentarios internos siguen ocultos y lo anterior no se rompe | RN-05, RN-08 | RF-019, RF-020, RF-021 |
+| El técnico solicita información concreta y el ticket pasa a «Pendiente de usuario» | HU03-RN-01, HU03-RN-08 | HU03-RF-001, HU03-RF-002, HU03-RF-003, HU03-RF-004, HU03-RF-005, HU03-RF-021, HU03-RF-023 |
+| El usuario ve el aviso y la petición concreta | HU03-RN-02 | HU03-RF-006, HU03-RF-007 |
+| El usuario responde desde el ticket y el estado pasa a «En progreso» | HU03-RN-03, HU03-RN-04 | HU03-RF-008, HU03-RF-009, HU03-RF-010, HU03-RF-012, HU03-RF-013 |
+| La respuesta y la petición quedan registradas en la línea temporal | HU03-RN-03, HU03-RN-06 | HU03-RF-004, HU03-RF-011, HU03-RF-015 |
+| El aviso desaparece al responder y el ticket vuelve al equipo técnico | HU03-RN-02, HU03-RN-04 | HU03-RF-013, HU03-RF-014 |
+| El usuario no puede responder tickets ajenos ni en estados no válidos | HU03-RN-03, HU03-RN-05 | HU03-RF-008, HU03-RF-017, HU03-RF-018 |
+| El usuario no responde en 48 horas | El sistema muestra un único recordatorio contextual | HU03-RN-02 | HU03-RF-006, HU03-RF-022 |
+| Los comentarios internos siguen ocultos y lo anterior no se rompe | HU03-RN-05, HU03-RN-08 | HU03-RF-019, HU03-RF-020, HU03-RF-021 |

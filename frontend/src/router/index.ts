@@ -1,14 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { getAccessToken } from '@/api/client'
-import { getStoredUserRole } from '@/auth/session'
+import { getAccessToken, getStoredUserRole } from '@/api/client'
+import { landingForRole, LOGIN_PATH, WORK_QUEUE_PATH } from '@/router/landing'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      redirect: '/cola-de-trabajo',
+      redirect: () => (getAccessToken() ? landingForRole(getStoredUserRole()) : LOGIN_PATH),
     },
     {
       path: '/cola-de-trabajo',
@@ -63,8 +63,17 @@ const router = createRouter({
  * la impone siempre el backend (`403 forbidden`).
  */
 router.beforeEach((to) => {
+  const role = getStoredUserRole()
+
+  if (to.path === WORK_QUEUE_PATH && (!getAccessToken() || role === 'usuario')) {
+    if (!getAccessToken()) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    return { path: landingForRole(role), replace: true }
+  }
+
   if (to.meta.requiresAdmin) {
-    if (getStoredUserRole() === 'admin') return true
+    if (role === 'admin') return true
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
@@ -75,7 +84,6 @@ router.beforeEach((to) => {
   if (!getAccessToken()) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-  const role = getStoredUserRole()
   if (!role || !requiredRoles.includes(role)) {
     return { name: 'forbidden', replace: true }
   }

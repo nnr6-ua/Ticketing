@@ -127,89 +127,89 @@ Como técnico, quiero recibir mensajes claros cuando no tengo tickets asignados 
 
 **Alcance y visibilidad**
 
-- **FR-001**: El sistema DEBE mostrar en la cola únicamente los tickets cuyo responsable actual sea el técnico autenticado.
-- **FR-002**: El sistema DEBE impedir que un técnico vea tickets de otros técnicos a través de filtros, enlaces directos o cualquier otro medio de acceso a la vista.
-- **FR-003**: El sistema DEBE excluir de la cola por defecto los tickets en estados finales (Resuelto y Cerrado), manteniéndolos accesibles mediante el filtro de estado.
-- **FR-004**: El sistema DEBE incluir por defecto los tickets en estados activos (Abierto, En progreso y Pendiente de usuario).
-- **FR-005**: El sistema DEBE actualizar la cola automáticamente en un plazo máximo de 60 segundos y al recuperar el foco de la vista, sin requerir recarga manual.
+- **HU04-RF-001**: El sistema DEBE mostrar en la cola únicamente los tickets cuyo responsable actual sea el técnico autenticado.
+- **HU04-RF-002**: El sistema DEBE impedir que un técnico vea tickets de otros técnicos a través de filtros, enlaces directos o cualquier otro medio de acceso a la vista.
+- **HU04-RF-003**: El sistema DEBE excluir de la cola por defecto los tickets en estados finales (Resuelto y Cerrado), manteniéndolos accesibles mediante el filtro de estado.
+- **HU04-RF-004**: El sistema DEBE incluir por defecto los tickets en estados activos (Abierto, En progreso y Pendiente de usuario).
+- **HU04-RF-005**: El sistema DEBE actualizar la cola automáticamente en un plazo máximo de 60 segundos y al recuperar el foco de la vista, sin requerir recarga manual.
 
 **Contenido del listado**
 
-- **FR-006**: Cada fila de la cola DEBE mostrar el número de ticket, el título o resumen, la categoría, la prioridad y el dato de SLA: tiempo restante en estados activos o resultado histórico en estados finales.
-- **FR-007**: El sistema DEBE mostrar el tiempo restante en unidades legibles y adaptadas a su magnitud (días y horas, horas y minutos, o minutos).
-- **FR-008**: El sistema DEBE mostrar "Vence ahora" con destacado ámbar cuando el tiempo restante sea exactamente cero, considerándolo aún no incumplido.
-- **FR-009**: El sistema DEBE mostrar el tiempo transcurrido desde el incumplimiento cuando el límite SLA ya haya pasado en un ticket activo, con la indicación "Vencido hace [tiempo]". En tickets activos este tiempo es dinámico y sigue creciendo hasta que el ticket se finaliza.
-- **FR-010**: El sistema DEBE mostrar "Sin SLA definido" cuando el ticket no tenga un límite SLA aplicable.
-- **FR-011**: El sistema DEBE mostrar el resultado vacío o el error de carga de forma diferenciada y con un mensaje comprensible en español.
+- **HU04-RF-006**: Cada fila de la cola DEBE mostrar el número de ticket, el título o resumen, la categoría, la prioridad y el dato de SLA: tiempo restante en estados activos o resultado histórico en estados finales.
+- **HU04-RF-007**: El sistema DEBE mostrar el tiempo restante en unidades legibles y adaptadas a su magnitud (días y horas, horas y minutos, o minutos).
+- **HU04-RF-008**: El sistema DEBE mostrar "Vence ahora" con destacado ámbar cuando el tiempo restante sea exactamente cero, considerándolo aún no incumplido.
+- **HU04-RF-009**: El sistema DEBE mostrar el tiempo transcurrido desde el incumplimiento cuando el límite SLA ya haya pasado en un ticket activo, con la indicación "Vencido hace [tiempo]". En tickets activos este tiempo es dinámico y sigue creciendo hasta que el ticket se finaliza.
+- **HU04-RF-010**: El sistema DEBE mostrar "Sin SLA definido" cuando el ticket no tenga un límite SLA aplicable.
+- **HU04-RF-011**: El sistema DEBE mostrar el resultado vacío o el error de carga de forma diferenciada y con un mensaje comprensible en español.
 
 **Ordenación**
 
-- **FR-012**: El sistema DEBE ordenar por defecto los tickets activos de mayor a menor prioridad, considerando Crítica como la mayor y Baja como la menor.
-- **FR-013**: Dentro de la misma prioridad, el sistema DEBE ordenar los tickets activos por menor tiempo restante hasta el límite SLA primero.
-- **FR-014**: El sistema DEBE considerar los tickets vencidos como los de menor tiempo restante (valores negativos), situándolos antes que los no vencidos de su misma prioridad.
-- **FR-015**: El sistema DEBE situar los tickets sin SLA definido al final de su grupo de prioridad.
-- **FR-016**: El sistema DEBE aplicar un desempate estable por número de ticket ascendente cuando prioridad y tiempo restante coincidan.
-- **FR-017**: El sistema DEBE mantener este orden tras aplicar filtros y antes de paginar los resultados.
-- **FR-036**: El sistema DEBE paginar el resultado ya ordenado en páginas de 25 tickets por defecto, admitiendo un tamaño entre 1 y 100 mediante el parámetro `page_size`; si la página solicitada supera el total de páginas, DEBE devolver la última página disponible.
+- **HU04-RF-012**: El sistema DEBE ordenar por defecto los tickets activos de mayor a menor prioridad, considerando Crítica como la mayor y Baja como la menor.
+- **HU04-RF-013**: Dentro de la misma prioridad, el sistema DEBE ordenar los tickets activos por menor tiempo restante hasta el límite SLA primero.
+- **HU04-RF-014**: El sistema DEBE considerar los tickets vencidos como los de menor tiempo restante (valores negativos), situándolos antes que los no vencidos de su misma prioridad.
+- **HU04-RF-015**: El sistema DEBE situar los tickets sin SLA definido al final de su grupo de prioridad.
+- **HU04-RF-016**: El sistema DEBE aplicar un desempate estable por número de ticket ascendente cuando prioridad y tiempo restante coincidan.
+- **HU04-RF-017**: El sistema DEBE mantener este orden tras aplicar filtros y antes de paginar los resultados.
+- **HU04-RF-036**: El sistema DEBE paginar el resultado ya ordenado en páginas de 25 tickets por defecto, admitiendo un tamaño entre 1 y 100 mediante el parámetro `page_size`; si la página solicitada supera el total de páginas, DEBE devolver la última página disponible.
 
 **Destacado de riesgo**
 
-- **FR-018**: El sistema DEBE destacar en rojo, con icono y etiqueta "Vencido hace [tiempo]", los tickets activos cuyo límite SLA ya se ha superado.
-- **FR-019**: El sistema DEBE destacar en ámbar, con icono y etiqueta "Próximo a vencer", los tickets activos con tiempo restante positivo e igual o inferior al umbral de aviso, así como los que estén exactamente en el límite conforme a FR-008.
-- **FR-020**: El sistema DEBE calcular el umbral de aviso de los tickets activos así: si la duración total del SLA es inferior a 60 minutos, la mitad de esa duración; en caso contrario, el mayor entre 60 minutos y el 25 % de la duración total del SLA.
-- **FR-021**: El sistema DEBE mostrar el indicador de riesgo junto al dato de SLA en los tickets activos, sin necesidad de abrir el detalle del ticket.
-- **FR-022**: El sistema DEBE transmitir el riesgo mediante color, icono y texto, de modo que no dependa únicamente del color.
+- **HU04-RF-018**: El sistema DEBE destacar en rojo, con icono y etiqueta "Vencido hace [tiempo]", los tickets activos cuyo límite SLA ya se ha superado.
+- **HU04-RF-019**: El sistema DEBE destacar en ámbar, con icono y etiqueta "Próximo a vencer", los tickets activos con tiempo restante positivo e igual o inferior al umbral de aviso, así como los que estén exactamente en el límite conforme a HU04-RF-008.
+- **HU04-RF-020**: El sistema DEBE calcular el umbral de aviso de los tickets activos así: si la duración total del SLA es inferior a 60 minutos, la mitad de esa duración; en caso contrario, el mayor entre 60 minutos y el 25 % de la duración total del SLA.
+- **HU04-RF-021**: El sistema DEBE mostrar el indicador de riesgo junto al dato de SLA en los tickets activos, sin necesidad de abrir el detalle del ticket.
+- **HU04-RF-022**: El sistema DEBE transmitir el riesgo mediante color, icono y texto, de modo que no dependa únicamente del color.
 
 **Filtrado**
 
-- **FR-023**: El sistema DEBE permitir filtrar la cola por uno o varios estados entre los disponibles, incluyendo los estados finales.
-- **FR-024**: El sistema DEBE permitir filtrar la cola por una o varias prioridades.
-- **FR-025**: El sistema DEBE combinar los filtros de estado y prioridad con lógica "Y", mostrando solo los tickets que cumplan todos los criterios seleccionados.
-- **FR-026**: El sistema DEBE mostrar el número de tickets resultantes tras aplicar los filtros.
-- **FR-027**: El sistema DEBE ofrecer una acción para restablecer los filtros a la vista por defecto.
-- **FR-028**: El sistema DEBE mantener los filtros aplicados durante la sesión de navegación en la cola.
-- **FR-029**: Los filtros NUNCA DEBEN ampliar el alcance de visibilidad del técnico ni mostrar tickets no asignados a él.
+- **HU04-RF-023**: El sistema DEBE permitir filtrar la cola por uno o varios estados entre los disponibles, incluyendo los estados finales.
+- **HU04-RF-024**: El sistema DEBE permitir filtrar la cola por una o varias prioridades.
+- **HU04-RF-025**: El sistema DEBE combinar los filtros de estado y prioridad con lógica "Y", mostrando solo los tickets que cumplan todos los criterios seleccionados.
+- **HU04-RF-026**: El sistema DEBE mostrar el número de tickets resultantes tras aplicar los filtros.
+- **HU04-RF-027**: El sistema DEBE ofrecer una acción para restablecer los filtros a la vista por defecto.
+- **HU04-RF-028**: El sistema DEBE mantener los filtros aplicados durante la sesión de navegación en la cola.
+- **HU04-RF-029**: Los filtros NUNCA DEBEN ampliar el alcance de visibilidad del técnico ni mostrar tickets no asignados a él.
 
 **Estados vacíos y errores**
 
-- **FR-030**: Cuando el técnico no tenga ningún ticket asignado, el sistema DEBE mostrar un estado vacío informativo que indique que no hay tickets asignados. El estado vacío DEBE distinguir entre «sin asignaciones» y «solo tickets finalizados» usando el número total de tickets activos y finalizados de la cola.
-- **FR-031**: Cuando los filtros no devuelvan resultados, el sistema DEBE mostrar un mensaje específico de "sin resultados" con la acción de limpiar filtros.
-- **FR-032**: Cuando la cola no pueda cargarse, el sistema DEBE mostrar un mensaje de error con una acción de reintento, sin confundirlo con una cola vacía.
-- **FR-033**: Cuando la sesión haya caducado, el sistema DEBE solicitar autenticación de nuevo y devolver al técnico a su cola tras iniciar sesión.
-- **FR-034**: Cuando un ticket en estado final (Resuelto o Cerrado) se muestre mediante el filtro de estado, el sistema DEBE mostrar su resultado histórico de SLA: "Dentro de plazo" si se finalizó en el límite o antes, o "Incumplido hace [tiempo]" si se finalizó después, sin cuenta atrás en vivo ni destacado de riesgo activo. En los finalizados, `[tiempo]` es el retraso acumulado al finalizar (`finalized_at - sla_deadline`), no el tiempo transcurrido desde el cierre, por lo que es estático y no crece. Si no tiene SLA aplicable, mostrará "Sin SLA definido".
-- **FR-035**: Cuando el resultado de un filtro incluya tickets activos y finalizados, el sistema DEBE mostrar primero todos los tickets activos con el orden de urgencia definido y, después, todos los finalizados al final del listado, con independencia de su prioridad y ordenados por fecha de finalización más reciente primero. Si dos tickets finalizados comparten fecha de finalización, se desempatará por número de ticket ascendente.
+- **HU04-RF-030**: Cuando el técnico no tenga ningún ticket asignado, el sistema DEBE mostrar un estado vacío informativo que indique que no hay tickets asignados. El estado vacío DEBE distinguir entre «sin asignaciones» y «solo tickets finalizados» usando el número total de tickets activos y finalizados de la cola.
+- **HU04-RF-031**: Cuando los filtros no devuelvan resultados, el sistema DEBE mostrar un mensaje específico de "sin resultados" con la acción de limpiar filtros.
+- **HU04-RF-032**: Cuando la cola no pueda cargarse, el sistema DEBE mostrar un mensaje de error con una acción de reintento, sin confundirlo con una cola vacía.
+- **HU04-RF-033**: Cuando la sesión haya caducado, el sistema DEBE solicitar autenticación de nuevo y devolver al técnico a su cola tras iniciar sesión.
+- **HU04-RF-034**: Cuando un ticket en estado final (Resuelto o Cerrado) se muestre mediante el filtro de estado, el sistema DEBE mostrar su resultado histórico de SLA: "Dentro de plazo" si se finalizó en el límite o antes, o "Incumplido hace [tiempo]" si se finalizó después, sin cuenta atrás en vivo ni destacado de riesgo activo. En los finalizados, `[tiempo]` es el retraso acumulado al finalizar (`finalized_at - sla_deadline`), no el tiempo transcurrido desde el cierre, por lo que es estático y no crece. Si no tiene SLA aplicable, mostrará "Sin SLA definido".
+- **HU04-RF-035**: Cuando el resultado de un filtro incluya tickets activos y finalizados, el sistema DEBE mostrar primero todos los tickets activos con el orden de urgencia definido y, después, todos los finalizados al final del listado, con independencia de su prioridad y ordenados por fecha de finalización más reciente primero. Si dos tickets finalizados comparten fecha de finalización, se desempatará por número de ticket ascendente.
 
 ### Reglas de Negocio
 
-- **RN-01 (Propiedad del ticket)**: un ticket aparece en la cola de un único técnico: su responsable actual. La asignación es la única fuente de verdad para la visibilidad; ningún filtro, orden o enlace puede ampliarla.
-- **RN-02 (Composición por defecto)**: la cola por defecto contiene los estados Abierto, En progreso y Pendiente de usuario. Resuelto y Cerrado solo se muestran si el técnico los selecciona explícitamente en el filtro de estado.
-- **RN-03 (Límite SLA fijo)**: cada ticket conserva el límite SLA vigente en el momento de su creación. Los cambios posteriores en la configuración de categorías, prioridades o plazos no alteran tickets ya creados.
-- **RN-04 (Cálculo del tiempo restante)**: el tiempo restante es la diferencia entre el límite SLA y el instante actual, calculada en UTC sobre instantes absolutos y presentada en la zona horaria Europe/Madrid. Para la visualización se redondea a la baja al minuto, para no dar una falsa sensación de holgura. La clasificación de riesgo (FR-008, FR-019 y RN-09) se evalúa con el valor exacto en segundos: por ello, un ticket que muestra «15 min» puede seguir en «Dentro de plazo» hasta que queden 15:00 o menos.
-- **RN-05 (Reloj SLA)**: el contador SLA no se pausa en ningún estado activo, incluido "Pendiente de usuario". Un ticket en espera de respuesta del usuario sigue consumiendo plazo y puede llegar a incumplirse.
-- **RN-06 (Prioridad)**: el orden de los tickets activos usa la prioridad almacenada en el ticket: Crítica > Alta > Media > Baja. Una prioridad desactivada posteriormente no cambia el orden de los tickets existentes.
-- **RN-07 (SLA ya incumplido)**: en tickets activos, un ticket vencido no se elimina de la cola, no se reasigna automáticamente y no se oculta. Permanece asignado al técnico, se muestra en rojo con la etiqueta "Vencido hace [tiempo]" y se ordena, dentro de su prioridad, antes que los tickets aún no vencidos. En estos tickets activos, el tiempo mostrado crece de forma dinámica. El técnico puede seguir consultándolo y actualizándolo con normalidad. El incumplimiento queda registrado y es visible para la supervisión; cerrar el ticket no borra dicho registro.
-- **RN-08 (El vencimiento no altera la prioridad)**: un ticket vencido de prioridad Baja sigue apareciendo después de un ticket de prioridad Crítica aún dentro de plazo. El incumplimiento no promociona el ticket a una prioridad superior.
-- **RN-09 (Umbral de aviso)**: en tickets activos, un ticket está "Próximo a vencer" cuando su tiempo restante es igual a cero o positivo y menor o igual al umbral de aviso. El umbral es la mitad de la duración total cuando esta es inferior a 60 minutos, y en caso contrario el mayor de 60 minutos o el 25 % de dicha duración; así, un SLA de 30 minutos avisa en los últimos 15 minutos, uno de 4 horas avisa en los últimos 60 minutos y uno de 24 horas avisa en las últimas 6 horas. En ese caso, incluido el instante exacto del límite, se destaca en ámbar y se etiqueta "Vence ahora"; con tiempo negativo se destaca en rojo como vencido; en el resto de casos no muestra alarma. Los tickets en estados finales no reciben estos destacados, conforme a RN-13.
-- **RN-10 (Sin SLA)**: un ticket sin límite SLA aplicable no se considera vencido ni próximo a vencer, se muestra como "Sin SLA definido" y se ordena al final de su grupo de prioridad.
-- **RN-11 (Filtros)**: los filtros de estado y prioridad se combinan con lógica "Y", nunca sustituyen a la regla de propiedad y no modifican el orden por urgencia. Los filtros se mantienen durante la navegación en la cola hasta que el técnico los restablezca.
-- **RN-12 (Reasignación)**: si un ticket se reasigna a otro técnico, deja de formar parte de la cola del técnico anterior en la siguiente actualización y pasa a la del nuevo responsable.
-- **RN-13 (Estados finales)**: un ticket Resuelto o Cerrado no aparece en la vista por defecto porque ya no requiere acción del técnico, pero sigue siendo consultable mediante el filtro de estado. En ese caso muestra su resultado histórico de SLA —"Dentro de plazo" o "Incumplido hace [tiempo]"—, sin cuenta atrás ni destacado de riesgo activo. En finalizados, `[tiempo]` es el retraso acumulado al finalizar (`finalized_at - sla_deadline`), no el tiempo transcurrido desde el cierre, por lo que no crece. Se considera fecha de finalización el primer paso del ticket a Resuelto o Cerrado, y se entiende cumplido el SLA si dicha fecha es igual o anterior al límite.
-- **RN-14 (Refresco de tiempos)**: los tiempos restantes y los indicadores de riesgo se recalculan como mínimo cada 60 segundos, sin que el técnico deba recargar la vista.
-- **RN-15 (Idioma y formato)**: la vista se presenta en español de España, con fechas, horas y duraciones en formato local y zona horaria Europe/Madrid.
-- **RN-16 (Accesibilidad)**: la información de riesgo y prioridad debe ser perceptible sin depender del color, con contraste suficiente, textos alternativos y navegación por teclado conforme a WCAG 2.1 AA.
-- **RN-17 (Orden con estados finales)**: cuando el filtro incluya estados finales, los tickets finalizados se colocan después de todos los activos, sin ordenarse por prioridad, de más recientemente finalizado a menos. Un empate se resuelve por número de ticket ascendente. Este criterio no altera el orden de los tickets activos.
+- **HU04-RN-01 (Propiedad del ticket)**: un ticket aparece en la cola de un único técnico: su responsable actual. La asignación es la única fuente de verdad para la visibilidad; ningún filtro, orden o enlace puede ampliarla.
+- **HU04-RN-02 (Composición por defecto)**: la cola por defecto contiene los estados Abierto, En progreso y Pendiente de usuario. Resuelto y Cerrado solo se muestran si el técnico los selecciona explícitamente en el filtro de estado.
+- **HU04-RN-03 (Límite SLA fijo)**: cada ticket conserva el límite SLA vigente en el momento de su creación. Los cambios posteriores en la configuración de categorías, prioridades o plazos no alteran tickets ya creados.
+- **HU04-RN-04 (Cálculo del tiempo restante)**: el tiempo restante es la diferencia entre el límite SLA y el instante actual, calculada en UTC sobre instantes absolutos y presentada en la zona horaria Europe/Madrid. Para la visualización se redondea a la baja al minuto, para no dar una falsa sensación de holgura. La clasificación de riesgo (HU04-RF-008, HU04-RF-019 y HU04-RN-09) se evalúa con el valor exacto en segundos: por ello, un ticket que muestra «15 min» puede seguir en «Dentro de plazo» hasta que queden 15:00 o menos.
+- **HU04-RN-05 (Reloj SLA)**: el contador SLA no se pausa en ningún estado activo, incluido "Pendiente de usuario". Un ticket en espera de respuesta del usuario sigue consumiendo plazo y puede llegar a incumplirse.
+- **HU04-RN-06 (Prioridad)**: el orden de los tickets activos usa la prioridad almacenada en el ticket: Crítica > Alta > Media > Baja. Una prioridad desactivada posteriormente no cambia el orden de los tickets existentes.
+- **HU04-RN-07 (SLA ya incumplido)**: en tickets activos, un ticket vencido no se elimina de la cola, no se reasigna automáticamente y no se oculta. Permanece asignado al técnico, se muestra en rojo con la etiqueta "Vencido hace [tiempo]" y se ordena, dentro de su prioridad, antes que los tickets aún no vencidos. En estos tickets activos, el tiempo mostrado crece de forma dinámica. El técnico puede seguir consultándolo y actualizándolo con normalidad. El incumplimiento queda registrado y es visible para la supervisión; cerrar el ticket no borra dicho registro.
+- **HU04-RN-08 (El vencimiento no altera la prioridad)**: un ticket vencido de prioridad Baja sigue apareciendo después de un ticket de prioridad Crítica aún dentro de plazo. El incumplimiento no promociona el ticket a una prioridad superior.
+- **HU04-RN-09 (Umbral de aviso)**: en tickets activos, un ticket está "Próximo a vencer" cuando su tiempo restante es igual a cero o positivo y menor o igual al umbral de aviso. El umbral es la mitad de la duración total cuando esta es inferior a 60 minutos, y en caso contrario el mayor de 60 minutos o el 25 % de dicha duración; así, un SLA de 30 minutos avisa en los últimos 15 minutos, uno de 4 horas avisa en los últimos 60 minutos y uno de 24 horas avisa en las últimas 6 horas. En ese caso, incluido el instante exacto del límite, se destaca en ámbar y se etiqueta "Vence ahora"; con tiempo negativo se destaca en rojo como vencido; en el resto de casos no muestra alarma. Los tickets en estados finales no reciben estos destacados, conforme a HU04-RN-13.
+- **HU04-RN-10 (Sin SLA)**: un ticket sin límite SLA aplicable no se considera vencido ni próximo a vencer, se muestra como "Sin SLA definido" y se ordena al final de su grupo de prioridad.
+- **HU04-RN-11 (Filtros)**: los filtros de estado y prioridad se combinan con lógica "Y", nunca sustituyen a la regla de propiedad y no modifican el orden por urgencia. Los filtros se mantienen durante la navegación en la cola hasta que el técnico los restablezca.
+- **HU04-RN-12 (Reasignación)**: si un ticket se reasigna a otro técnico, deja de formar parte de la cola del técnico anterior en la siguiente actualización y pasa a la del nuevo responsable.
+- **HU04-RN-13 (Estados finales)**: un ticket Resuelto o Cerrado no aparece en la vista por defecto porque ya no requiere acción del técnico, pero sigue siendo consultable mediante el filtro de estado. En ese caso muestra su resultado histórico de SLA —"Dentro de plazo" o "Incumplido hace [tiempo]"—, sin cuenta atrás ni destacado de riesgo activo. En finalizados, `[tiempo]` es el retraso acumulado al finalizar (`finalized_at - sla_deadline`), no el tiempo transcurrido desde el cierre, por lo que no crece. Se considera fecha de finalización el primer paso del ticket a Resuelto o Cerrado, y se entiende cumplido el SLA si dicha fecha es igual o anterior al límite.
+- **HU04-RN-14 (Refresco de tiempos)**: los tiempos restantes y los indicadores de riesgo se recalculan como mínimo cada 60 segundos, sin que el técnico deba recargar la vista.
+- **HU04-RN-15 (Idioma y formato)**: la vista se presenta en español de España, con fechas, horas y duraciones en formato local y zona horaria Europe/Madrid.
+- **HU04-RN-16 (Accesibilidad)**: la información de riesgo y prioridad debe ser perceptible sin depender del color, con contraste suficiente, textos alternativos y navegación por teclado conforme a WCAG 2.1 AA.
+- **HU04-RN-17 (Orden con estados finales)**: cuando el filtro incluya estados finales, los tickets finalizados se colocan después de todos los activos, sin ordenarse por prioridad, de más recientemente finalizado a menos. Un empate se resuelve por número de ticket ascendente. Este criterio no altera el orden de los tickets activos.
 
 ### Requisitos de Empaquetado y Despliegue
 
 Estos requisitos son transversales al proyecto y no alteran el comportamiento funcional de la cola. Permiten validar la historia en un entorno reproducible y comprobar que la aplicación arranca con sus dependencias.
 
-- **FR-037**: El proyecto DEBE incluir un `Dockerfile` multi-etapa que compile el frontend con Node y construya dos destinos: `frontend` (Nginx + SPA) y `backend` (Python + FastAPI).
-- **FR-038**: El repositorio DEBE incluir un `.dockerignore` que excluya dependencias locales, entornos virtuales, secretos, artefactos de pruebas, bases de datos locales y metadatos del repositorio.
-- **FR-039**: El proyecto DEBE incluir un `docker-compose.yml` con los servicios `db` (PostgreSQL 16), `backend` y `frontend`, conectados por la red interna de Compose y con healthchecks que ordenen el arranque.
-- **FR-040**: `docker compose up` DEBE dejar la aplicación operativa sin pasos manuales: el backend aplica las migraciones de Alembic automáticamente y el frontend queda disponible en `http://localhost:8080` con `/api` proxificado al backend.
-- **FR-041**: Los datos de PostgreSQL DEBEN persistir en el volumen nombrado `ticketing_db_data`; `docker compose down` no debe borrarlos y `docker compose down -v` debe permitir un reinicio limpio.
-- **FR-042**: Toda la configuración (credenciales de PostgreSQL, secreto JWT, emisor/audiencia, puertos, orígenes CORS y URL del API) DEBE recibirse por variables de entorno documentadas en `.env.example` y en el `README.md`, sin secretos reales en el repositorio.
-- **FR-043**: El `README.md` DEBE documentar los comandos de arranque, parada, logs, reinicio, borrado de datos, seed opcional y solución de problemas.
+- **HU04-RF-037**: El proyecto DEBE incluir un `Dockerfile` multi-etapa que compile el frontend con Node y construya dos destinos: `frontend` (Nginx + SPA) y `backend` (Python + FastAPI).
+- **HU04-RF-038**: El repositorio DEBE incluir un `.dockerignore` que excluya dependencias locales, entornos virtuales, secretos, artefactos de pruebas, bases de datos locales y metadatos del repositorio.
+- **HU04-RF-039**: El proyecto DEBE incluir un `docker-compose.yml` con los servicios `db` (PostgreSQL 16), `backend` y `frontend`, conectados por la red interna de Compose y con healthchecks que ordenen el arranque.
+- **HU04-RF-040**: `docker compose up` DEBE dejar la aplicación operativa sin pasos manuales: el backend aplica las migraciones de Alembic automáticamente y el frontend queda disponible en `http://localhost:8080` con `/api` proxificado al backend.
+- **HU04-RF-041**: Los datos de PostgreSQL DEBEN persistir en el volumen nombrado `ticketing_db_data`; `docker compose down` no debe borrarlos y `docker compose down -v` debe permitir un reinicio limpio.
+- **HU04-RF-042**: Toda la configuración (credenciales de PostgreSQL, secreto JWT, emisor/audiencia, puertos, orígenes CORS y URL del API) DEBE recibirse por variables de entorno documentadas en `.env.example` y en el `README.md`, sin secretos reales en el repositorio.
+- **HU04-RF-043**: El `README.md` DEBE documentar los comandos de arranque, parada, logs, reinicio, borrado de datos, seed opcional y solución de problemas.
 
 ### Entidades Clave
 
@@ -225,17 +225,17 @@ Estos requisitos son transversales al proyecto y no alteran el comportamiento fu
 
 ### Resultados Medibles
 
-- **SC-001**: El 100 % de las filas de la cola corresponde a tickets asignados al técnico autenticado, verificado con dos técnicos y sus colas cruzadas, con cero tickets ajenos visibles.
-- **SC-002**: Un técnico puede identificar el ticket más urgente de su cola en menos de 10 segundos desde que la vista termina de cargar.
-- **SC-003**: El 100 % de los tickets activos con SLA incumplido muestra el destacado rojo, el icono y la etiqueta "Vencido hace [tiempo]" en la cola.
-- **SC-004**: El 100 % de los tickets próximos a vencer según el umbral definido muestra el destacado ámbar, el icono y la etiqueta correspondiente.
-- **SC-005**: El 95 % de las aperturas de la cola muestra la lista completa en menos de 2 segundos para técnicos con hasta 100 tickets asignados.
-- **SC-006**: Un técnico encuentra un ticket concreto usando los filtros de estado y prioridad en menos de 15 segundos en una cola de 50 tickets.
-- **SC-009**: El 100 % de los casos de cola sin tickets asignados y de error de carga muestra el mensaje diferenciado correcto, sin falsos estados vacíos.
-- **SC-010**: El 100 % de los tickets vencidos sigue visible y accesible en la cola hasta su resolución, cierre o reasignación, sin ocultaciones automáticas.
-- **SC-011**: El 100 % de los tickets finalizados consultados mediante el filtro de estado muestra su resultado histórico de SLA sin cuenta atrás en vivo ni destacado de riesgo activo.
-- **SC-012**: El 100 % de las consultas con filtros mixtos coloca todos los tickets activos antes que los finalizados, y estos últimos ordenados por fecha de finalización más reciente.
-- **SC-013**: Partiendo de un clon limpio y un equipo con Docker, `docker compose up` deja la aplicación y la base de datos operativas sin instalar Python, Node ni PostgreSQL, y los datos persisten tras `docker compose down` y un nuevo `docker compose up`.
+- **HU04-SC-001**: El 100 % de las filas de la cola corresponde a tickets asignados al técnico autenticado, verificado con dos técnicos y sus colas cruzadas, con cero tickets ajenos visibles.
+- **HU04-SC-002**: Un técnico puede identificar el ticket más urgente de su cola en menos de 10 segundos desde que la vista termina de cargar.
+- **HU04-SC-003**: El 100 % de los tickets activos con SLA incumplido muestra el destacado rojo, el icono y la etiqueta "Vencido hace [tiempo]" en la cola.
+- **HU04-SC-004**: El 100 % de los tickets próximos a vencer según el umbral definido muestra el destacado ámbar, el icono y la etiqueta correspondiente.
+- **HU04-SC-005**: El 95 % de las aperturas de la cola muestra la lista completa en menos de 2 segundos para técnicos con hasta 100 tickets asignados.
+- **HU04-SC-006**: Un técnico encuentra un ticket concreto usando los filtros de estado y prioridad en menos de 15 segundos en una cola de 50 tickets.
+- **HU04-SC-009**: El 100 % de los casos de cola sin tickets asignados y de error de carga muestra el mensaje diferenciado correcto, sin falsos estados vacíos.
+- **HU04-SC-010**: El 100 % de los tickets vencidos sigue visible y accesible en la cola hasta su resolución, cierre o reasignación, sin ocultaciones automáticas.
+- **HU04-SC-011**: El 100 % de los tickets finalizados consultados mediante el filtro de estado muestra su resultado histórico de SLA sin cuenta atrás en vivo ni destacado de riesgo activo.
+- **HU04-SC-012**: El 100 % de las consultas con filtros mixtos coloca todos los tickets activos antes que los finalizados, y estos últimos ordenados por fecha de finalización más reciente.
+- **HU04-SC-013**: Partiendo de un clon limpio y un equipo con Docker, `docker compose up` deja la aplicación y la base de datos operativas sin instalar Python, Node ni PostgreSQL, y los datos persisten tras `docker compose down` y un nuevo `docker compose up`.
 
 ### Resultados de Negocio (post-lanzamiento, no verificables con la app)
 

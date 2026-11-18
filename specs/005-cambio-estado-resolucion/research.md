@@ -47,7 +47,7 @@ Este documento resuelve las incógnitas técnicas de la especificación y justif
 - No requiere una columna nueva en `tickets` (modelo base intacto).
 - `updated_at` ya existe y se actualiza en cada cambio.
 - El bloqueo de fila serializa dos comandos simultáneos y evita que ambos validen sobre el mismo estado.
-- Es el patrón estándar para formularios de edición y encaja con RN-08.
+- Es el patrón estándar para formularios de edición y encaja con HU05-RN-08.
 
 **Alternatives considered**:
 - *Columna `version` incremental*: más explícita, pero obliga a migrar `tickets` y a tocar todos los `UPDATE` existentes.
@@ -107,7 +107,7 @@ Este documento resuelve las incógnitas técnicas de la especificación y justif
 - La consulta aplica `WHERE is_internal = false` cuando el espectador no tiene privilegio interno; el cliente nunca recibe filas internas.
 
 **Rationale**:
-- Cumple RF-019 y RF-024 sin confiar en el cliente.
+- Cumple HU05-RF-019 y HU05-RF-024 sin confiar en el cliente.
 - Evita filtrar datos sensibles en el payload y luego ocultarlos con CSS.
 - La regla de «técnico asignado» se reevalúa en cada consulta, por lo que una reasignación revoca el acceso inmediatamente.
 
@@ -200,7 +200,7 @@ Este documento resuelve las incógnitas técnicas de la especificación y justif
 
 **Alternatives considered**:
 - *Llamar al endpoint público con el token del creador*: rompe la regla de asignación y mezcla autorización HTTP con integración interna.
-- *Permitir al creador cambiar estados por HTTP*: amplía el alcance y debilita RN-07.
+- *Permitir al creador cambiar estados por HTTP*: amplía el alcance y debilita HU05-RN-07.
 - *Usar un usuario «sistema»*: exige un usuario artificial y pierde la autoría real del creador.
 
 ---

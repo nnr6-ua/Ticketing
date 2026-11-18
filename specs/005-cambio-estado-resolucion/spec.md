@@ -89,9 +89,9 @@ Como técnico asignado, quiero añadir notas internas al ticket en cualquier est
 
 ## Reglas de Negocio
 
-### RN-01 — Estados del ticket
+### HU05-RN-01 — Estados del ticket
 
-Los estados disponibles son los definidos en RF-02.1 del sistema:
+Los estados disponibles son los definidos en HU05-RF-02.1 del sistema:
 
 - **Abierto**: el ticket ha sido registrado y todavía no se ha empezado a trabajar en él.
 - **En progreso**: el equipo técnico está trabajando activamente en el ticket.
@@ -99,7 +99,7 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - **Resuelto**: el técnico ha aplicado una solución y la ha documentado; queda pendiente el cierre.
 - **Cerrado**: el ticket ha finalizado y no admite más cambios de estado.
 
-### RN-02 — Transiciones válidas
+### HU05-RN-02 — Transiciones válidas
 
 | Estado actual \ Estado destino | Abierto | En progreso | Pendiente de usuario | Resuelto | Cerrado |
 |---|---|---|---|---|---|
@@ -115,7 +115,7 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - La reapertura solo se permite desde «Resuelto» hacia «En progreso». Un ticket «Cerrado» no se reabre; si el problema reaparece, se gestiona como un ticket nuevo.
 - La transición a «Pendiente de usuario» no exige un mensaje en esta historia. La solicitud de información y su contenido se rigen por HU-03.
 
-### RN-03 — Descripción obligatoria de la solución
+### HU05-RN-03 — Descripción obligatoria de la solución
 
 - Al mover un ticket a «Resuelto», la descripción de la solución es obligatoria.
 - Se considera vacía una descripción que no contenga ningún carácter distinto de espacios, tabuladores o saltos de línea.
@@ -124,13 +124,13 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - La descripción de la solución no puede modificarse una vez guardada. Si la solución cambia, debe reabrirse el ticket y documentarse una nueva resolución, conservando la anterior.
 - La obligación se aplica a las transiciones ejecutadas a partir de la implantación de HU-05; a efectos de auditoría, el corte operativo es la migración `0003_ticket_timeline` y se identifica con los tickets cuyo `finalized_at` es posterior a esa migración. Los tickets resueltos con anterioridad se consideran legado y no se modifican retroactivamente.
 
-### RN-04 — Atomicidad del cambio de estado
+### HU05-RN-04 — Atomicidad del cambio de estado
 
 - El cambio de estado, la descripción de la solución y la entrada de la línea temporal se guardan como una única operación.
 - Si falla cualquier validación o el guardado no puede completarse, no debe persistirse ningún cambio parcial: ni el estado, ni la solución, ni la entrada de la línea temporal.
 - Un doble envío de la misma acción no debe generar entradas duplicadas en la línea temporal. Las transiciones y los comentarios internos incluyen un `request_id` obligatorio; un reintento idéntico devuelve `changed=false` (transición) o `created=false` (comentario interno) sin escribir, y su reutilización con distintos datos se rechaza con `409 request_id_reused`.
 
-### RN-05 — Trazabilidad e inmutabilidad
+### HU05-RN-05 — Trazabilidad e inmutabilidad
 
 - Cada cambio de estado genera una entrada en la línea temporal con: estado anterior, estado nuevo, autor, fecha y hora.
 - Cada resolución genera una entrada de tipo «Resolución» con la descripción de la solución, el autor y la fecha y hora.
@@ -138,7 +138,7 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - Las resoluciones anteriores se conservan aunque el ticket se reabra y se vuelva a resolver.
 - La línea temporal mantiene el orden cronológico de los hechos.
 
-### RN-06 — Comentarios internos
+### HU05-RN-06 — Comentarios internos
 
 - El técnico asignado puede añadir comentarios internos en cualquier estado del ticket, incluido «Cerrado».
 - Un comentario interno debe contener entre 1 y 5.000 caracteres una vez eliminados los espacios al inicio y al final.
@@ -147,77 +147,77 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - Los comentarios internos solo son visibles para el técnico actualmente asignado, los supervisores y los administradores. Nunca son visibles para el usuario creador ni para técnicos no asignados.
 - Los comentarios internos no se pueden editar ni eliminar una vez guardados.
 
-### RN-07 — Permisos
+### HU05-RN-07 — Permisos
 
 - Solo el técnico actualmente asignado al ticket puede cambiar su estado y añadir comentarios internos.
 - Si el ticket se reasigna, el técnico anterior deja de ver los comentarios internos y pierde la capacidad de modificar el estado y de añadir nuevos comentarios.
 - El usuario creador solo puede consultar el estado y la línea temporal pública; no puede cambiar estados ni ver comentarios internos.
 - Supervisores y administradores pueden consultar la información interna, pero los cambios de estado y los comentarios internos quedan fuera de su alcance en esta historia.
 
-### RN-08 — Concurrencia y conflicto de edición
+### HU05-RN-08 — Concurrencia y conflicto de edición
 
 - Si dos sesiones o dos técnicos tras una reasignación intentan modificar el mismo ticket y una de ellas guarda primero, la segunda operación debe rechazarse para evitar sobrescribir cambios.
 - Ante un conflicto, el sistema debe indicar que el ticket ha cambiado y solicitar que se actualice la información antes de volver a intentarlo.
 - Un conflicto no debe modificar el estado, la solución ni la línea temporal.
 
-### RN-09 — Presentación de la resolución
+### HU05-RN-09 — Presentación de la resolución
 
-- La resolución se muestra en la línea temporal visible para el técnico y para el usuario creador, conforme a RN-05 y RF-012–RF-014.
+- La resolución se muestra en la línea temporal visible para el técnico y para el usuario creador, conforme a HU05-RN-05 y HU05-RF-012–HU05-RF-014.
 - La resolución debe distinguirse visualmente de los cambios de estado y de los comentarios internos.
-- La resolución anterior a una reapertura se identifica visualmente como histórica; su conservación y visibilidad tras el cierre se rigen por RF-013 y RF-014.
+- La resolución anterior a una reapertura se identifica visualmente como histórica; su conservación y visibilidad tras el cierre se rigen por HU05-RF-013 y HU05-RF-014.
 
 ## Requisitos Funcionales
 
 ### Cambio de estado
 
-- **RF-001**: El sistema DEBE permitir al técnico asignado cambiar el estado del ticket entre los valores definidos en RN-01.
-- **RF-002**: El sistema DEBE ofrecer únicamente los estados de destino permitidos para el estado actual según RN-02.
-- **RF-003**: El sistema DEBE rechazar cualquier transición no permitida, mantener el estado original y no generar ninguna entrada en la línea temporal.
-- **RF-004**: El sistema DEBE impedir cualquier cambio de estado cuando el ticket esté «Cerrado».
-- **RF-005**: HU-03 es la propietaria de la transición automática de «Pendiente de usuario» a «En progreso» cuando el usuario creador responde. HU-05 solo debe garantizar que esa transición es válida en RN-02 y que, cuando HU-03 la ejecute, quede registrada en la línea temporal con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información no forman parte de esta historia.
+- **HU05-RF-001**: El sistema DEBE permitir al técnico asignado cambiar el estado del ticket entre los valores definidos en HU05-RN-01.
+- **HU05-RF-002**: El sistema DEBE ofrecer únicamente los estados de destino permitidos para el estado actual según HU05-RN-02.
+- **HU05-RF-003**: El sistema DEBE rechazar cualquier transición no permitida, mantener el estado original y no generar ninguna entrada en la línea temporal.
+- **HU05-RF-004**: El sistema DEBE impedir cualquier cambio de estado cuando el ticket esté «Cerrado».
+- **HU03-RF-005**: HU-03 es la propietaria de la transición automática de «Pendiente de usuario» a «En progreso» cuando el usuario creador responde. HU-05 solo debe garantizar que esa transición es válida en HU05-RN-02 y que, cuando HU-03 la ejecute, quede registrada en la línea temporal con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información no forman parte de esta historia.
 
-  **Contrato de integración con HU-03 (RF-005)**: HU-03 ejecuta la transición mediante la función interna `apply_user_response_transition` de `ticket_workflow.py`, dentro de su propia transacción. La función exige `actor_id == ticket.creator_id`, estado `pendiente_usuario`, `request_id` estable del evento de respuesta y `expected_updated_at`; registra `status_change` con autor creador y no se expone como endpoint público. HU-03 confirma la respuesta y la transición de forma atómica.
-- **RF-006**: El sistema DEBE impedir que un ticket pase directamente de «Abierto» a «Resuelto» o «Cerrado», y de «Pendiente de usuario» a «Resuelto» o «Cerrado».
-- **RF-007**: El sistema DEBE permitir la reapertura de «Resuelto» a «En progreso» y registrar el cambio con su autor y fecha.
+  **Contrato de integración con HU-03 (HU03-RF-005)**: HU-03 ejecuta la transición mediante la función interna `apply_user_response_transition` de `ticket_workflow.py`, dentro de su propia transacción. La función exige `actor_id == ticket.creator_id`, estado `pendiente_usuario`, `request_id` estable del evento de respuesta y `expected_updated_at`; registra `status_change` con autor creador y no se expone como endpoint público. HU-03 confirma la respuesta y la transición de forma atómica.
+- **HU05-RF-006**: El sistema DEBE impedir que un ticket pase directamente de «Abierto» a «Resuelto» o «Cerrado», y de «Pendiente de usuario» a «Resuelto» o «Cerrado».
+- **HU05-RF-007**: El sistema DEBE permitir la reapertura de «Resuelto» a «En progreso» y registrar el cambio con su autor y fecha.
 
 ### Resolución
 
-- **RF-008**: El sistema DEBE exigir una descripción de la solución cuando el estado de destino sea «Resuelto».
-- **RF-009**: El sistema DEBE rechazar la transición a «Resuelto» si la descripción está vacía, compuesta solo por espacios en blanco o supera los 5.000 caracteres.
-- **RF-010**: Cuando la validación de la resolución falle, el sistema DEBE mantener el estado original, no guardar la solución y no crear ninguna entrada en la línea temporal.
-- **RF-011**: Cuando la validación sea correcta, el sistema DEBE guardar de forma conjunta el estado «Resuelto», la descripción de la solución y la entrada de la línea temporal.
-- **RF-012**: El sistema DEBE conservar la descripción de la solución asociada al ticket y mostrarla en su línea temporal con autor y fecha y hora.
-- **RF-013**: El sistema DEBE mantener visible la resolución después del cierre del ticket.
-- **RF-014**: El sistema DEBE conservar las resoluciones anteriores cuando el ticket se reabra y se vuelva a resolver.
-- **RF-015**: El sistema DEBE impedir la edición o eliminación de una resolución ya guardada.
+- **HU05-RF-008**: El sistema DEBE exigir una descripción de la solución cuando el estado de destino sea «Resuelto».
+- **HU05-RF-009**: El sistema DEBE rechazar la transición a «Resuelto» si la descripción está vacía, compuesta solo por espacios en blanco o supera los 5.000 caracteres.
+- **HU05-RF-010**: Cuando la validación de la resolución falle, el sistema DEBE mantener el estado original, no guardar la solución y no crear ninguna entrada en la línea temporal.
+- **HU05-RF-011**: Cuando la validación sea correcta, el sistema DEBE guardar de forma conjunta el estado «Resuelto», la descripción de la solución y la entrada de la línea temporal.
+- **HU05-RF-012**: El sistema DEBE conservar la descripción de la solución asociada al ticket y mostrarla en su línea temporal con autor y fecha y hora.
+- **HU05-RF-013**: El sistema DEBE mantener visible la resolución después del cierre del ticket.
+- **HU05-RF-014**: El sistema DEBE conservar las resoluciones anteriores cuando el ticket se reabra y se vuelva a resolver.
+- **HU05-RF-015**: El sistema DEBE impedir la edición o eliminación de una resolución ya guardada.
 
 ### Línea temporal
 
-- **RF-016**: El sistema DEBE registrar cada cambio de estado con estado anterior, estado nuevo, autor, fecha y hora.
-- **RF-017**: El sistema DEBE mostrar la línea temporal en orden cronológico.
-- **RF-018**: El sistema DEBE distinguir en la línea temporal entre cambios de estado, resoluciones y comentarios internos.
-- **RF-019**: El sistema DEBE mostrar al usuario creador los cambios de estado y las resoluciones, pero no los comentarios internos.
-- **RF-020**: El sistema DEBE conservar las entradas de la línea temporal aunque el ticket se cierre o se reabra.
+- **HU05-RF-016**: El sistema DEBE registrar cada cambio de estado con estado anterior, estado nuevo, autor, fecha y hora.
+- **HU05-RF-017**: El sistema DEBE mostrar la línea temporal en orden cronológico.
+- **HU05-RF-018**: El sistema DEBE distinguir en la línea temporal entre cambios de estado, resoluciones y comentarios internos.
+- **HU05-RF-019**: El sistema DEBE mostrar al usuario creador los cambios de estado y las resoluciones, pero no los comentarios internos.
+- **HU05-RF-020**: El sistema DEBE conservar las entradas de la línea temporal aunque el ticket se cierre o se reabra.
 
 ### Comentarios internos
 
-- **RF-021**: El sistema DEBE permitir al técnico asignado añadir comentarios internos en cualquier estado del ticket, incluido «Cerrado».
-- **RF-022**: El sistema DEBE rechazar comentarios internos vacíos, compuestos solo por espacios en blanco o de más de 5.000 caracteres.
-- **RF-023**: El sistema DEBE guardar el comentario interno con autor, fecha y hora, y mostrarlo en la línea temporal identificado como interno.
-- **RF-024**: El sistema DEBE garantizar que los comentarios internos solo sean visibles para el técnico actualmente asignado, los supervisores y los administradores, y nunca para el usuario creador ni para técnicos no asignados.
-- **RF-025**: El sistema DEBE impedir que un comentario interno cambie el estado del ticket.
-- **RF-026**: El sistema DEBE impedir la edición o eliminación de un comentario interno ya guardado.
+- **HU05-RF-021**: El sistema DEBE permitir al técnico asignado añadir comentarios internos en cualquier estado del ticket, incluido «Cerrado».
+- **HU05-RF-022**: El sistema DEBE rechazar comentarios internos vacíos, compuestos solo por espacios en blanco o de más de 5.000 caracteres.
+- **HU05-RF-023**: El sistema DEBE guardar el comentario interno con autor, fecha y hora, y mostrarlo en la línea temporal identificado como interno.
+- **HU05-RF-024**: El sistema DEBE garantizar que los comentarios internos solo sean visibles para el técnico actualmente asignado, los supervisores y los administradores, y nunca para el usuario creador ni para técnicos no asignados.
+- **HU05-RF-025**: El sistema DEBE impedir que un comentario interno cambie el estado del ticket.
+- **HU05-RF-026**: El sistema DEBE impedir la edición o eliminación de un comentario interno ya guardado.
 
 ### Permisos, errores y consistencia
 
-- **RF-027**: El sistema DEBE permitir las operaciones de esta historia únicamente al técnico actualmente asignado al ticket.
-- **RF-028**: El sistema DEBE denegar la operación con el mensaje definido en el catálogo de errores (`plan.md` §1.5) cuando el usuario no tenga permiso (`403 forbidden`) o el ticket ya no esté asignado a él (`403 not_ticket_assignee`).
-- **RF-029**: El sistema DEBE mostrar mensajes de error en español de España, comprensibles y sin tecnicismos, cuando una validación o un guardado fallen, utilizando los códigos estables y mensajes definidos en `plan.md` §1.5 y en el contrato `contracts/ticket-workflow.openapi.yaml`. La tabla «Casos Límite y Manejo de Errores» de esta especificación solo enumera mensajes orientativos; los códigos normativos no se duplican aquí.
-- **RF-030**: El sistema DEBE mantener el ticket sin cambios cuando se produzca un error de validación, de permisos o de concurrencia. Para las transiciones rechazadas, esta regla se concreta en RF-003; para las resoluciones y los comentarios internos, en RF-010 y RF-022.
-- **RF-031**: El sistema DEBE detectar y rechazar cambios realizados sobre una versión desactualizada del ticket, solicitando su actualización.
-- **RF-032**: El sistema DEBE evitar entradas duplicadas en la línea temporal cuando el técnico envíe dos veces la misma acción. Para las transiciones y para los comentarios internos, el `request_id` es obligatorio y actúa como clave de idempotencia; un reintento idéntico no escribe y devuelve `changed=false` (o `created=false` en el caso de comentarios internos), y la reutilización con distintos datos se rechaza con `409 request_id_reused`.
-- **RF-033**: El sistema DEBE mantener la coherencia entre el estado mostrado en el ticket y el último cambio registrado en la línea temporal.
-- **RF-034**: El sistema DEBE rechazar con un error de validación (`resolution_not_allowed`) cualquier descripción de solución enviada junto a un estado de destino distinto de «Resuelto», sin modificar el ticket ni crear entradas en la línea temporal. Queda a salvo la idempotencia de RF-032: un reintento con el mismo `request_id` y los mismos datos se resuelve como replay antes de aplicar esta validación.
+- **HU05-RF-027**: El sistema DEBE permitir las operaciones de esta historia únicamente al técnico actualmente asignado al ticket.
+- **HU05-RF-028**: El sistema DEBE denegar la operación con el mensaje definido en el catálogo de errores (`plan.md` §1.5) cuando el usuario no tenga permiso (`403 forbidden`) o el ticket ya no esté asignado a él (`403 not_ticket_assignee`).
+- **HU05-RF-029**: El sistema DEBE mostrar mensajes de error en español de España, comprensibles y sin tecnicismos, cuando una validación o un guardado fallen, utilizando los códigos estables y mensajes definidos en `plan.md` §1.5 y en el contrato `contracts/ticket-workflow.openapi.yaml`. La tabla «Casos Límite y Manejo de Errores» de esta especificación solo enumera mensajes orientativos; los códigos normativos no se duplican aquí.
+- **HU05-RF-030**: El sistema DEBE mantener el ticket sin cambios cuando se produzca un error de validación, de permisos o de concurrencia. Para las transiciones rechazadas, esta regla se concreta en HU05-RF-003; para las resoluciones y los comentarios internos, en HU05-RF-010 y HU05-RF-022.
+- **HU05-RF-031**: El sistema DEBE detectar y rechazar cambios realizados sobre una versión desactualizada del ticket, solicitando su actualización.
+- **HU05-RF-032**: El sistema DEBE evitar entradas duplicadas en la línea temporal cuando el técnico envíe dos veces la misma acción. Para las transiciones y para los comentarios internos, el `request_id` es obligatorio y actúa como clave de idempotencia; un reintento idéntico no escribe y devuelve `changed=false` (o `created=false` en el caso de comentarios internos), y la reutilización con distintos datos se rechaza con `409 request_id_reused`.
+- **HU05-RF-033**: El sistema DEBE mantener la coherencia entre el estado mostrado en el ticket y el último cambio registrado en la línea temporal.
+- **HU05-RF-034**: El sistema DEBE rechazar con un error de validación (`resolution_not_allowed`) cualquier descripción de solución enviada junto a un estado de destino distinto de «Resuelto», sin modificar el ticket ni crear entradas en la línea temporal. Queda a salvo la idempotencia de HU05-RF-032: un reintento con el mismo `request_id` y los mismos datos se resuelve como replay antes de aplicar esta validación.
 
 ## Entidades Clave
 
@@ -259,16 +259,16 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 
 | ID | Métrica | Objetivo |
 |---|---|---|
-| SC-001 | Transiciones fuera de la matriz de RN-02 bloqueadas | 100% de los intentos |
-| SC-002 | Tickets en estado «Resuelto» sin descripción de solución | 0 casos entre los resueltos desde la migración `0003_ticket_timeline` (corte operativo de la implantación); el legado anterior se audita y se lista, no se corrige automáticamente |
-| SC-003 | Intentos de resolver sin descripción que modifican el ticket | 0 casos |
-| SC-004 | Resoluciones visibles en la línea temporal tras el cambio de estado | 100% en menos de 2 segundos |
-| SC-005 | Comentarios internos disponibles en cualquier estado, incluido «Cerrado» | 100% de los estados |
-| SC-006 | Comentarios internos visibles para el usuario creador o para técnicos no asignados | 0 casos |
-| SC-007 | Entradas duplicadas por doble envío | 0 casos |
-| SC-008 | Tiempo para cambiar estado y documentar la resolución | Menos de 60 segundos para un técnico habitual |
-| SC-009 | Técnicos que completan el cambio de estado y la resolución en el primer intento | Al menos 95% |
-| SC-010 | Cambios de estado reflejados en la línea temporal | 100% en menos de 2 segundos |
+| HU05-SC-001 | Transiciones fuera de la matriz de HU05-RN-02 bloqueadas | 100% de los intentos |
+| HU05-SC-002 | Tickets en estado «Resuelto» sin descripción de solución | 0 casos entre los resueltos desde la migración `0003_ticket_timeline` (corte operativo de la implantación); el legado anterior se audita y se lista, no se corrige automáticamente |
+| HU05-SC-003 | Intentos de resolver sin descripción que modifican el ticket | 0 casos |
+| HU05-SC-004 | Resoluciones visibles en la línea temporal tras el cambio de estado | 100% en menos de 2 segundos |
+| HU05-SC-005 | Comentarios internos disponibles en cualquier estado, incluido «Cerrado» | 100% de los estados |
+| HU05-SC-006 | Comentarios internos visibles para el usuario creador o para técnicos no asignados | 0 casos |
+| HU05-SC-007 | Entradas duplicadas por doble envío | 0 casos |
+| HU05-SC-008 | Tiempo para cambiar estado y documentar la resolución | Menos de 60 segundos para un técnico habitual |
+| HU05-SC-009 | Técnicos que completan el cambio de estado y la resolución en el primer intento | Al menos 95% |
+| HU05-SC-010 | Cambios de estado reflejados en la línea temporal | 100% en menos de 2 segundos |
 
 ## Supuestos
 
@@ -276,11 +276,11 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 2. La autenticación y los roles ya existen; esta historia no define el mecanismo de acceso.
 3. Cada ticket tiene un único técnico asignado en cada momento.
 4. El usuario creador puede consultar el ticket y su línea temporal pública, pero no dispone de acciones de cambio de estado en esta historia.
-5. Los comentarios internos son de texto en esta historia; los adjuntos se rigen por RF-05 y no forman parte de este alcance.
+5. Los comentarios internos son de texto en esta historia; los adjuntos se rigen por HU05-RF-05 y no forman parte de este alcance.
 6. La resolución se considera un registro histórico inmutable; las correcciones se realizan mediante un nuevo comentario interno o una nueva resolución tras reabrir el ticket.
 7. El cierre es manual por parte del técnico; no existe cierre automático por tiempo en esta historia.
 8. Las fechas y horas se muestran en la zona horaria de España.
-9. La historia no incluye notificaciones por correo ni en la aplicación; se rigen por RF-08.
+9. La historia no incluye notificaciones por correo ni en la aplicación; se rigen por HU05-RF-08.
 10. Un ticket «Cerrado» no se reabre en esta versión; si el problema reaparece, se crea un ticket nuevo.
 11. Los técnicos no asignados pueden consultar la línea temporal pública (cambios de estado y resoluciones), pero no los comentarios internos ni realizar cambios de estado o comentarios.
 12. Los tickets resueltos o cerrados antes de la migración `0003_ticket_timeline` (corte operativo de la implantación de HU-05) se consideran legado: no se les exige una resolución retroactiva y la migración no altera sus datos.
@@ -303,7 +303,7 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 - HU-01: creación de tickets y asignación inicial.
 - HU-02: consulta del estado y línea temporal del ticket.
 - HU-03: respuesta del usuario a la solicitud de información y transición automática desde «Pendiente de usuario».
-- RF-02: definición del flujo de estados del sistema.
+- HU05-RF-02: definición del flujo de estados del sistema.
 - Sistema de autenticación y autorización por roles.
 - Mecanismo de registro cronológico de la línea temporal del ticket.
 
@@ -311,7 +311,7 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 
 | Criterio de aceptación de HU-05 | Reglas de negocio | Requisitos funcionales |
 |---|---|---|
-| El técnico puede cambiar el estado entre los valores definidos (Abierto → En progreso → Resuelto → Cerrado). | RN-01, RN-02, RN-07, RN-08 | RF-001 a RF-007, RF-027 a RF-033 |
-| Al mover a «Resuelto», el sistema requiere obligatoriamente una descripción de la solución. | RN-03, RN-04 | RF-008 a RF-011, RF-029, RF-030 |
-| La solución queda guardada y visible en la línea temporal. | RN-04, RN-05, RN-09 | RF-012 a RF-020 |
-| El técnico puede añadir comentarios internos en cualquier momento. | RN-06, RN-07 | RF-021 a RF-026 |
+| El técnico puede cambiar el estado entre los valores definidos (Abierto → En progreso → Resuelto → Cerrado). | HU05-RN-01, HU05-RN-02, HU05-RN-07, HU05-RN-08 | HU05-RF-001 a HU05-RF-007, HU05-RF-027 a HU05-RF-033 |
+| Al mover a «Resuelto», el sistema requiere obligatoriamente una descripción de la solución. | HU05-RN-03, HU05-RN-04 | HU05-RF-008 a HU05-RF-011, HU05-RF-029, HU05-RF-030 |
+| La solución queda guardada y visible en la línea temporal. | HU05-RN-04, HU05-RN-05, HU05-RN-09 | HU05-RF-012 a HU05-RF-020 |
+| El técnico puede añadir comentarios internos en cualquier momento. | HU05-RN-06, HU05-RN-07 | HU05-RF-021 a HU05-RF-026 |

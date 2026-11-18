@@ -25,6 +25,11 @@ OPTIONS_API = f"{API}/options"
 UTC = timezone.utc
 
 
+def assert_vary_authorization(response) -> None:
+    vary = [value.strip().lower() for value in response.headers.get("Vary", "").split(",")]
+    assert "authorization" in vary, response.headers.get("Vary")
+
+
 @dataclass
 class SeededDashboard:
     now: datetime

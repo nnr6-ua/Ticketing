@@ -67,7 +67,7 @@ Esta sección fija, de forma normativa para la implementación, las cinco decisi
 
 - El comando actualiza `assignee_id` al nuevo responsable y `updated_at` al instante del cambio, dentro de la misma transacción que la entrada de línea temporal y la notificación.
 - La consulta existente de `work_queue.py` filtra por `assignee_id == current_user.id` y estados activos (`abierto`, `en_progreso`, `pendiente_usuario`). En la siguiente actualización, el ticket deja de cumplir el filtro del técnico anterior y pasa a cumplirlo para el nuevo.
-- El frontend de la cola ya sondea cada 60 s y refresca al recuperar foco o visibilidad (`frontend/src/stores/workQueue.ts`); cumple RF-021 y RF-022 sin cambios ni invalidación de caché.
+- El frontend de la cola ya sondea cada 60 s y refresca al recuperar foco o visibilidad (`frontend/src/stores/workQueue.ts`); cumple HU06-RF-021 y HU06-RF-022 sin cambios ni invalidación de caché.
 - La prioridad, la categoría, el límite de SLA y el orden se conservan; el ticket se reposiciona en la cola del nuevo responsable con las reglas de HU-04 porque `priority_id`, `sla_deadline`, `created_at` y `status` no se tocan.
 - El cambio de `updated_at` invalida a los clientes con datos obsoletos: un comando posterior con `expected_updated_at` antiguo recibe `409 stale_ticket`.
 - El técnico anterior conserva lectura pública, pero pierde `can_change_status`, `can_comment_internally`, `can_view_internal`, `can_reassign` y `can_escalate` en la siguiente lectura del workflow; el nuevo responsable los adquiere.
@@ -84,7 +84,7 @@ Esta sección fija, de forma normativa para la implementación, las cinco decisi
 - `GET /api/v1/me/notifications` devuelve la página ordenada por `created_at DESC` y un `unread_count` calculado en servidor sobre todas las notificaciones del usuario, no solo sobre la página.
 - `POST /api/v1/me/notifications/{id}/read` marca la notificación como leída de forma idempotente; solo el destinatario puede hacerlo (`404 notification_not_found` para notificaciones ajenas).
 - `NotificationBell.vue` vive en `AppHeader`, se apoya en el store Pinia `notifications`, consulta cada 15 s, pausa el sondeo con la pestaña oculta y refresca de inmediato al recuperar foco o visibilidad. Usa `AbortController` y secuencia para descartar respuestas fuera de orden.
-- **Por qué esta solución**: cumple el plazo de 30 s de RF-018 con margen, conserva la notificación si el destinatario está desconectado (RF-020), reutiliza el cliente HTTP y el patrón de sondeo ya existentes y no añade infraestructura, autenticación de conexiones ni gestión de reconexión. SSE y WebSocket se descartan por complejidad y por la regla de simplicidad; el correo y el push están fuera de alcance (RF-08.2).
+- **Por qué esta solución**: cumple el plazo de 30 s de HU06-RF-018 con margen, conserva la notificación si el destinatario está desconectado (HU06-RF-020), reutiliza el cliente HTTP y el patrón de sondeo ya existentes y no añade infraestructura, autenticación de conexiones ni gestión de reconexión. SSE y WebSocket se descartan por complejidad y por la regla de simplicidad; el correo y el push están fuera de alcance (HU06-RF-08.2).
 
 **Referencias**: §1.3, §2.8, §3.6 y R4 de `research.md`.
 
@@ -166,7 +166,7 @@ Esta sección fija, de forma normativa para la implementación, las cinco decisi
 - Comando de reasignación/escalado: p95 < 300 ms en servidor (sin contar red); verificado por `T079`.
 - Consulta de opciones de cambio de responsable: p95 < 300 ms; verificado por `T079`.
 - Listado de la cola con hasta 100 tickets activos por técnico: p95 < 300 ms; verificado por `T079`.
-- **SC-010 alineación**: "Menos de 300 ms p95 en servidor" corresponde al objetivo de rendimiento del plan; ver T079 para pruebas de rendimiento en servidor.
+- **HU06-SC-010 alineación**: "Menos de 300 ms p95 en servidor" corresponde al objetivo de rendimiento del plan; ver T079 para pruebas de rendimiento en servidor.
 - Entrada de cambio de responsable visible en la línea temporal: < 2 s percibidos tras confirmar; verificado en cliente por `T091` (el backend solo garantiza su p95).
 - Notificación visible en la campana: ≤ 30 s (sondeo de 15 s + refresco inmediato al recuperar foco); verificado por `T057` y `T091`.
 - Ticket en la cola del nuevo responsable y fuera de la anterior: siguiente actualización de 60 s de HU-04; verificado por `T091`.
@@ -174,12 +174,12 @@ Esta sección fija, de forma normativa para la implementación, las cinco decisi
 - Línea temporal paginada (50 por defecto, 200 máximo) sin cambios.
 
 **Constraints**:
-- Interfaz y mensajes 100 % en español de España (RNF-01).
-- Accesibilidad WCAG 2.1 AA (RNF-03) y diseño responsive (RNF-04).
+- Interfaz y mensajes 100 % en español de España (HU06-RNF-01).
+- Accesibilidad WCAG 2.1 AA (HU06-RNF-03) y diseño responsive (HU06-RNF-04).
 - Identidad exclusivamente desde el JWT (`Authorization: Bearer`); nunca desde query string, cuerpo o cabeceras manipulables.
 - Autorización en servidor contra el responsable vigente; el cliente solo oculta acciones.
 - Sin nuevas tecnologías, motores de workflow, colas, SSE ni WebSocket.
-- Sin secretos en código (RNF-07).
+- Sin secretos en código (HU06-RNF-07).
 - No se renombran ni eliminan columnas/tablas existentes; la migración es aditiva y reversible.
 - El motivo es público para el usuario creador: se redacta sabiendo que quedará visible en la línea temporal.
 
@@ -200,7 +200,7 @@ La constitución del proyecto está ratificada en `.specify/memory/constitution.
 | III. Seguridad y mínimo privilegio | PASS | Identidad solo desde JWT; solo el técnico asignado vigente ejecuta comandos y consulta opciones. Los roles no técnicos reciben `403 forbidden`, el creador técnico no asignado también `forbidden` por precedencia y el técnico anterior `not_ticket_assignee`; el creador que es el técnico asignado opera como responsable. La autorización se reevalúa en servidor; el técnico anterior pierde escritura y visibilidad interna al cambiar `assignee_id`. |
 | IV. Contratos primero y pruebas verificables | PASS | Se documentan OpenAPI y contrato de componentes antes de implementar. El plan enumera pruebas de estados, permisos, destinos, visibilidad, atomicidad, concurrencia, idempotencia, notificaciones y códigos estables. |
 | V. Simplicidad, trazabilidad y español de España | PASS | Catálogo fijo en código, sin tabla de configuración; notificación con tabla + sondeo de 15 s en lugar de infraestructura en tiempo real; línea temporal como fuente de trazabilidad; mensajes es-ES y fechas `Europe/Madrid`. |
-| **Cross-reference**: RN-11 precedencia y RN-10/FR-025 | — | **RN-11**: rol no técnico → `403 forbidden`; creador técnico no asignado → `forbidden` con precedencia sobre `not_ticket_assignee`; creador asignado opera como responsable; técnico anterior no creador → `not_ticket_assignee`. **FR-025**: "El sistema DEBE impedir que el técnico se reasigne el ticket a sí mismo" alinea con RN-10. Ver también RN-10 y RN-11 para reglas de autorización. |
+| **Cross-reference**: HU06-RN-11 precedencia y HU06-RN-10/HU06-RF-025 | — | **HU06-RN-11**: rol no técnico → `403 forbidden`; creador técnico no asignado → `forbidden` con precedencia sobre `not_ticket_assignee`; creador asignado opera como responsable; técnico anterior no creador → `not_ticket_assignee`. **HU06-RF-025**: "El sistema DEBE impedir que el técnico se reasigne el ticket a sí mismo" alinea con HU06-RN-10. Ver también HU06-RN-10 y HU06-RN-11 para reglas de autorización. |
 | Restricciones adicionales | PASS | Formato de error heredado, comandos POST compatibles con el cliente GET/POST, paginación existente, p95 < 300 ms y accesibilidad AA. |
 
 ### Post-design re-check (Phase 1)
@@ -215,7 +215,7 @@ La constitución del proyecto está ratificada en `.specify/memory/constitution.
 
 **Resultado**: PASS. No hay violaciones que justificar en `Complexity Tracking`.
 
-**Nota de remediación (tras `/speckit.analyze`)**: se ajustó `tasks.md` sin alterar el diseño ni los contratos. En la primera ronda, las tareas de prueba que estaban en Foundational se movieron a la historia que las consume y se colocaron antes de su implementación (`T019`, `T020` y `T022` a US1; `T081` a US1 antes de implementar componentes; `T024` a US3; `T021` a US4; `T079` como prueba transversal al inicio de Phase 2), de modo que se cumple el Principio IV (pruebas escritas y en rojo antes de implementar). También se añadieron la guarda de token en `AppHeader` (`T068`) y su prueba (`T055`), la limpieza del sondeo ante `401` (`T065`, `T057`), la precisión de qué DTOs llevan `request_id`/`expected_updated_at` (`T013`), el marcado `[P]` de `T036`/`T037`, la separación de la accesibilidad de la campana a US4 y el requisito de `TEST_DATABASE_URL` en el gate `T083`. En la segunda ronda se corrigieron los hallazgos restantes: (a) `T070` (permisos/capacidades), `T071` (concurrencia) y `T086` (inmutabilidad) se movieron a Phase 2 para que se escriban en rojo antes de los comandos que las satisfacen; (b) `T021` (creación de notificación) se movió a Foundational con su prueba unitaria `T090`, porque US1/US2 la necesitan antes de US4; (c) `T072` se dividió en la prueba de montaje de US1 (`T072`) y la prueba de pérdida de capacidades de US5 (`T089`); (d) se añadió `T091` para la latencia percibida en cliente, de modo que `T079` solo cubre el rendimiento en servidor; (e) se ampliaron `T033`, `T050`, `T070`, `T074`, `T079` y `T087`; y (f) se fijó en RN-11 la precedencia del rol no técnico y del creador técnico no asignado, implementada en el helper `ensure_assignee_change_actor`, manteniendo que el creador asignado puede operar como responsable. El total queda en 91 tareas.
+**Nota de remediación (tras `/speckit.analyze`)**: se ajustó `tasks.md` sin alterar el diseño ni los contratos. En la primera ronda, las tareas de prueba que estaban en Foundational se movieron a la historia que las consume y se colocaron antes de su implementación (`T019`, `T020` y `T022` a US1; `T081` a US1 antes de implementar componentes; `T024` a US3; `T021` a US4; `T079` como prueba transversal al inicio de Phase 2), de modo que se cumple el Principio IV (pruebas escritas y en rojo antes de implementar). También se añadieron la guarda de token en `AppHeader` (`T068`) y su prueba (`T055`), la limpieza del sondeo ante `401` (`T065`, `T057`), la precisión de qué DTOs llevan `request_id`/`expected_updated_at` (`T013`), el marcado `[P]` de `T036`/`T037`, la separación de la accesibilidad de la campana a US4 y el requisito de `TEST_DATABASE_URL` en el gate `T083`. En la segunda ronda se corrigieron los hallazgos restantes: (a) `T070` (permisos/capacidades), `T071` (concurrencia) y `T086` (inmutabilidad) se movieron a Phase 2 para que se escriban en rojo antes de los comandos que las satisfacen; (b) `T021` (creación de notificación) se movió a Foundational con su prueba unitaria `T090`, porque US1/US2 la necesitan antes de US4; (c) `T072` se dividió en la prueba de montaje de US1 (`T072`) y la prueba de pérdida de capacidades de US5 (`T089`); (d) se añadió `T091` para la latencia percibida en cliente, de modo que `T079` solo cubre el rendimiento en servidor; (e) se ampliaron `T033`, `T050`, `T070`, `T074`, `T079` y `T087`; y (f) se fijó en HU06-RN-11 la precedencia del rol no técnico y del creador técnico no asignado, implementada en el helper `ensure_assignee_change_actor`, manteniendo que el creador asignado puede operar como responsable. El total queda en 91 tareas.
 
 ## Project Structure
 
@@ -348,7 +348,7 @@ Resumen de decisiones (detalle y alternativas en `research.md`):
 - **R5 — Comandos POST sobre sub-recursos**: el cliente HTTP existente solo expone GET/POST. Se usan `/reassignments` y `/escalations`, sin PATCH/PUT/DELETE y sin tocar los endpoints de HU-05.
 - **R6 — Idempotencia y concurrencia reutilizando el patrón de HU-05**: `request_id` obligatorio + `expected_updated_at` + `SELECT ... FOR UPDATE`; replay idéntico ⇒ `200 changed=false` sin escritura; reutilización con otros datos ⇒ `409 request_id_reused`; versión obsoleta ⇒ `409 stale_ticket`.
 - **R7 — Autorización única en servicios**: se añade `ensure_assignee_change_actor` (rol no técnico → `403 forbidden`; técnico no asignado y creador → `forbidden` con precedencia; técnico anterior no creador → `not_ticket_assignee`; el creador asignado opera como responsable) en `ticket_workflow.py`, sin tocar `_ensure_writer` de HU-05, y se reutiliza en opciones y comandos. Las capacidades del visor se calculan en servidor; el cliente solo las usa para ocultar acciones.
-- **R8 — Validación de destino en el momento del comando**: las opciones son una ayuda de UX; el comando revalida existencia, actividad, rol, equipo, nivel, creador y autoasignación. Un destino válido al abrir el formulario puede dejar de serlo al confirmar (RN-14).
+- **R8 — Validación de destino en el momento del comando**: las opciones son una ayuda de UX; el comando revalida existencia, actividad, rol, equipo, nivel, creador y autoasignación. Un destino válido al abrir el formulario puede dejar de serlo al confirmar (HU06-RN-14).
 - **R9 — Migración reversible con recreación explícita del enum**: PostgreSQL no permite eliminar un valor de enum; el `downgrade()` borra las entradas `assignee_change`, convierte la columna a texto, recrea `timeline_event_type` sin el valor y restaura el tipo. Se documenta la pérdida de datos de HU-06.
 
 ## Phase 1: Design & Contracts
@@ -574,7 +574,7 @@ Reglas:
 - Rol `tecnico`, `is_active = true`.
 - Mismo `escalation_level` que el responsable actual.
 - Si el responsable actual tiene `team`, mismo `team`; si `team is None`, cualquier equipo.
-- Excluye al responsable actual y al usuario creador del ticket (RN-03/RN-14).
+- Excluye al responsable actual y al usuario creador del ticket (HU06-RN-03/HU06-RN-14).
 - Orden estable para la UI: `lower(User.name).asc(), User.id.asc()`.
 - La consulta se ejecuta en el momento de abrir las opciones y se repite en el comando.
 
@@ -753,7 +753,7 @@ Se añade en `ticket_workflow.py` un helper específico de HU-06, `ensure_assign
 def ensure_assignee_change_actor(user: User, ticket: Ticket) -> None:
     """Solo el técnico asignado vigente puede consultar opciones y cambiar el responsable.
 
-    El creador con rol técnico no asignado recibe `403 forbidden` (RN-11) con
+    El creador con rol técnico no asignado recibe `403 forbidden` (HU06-RN-11) con
     precedencia sobre `403 not_ticket_assignee`. Si el creador es el técnico
     asignado, actúa en su capacidad de responsable y la operación se permite.
     """
@@ -1106,7 +1106,7 @@ export interface WorkflowResponse {
 
 - No se crea ninguna tabla de colas ni se modifica `backend/app/services/work_queue.py`.
 - La cola se deriva de `Ticket.assignee_id == current_user.id` y `Ticket.status IN (...)`; al actualizar `assignee_id` y `updated_at` en la misma transacción, el ticket sale de la consulta del técnico anterior y entra en la del nuevo.
-- La vista de cola ya sondea cada 60 s y refresca al recuperar foco/visibilidad (`frontend/src/stores/workQueue.ts`); cumple RF-021/RF-022 sin cambios.
+- La vista de cola ya sondea cada 60 s y refresca al recuperar foco/visibilidad (`frontend/src/stores/workQueue.ts`); cumple HU06-RF-021/HU06-RF-022 sin cambios.
 - La prioridad, el SLA y el orden se recalculan con las reglas de HU-04 porque el ticket conserva `priority_id`, `sla_deadline`, `created_at` y `status`.
 - El técnico anterior conserva acceso de lectura pública (`can_read_ticket` por rol `tecnico`), pero pierde `can_change_status`, `can_comment_internally`, `can_view_internal`, `can_reassign` y `can_escalate` en la siguiente lectura del workflow.
 

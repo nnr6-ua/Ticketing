@@ -19,6 +19,7 @@ vi.mock('@/api/client', () => ({
 }))
 
 import { devLogin } from '@/api/devAuth'
+import { isAllowedRedirect, landingForRole } from '@/router/landing'
 import LoginPage from '@/views/LoginPage.vue'
 
 const devLoginMock = vi.mocked(devLogin)
@@ -76,5 +77,32 @@ describe('LoginPage · entrada según rol', () => {
     await submitAs('usuario@example.com')
 
     expect(replace).toHaveBeenCalledWith('/tickets/abc')
+  })
+
+  it('ignora un redirect a la cola cuando el rol es solicitante', async () => {
+    loginAs('usuario')
+    routeQuery.redirect = '/cola-de-trabajo'
+
+    await submitAs('usuario@example.com')
+
+    expect(replace).toHaveBeenCalledWith('/mis-tickets')
+  })
+})
+
+describe('destino inicial por rol', () => {
+  it('no envía a la cola cuando el rol es desconocido o falta', () => {
+    expect(landingForRole(null)).toBe('/login')
+    expect(landingForRole('otro')).toBe('/login')
+    expect(landingForRole('usuario')).toBe('/mis-tickets')
+    expect(landingForRole('tecnico')).toBe('/cola-de-trabajo')
+  })
+
+  it('solo admite redirects compatibles con el rol', () => {
+    expect(isAllowedRedirect('/cola-de-trabajo', 'usuario')).toBe(false)
+    expect(isAllowedRedirect('/cola-de-trabajo', 'tecnico')).toBe(true)
+    expect(isAllowedRedirect('/admin/configuracion', 'usuario')).toBe(false)
+    expect(isAllowedRedirect('/admin/configuracion', 'admin')).toBe(true)
+    expect(isAllowedRedirect('/tickets/abc', 'usuario')).toBe(true)
+    expect(isAllowedRedirect('//externo', 'usuario')).toBe(false)
   })
 })

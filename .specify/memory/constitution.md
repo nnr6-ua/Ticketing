@@ -1,8 +1,10 @@
 # Constitución del proyecto Mesa de Ayuda
 
 <!--
-  Documento ratificado. Cualquier cambio requiere el procedimiento de
-  gobernanza descrito al final de este fichero.
+  Documento ratificado y FUENTE ÚNICA DE VERDAD de la constitución del proyecto.
+  `CONSTITUTION.md` (raíz) y `.opencode/constitution.md` son resúmenes
+  informativos: ante cualquier discrepancia prevalece este fichero.
+  Cualquier cambio requiere el procedimiento de gobernanza descrito al final.
 -->
 
 ## Principios fundamentales

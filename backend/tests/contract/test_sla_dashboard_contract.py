@@ -9,7 +9,7 @@ import jsonschema
 import pytest
 import yaml
 
-from tests.integration._hu07 import API, OPTIONS_API
+from tests.integration._hu07 import API, OPTIONS_API, assert_vary_authorization
 
 CONTRACT_PATH = (
     Path(__file__).resolve().parents[3]
@@ -192,7 +192,7 @@ def test_vary_authorization_is_sent_on_success(client, dashboard_seed):
         response = client.get(url, headers=dashboard_seed.supervisor_headers)
 
         assert response.status_code == 200, response.text
-        assert response.headers["Vary"] == "Authorization"
+        assert_vary_authorization(response)
         assert response.headers["Cache-Control"] == "no-store"
 
 
@@ -211,5 +211,5 @@ def test_vary_authorization_is_sent_on_errors(client, dashboard_seed):
     assert forbidden.status_code == 403
     assert invalid.status_code == 422
     for response in (unauthenticated, forbidden, invalid):
-        assert response.headers["Vary"] == "Authorization"
+        assert_vary_authorization(response)
         assert response.headers["Cache-Control"] == "no-store"

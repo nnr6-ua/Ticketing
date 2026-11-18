@@ -106,7 +106,7 @@ Expected outcome:
 - Timeline entries are visually distinguishable by type (status change,
   resolution, comment).
 - No internal technician comment appears in the timeline.
-- When there are no entries, an empty-state message is shown instead of a blank
+- In the absence of entries, an empty-state message is shown instead of a blank
   list.
 
 ### Scenario 6: Pagination works

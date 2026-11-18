@@ -12,10 +12,10 @@ from sqlalchemy import func, select
 from app.models import Ticket, TicketTimelineEntry
 from app.services.assignee_change import ensure_assignee_consistency
 from tests.conftest import make_token
-from tests.integration._hu07 import API, OPTIONS_API
+from tests.integration._hu07 import API, OPTIONS_API, assert_vary_authorization
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_HEAD = "0004_assignee_changes"
+EXPECTED_HEAD = "0007_merge_hu06_hu08"
 WORK_QUEUE_API = "/api/v1/me/work-queue"
 
 
@@ -36,7 +36,7 @@ def test_work_queue_contract_is_unchanged(client, seeded):
 
     assert response.status_code == 200, response.text
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert_vary_authorization(response)
 
     body = response.json()
     assert set(body) == {
@@ -139,6 +139,10 @@ def test_alembic_head_is_unchanged():
         "0002_add_finalized_at_and_work_queue_indexes.py",
         "0003_ticket_timeline.py",
         "0004_assignee_changes_notifications.py",
+        "0004_ticket_creation.py",
+        "0005_ticket_information.py",
+        "0006_sla_configuration.py",
+        "0007_merge_hu06_hu08.py",
     ]
 
 

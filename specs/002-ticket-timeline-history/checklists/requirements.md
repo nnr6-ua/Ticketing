@@ -31,5 +31,5 @@
 
 ## Notes
 
-- All [NEEDS CLARIFICATION] markers resolved: RN-03 now specifies that the ticket creator sees only public technician comments; internal comments stay hidden.
+- All [NEEDS CLARIFICATION] markers resolved: HU02-RN-03 now specifies that the ticket creator sees only public technician comments; internal comments stay hidden.
 - All checklist items pass.

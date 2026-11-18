@@ -128,7 +128,7 @@ Resultado esperado: todas las pruebas en verde.
 
 ## Escenarios de validación manual
 
-### Escenario 1 — Creación correcta (HU-1, CE-001, CE-002, CE-003)
+### Escenario 1 — Creación correcta (HU-1, HU01-SC-001, HU01-SC-002, HU01-SC-003)
 
 1. Entrar en `/login` con `usuario@example.com`.
 2. Introducir título `No puedo conectarme a la VPN` y descripción `Desde esta mañana, al conectar la VPN recibo un error de autenticación y no puedo acceder a los recursos internos.`
@@ -151,7 +151,7 @@ Resultado esperado: todas las pruebas en verde.
 4. Comprobar que el ticket se crea con la prioridad elegida y la categoría
    sugerida.
 
-### Escenario 3 — Sin sugerencia y fallback (HU-3, CE-007)
+### Escenario 3 — Sin sugerencia y fallback (HU-3, HU01-SC-007)
 
 1. Escribir un título y descripción neutros, sin palabras clave (`Necesito ayuda con una gestión`, `Me gustaría que alguien revise este asunto cuando sea posible, gracias.`).
 2. Comprobar que se muestran los valores por defecto (categoría «Otros» y
@@ -168,7 +168,7 @@ Resultado esperado: todas las pruebas en verde.
 4. Comprobar que la confirmación lista los adjuntos y que los archivos existen
    en `ATTACHMENTS_DIR/TK-XXXXXX/`.
 
-### Escenario 5 — Adjunto inválido (HU-2, CE-005)
+### Escenario 5 — Adjunto inválido (HU-2, HU01-SC-005)
 
 1. Intentar adjuntar un PDF o un archivo renombrado a `.png` que no sea una
    imagen real.
@@ -177,7 +177,7 @@ Resultado esperado: todas las pruebas en verde.
    límite.
 4. Comprobar que el título, la descripción y los adjuntos válidos se conservan.
 
-### Escenario 6 — Todo o nada en adjuntos (HU-2, CE-008)
+### Escenario 6 — Todo o nada en adjuntos (HU-2, HU01-SC-008)
 
 1. Seleccionar dos adjuntos válidos.
 2. Provocar un fallo en uno de ellos (por ejemplo, un archivo con extensión
@@ -186,7 +186,7 @@ Resultado esperado: todas las pruebas en verde.
    que el formulario conserva los datos.
 4. Reintentar con archivos válidos y comprobar que se crea un único ticket.
 
-### Escenario 7 — Duplicado (CE-006)
+### Escenario 7 — Duplicado (HU01-SC-006)
 
 1. Crear un ticket con un título y descripción.
 2. Volver a enviar exactamente el mismo título y descripción (doble clic o
@@ -195,7 +195,7 @@ Resultado esperado: todas las pruebas en verde.
    indica como duplicado, que los adjuntos del segundo envío se descartan y que
    no aparece un segundo registro en `tickets`.
 
-### Escenario 8 — Validaciones de longitud y caracteres especiales (RF-002, RF-018)
+### Escenario 8 — Validaciones de longitud y caracteres especiales (HU01-RF-002, HU01-RF-018)
 
 1. Enviar un título de 4 caracteres o una descripción de 19: debe bloquearse
    con mensaje en español.
@@ -207,7 +207,7 @@ Resultado esperado: todas las pruebas en verde.
    descripción: debe guardarse y mostrarse tal cual, sin ejecutar HTML.
 5. Comprobar que el contador de caracteres refleja el valor.
 
-### Escenario 9 — Pérdida de conexión (CE-008)
+### Escenario 9 — Pérdida de conexión (HU01-SC-008)
 
 1. Rellenar el formulario y desconectar la red (o detener el backend) antes de
    enviar.
@@ -227,16 +227,16 @@ Resultado esperado: todas las pruebas en verde.
 
 | Escenario | Requisitos |
 |-----------|------------|
-| 1 | RF-001, RF-006, RF-007, RF-008, RF-009, CE-001, CE-002, CE-003 |
-| 2 | RF-010, RF-011, RF-013, CE-004 |
-| 3 | RF-014, CE-007 |
-| 4 | RF-003, RF-004, RF-005 |
-| 5 | RF-004, RF-005, CE-005 |
-| 6 | RF-016, RF-017, CE-008 |
-| 7 | RF-015, CE-006 |
-| 8 | RF-002, RF-018 |
-| 9 | RF-016, CE-008 |
-| 10 | RF-001 (identidad) |
+| 1 | HU01-RF-001, HU01-RF-006, HU01-RF-007, HU01-RF-008, HU01-RF-009, HU01-SC-001, HU01-SC-002, HU01-SC-003 |
+| 2 | HU01-RF-010, HU01-RF-011, HU01-RF-013, HU01-SC-004 |
+| 3 | HU01-RF-014, HU01-SC-007 |
+| 4 | HU01-RF-003, HU01-RF-004, HU01-RF-005 |
+| 5 | HU01-RF-004, HU01-RF-005, HU01-SC-005 |
+| 6 | HU01-RF-016, HU01-RF-017, HU01-SC-008 |
+| 7 | HU01-RF-015, HU01-SC-006 |
+| 8 | HU01-RF-002, HU01-RF-018 |
+| 9 | HU01-RF-016, HU01-SC-008 |
+| 10 | HU01-RF-001 (identidad) |
 
 ## Notas de seguridad para producción
 

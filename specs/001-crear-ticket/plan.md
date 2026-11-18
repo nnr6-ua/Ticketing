@@ -47,7 +47,7 @@ La solución es una aplicación web con frontend Vue 3 + Tailwind CSS + Headless
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Constitución aplicable: [`CONSTITUTION.md`](../../CONSTITUTION.md) (la plantilla en `.specify/memory/constitution.md` no está cumplimentada).
+Constitución aplicable: [`.specify/memory/constitution.md`](../../.specify/memory/constitution.md) (v1.0.0, ratificada). [`CONSTITUTION.md`](../../CONSTITUTION.md) en la raíz es solo un resumen informativo.
 
 | Principio | Cumplimiento | Evidencia |
 |-----------|--------------|-----------|
@@ -157,7 +157,7 @@ frontend/
 ├── postcss.config.js
 └── .env.example
 
-compose.yaml                   # PostgreSQL 16 para desarrollo local
+docker-compose.yml             # PostgreSQL 16 para desarrollo local
 .gitignore
 ```
 

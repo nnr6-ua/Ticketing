@@ -45,10 +45,10 @@ HU-03 completa el intercambio de información entre el usuario creador y el téc
 - Lista de tickets sin consultas N+1: una consulta de tickets y una consulta agregada de peticiones abiertas.
 
 **Constraints**:
-- Interfaz y mensajes 100 % en español de España (RNF-01).
-- Accesibilidad WCAG 2.1 AA (RNF-03) y diseño responsive (RNF-04).
+- Interfaz y mensajes 100 % en español de España (HU03-RNF-01).
+- Accesibilidad WCAG 2.1 AA (HU03-RNF-03) y diseño responsive (HU03-RNF-04).
 - Autenticación JWT existente; identidad solo desde `Authorization: Bearer`.
-- Sin secretos en código ni nuevas tecnologías (RNF-07).
+- Sin secretos en código ni nuevas tecnologías (HU03-RNF-07).
 - No se modifican las columnas base de `tickets` ni el flujo de estados de HU-05.
 - `master` ya está integrado en esta rama mediante fast-forward a `04e47e5` (HU-01, HU-02, HU-04 y HU-05). Si `master` avanza antes de implementar, repetir la integración y la línea base.
 
@@ -65,7 +65,7 @@ Constitución ratificada: `.specify/memory/constitution.md` (v1.0.0). `CONSTITUT
 | I. Arquitectura por capas y stack fijado | PASS | Los comandos viven en `ticket_workflow.py` y la lectura en `ticket_timeline.py`; se reutilizan FastAPI, SQLAlchemy, Alembic, Vue 3, Pinia y los componentes existentes. No hay tecnologías nuevas. |
 | II. Modelo de datos estable y migraciones aditivas | PASS | Se amplía el enum y se añade una columna anulable con FK e índice; no se renombra ni elimina nada. `upgrade`/`downgrade` son verificables y el `downgrade` conserva los valores del enum de forma documentada. |
 | III. Seguridad y mínimo privilegio | PASS | La identidad sale solo del JWT; la autorización se aplica en servidor (técnico asignado para solicitar, creador para responder) y los comentarios internos se filtran antes de serializar. |
-| IV. Contratos primero y pruebas verificables | PASS | OpenAPI y contrato de componentes preceden a la implementación. Las tareas cubren matriz de estados, permisos, visibilidad, atomicidad, concurrencia, idempotencia, códigos de error y rendimiento. `SC-008` se reformula para ser verificable solo con la app y el quickstart. |
+| IV. Contratos primero y pruebas verificables | PASS | OpenAPI y contrato de componentes preceden a la implementación. Las tareas cubren matriz de estados, permisos, visibilidad, atomicidad, concurrencia, idempotencia, códigos de error y rendimiento. `HU03-SC-008` se reformula para ser verificable solo con la app y el quickstart. |
 | V. Simplicidad, trazabilidad y experiencia en español | PASS | No se crea tabla ni persistencia de avisos; la línea temporal append-only conserva autor, fecha y estados. Textos en es-ES, fechas en `Europe/Madrid`, accesibilidad WCAG 2.1 AA. |
 | Restricciones adicionales | PASS | Se mantiene el formato de error, los comandos POST compatibles con el cliente, el p95 < 300 ms con prueba explícita (T061) y la revisión de accesibilidad. |
 
@@ -237,7 +237,7 @@ Invariantes:
    - Reutilización con otros datos o con un comando distinto ⇒ `409 request_id_reused`.
 5. Exigir estado `pendiente_usuario`; si no, `409 invalid_transition`.
 6. Validar `expected_updated_at`; si difiere ⇒ `409 stale_ticket`.
-7. Buscar la petición activa del ciclo pendiente actual. Si existe, la respuesta se vincula con `reply_to_id`. Si no existe (ticket legado pendiente, o pendiente por transición genérica), se registra sin vínculo y se admite (RF-020).
+7. Buscar la petición activa del ciclo pendiente actual. Si existe, la respuesta se vincula con `reply_to_id`. Si no existe (ticket legado pendiente, o pendiente por transición genérica), se registra sin vínculo y se admite (HU03-RF-020).
 8. En una transacción: ejecutar `apply_user_response_transition` (cambio a `en_progreso`, entrada `status_change`, autor = creador), insertar `user_response` (`body`, `author = creador`, `event_order = 1`, `reply_to_id`, mismo `created_at` que el `status_change`) y hacer `commit`.
 9. Devolver el snapshot, las entradas creadas y la entrada de respuesta. En un replay, devolver la respuesta existente sin escribir.
 

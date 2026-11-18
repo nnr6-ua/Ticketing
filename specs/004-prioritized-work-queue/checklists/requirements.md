@@ -32,8 +32,8 @@
 ## Notas
 
 - Validación realizada el 2026-10-29 sobre `specs/004-prioritized-work-queue/spec.md`.
-- Los cinco criterios de aceptación de la HU-04 están cubiertos de forma explícita: propiedad del ticket (FR-001, FR-002, RN-01), contenido de la fila (FR-006 a FR-010), orden por defecto (FR-012 a FR-017, RN-06 a RN-08), destacado visual (FR-018 a FR-022, RN-09) y filtros (FR-023 a FR-029, RN-11).
-- Las reglas de negocio solicitadas incluyen el tratamiento del SLA ya incumplido (RN-07 y RN-08) y el caso de ausencia de SLA (RN-10).
-- Los casos límite y el manejo de errores cubren la ausencia de tickets asignados (FR-030), los filtros sin resultados (FR-031), los fallos de carga (FR-032) y la sesión caducada (FR-033).
+- Los cinco criterios de aceptación de la HU-04 están cubiertos de forma explícita: propiedad del ticket (HU04-RF-001, HU04-RF-002, HU04-RN-01), contenido de la fila (HU04-RF-006 a HU04-RF-010), orden por defecto (HU04-RF-012 a HU04-RF-017, HU04-RN-06 a HU04-RN-08), destacado visual (HU04-RF-018 a HU04-RF-022, HU04-RN-09) y filtros (HU04-RF-023 a HU04-RF-029, HU04-RN-11).
+- Las reglas de negocio solicitadas incluyen el tratamiento del SLA ya incumplido (HU04-RN-07 y HU04-RN-08) y el caso de ausencia de SLA (HU04-RN-10).
+- Los casos límite y el manejo de errores cubren la ausencia de tickets asignados (HU04-RF-030), los filtros sin resultados (HU04-RF-031), los fallos de carga (HU04-RF-032) y la sesión caducada (HU04-RF-033).
 - Todos los elementos se han revisado y se consideran satisfechos; no quedan incidencias pendientes.
 - Los elementos marcados como incompletos requerirían actualizar la especificación antes de `/speckit.clarify` o `/speckit.plan`.

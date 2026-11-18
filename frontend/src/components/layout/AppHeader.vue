@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 
 import NotificationBell from '@/components/notifications/NotificationBell.vue'
 import { getAccessToken, getStoredUserRole } from '@/api/client'
+import { landingForRole } from '@/router/landing'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const notifications = useNotificationsStore()
@@ -26,7 +27,7 @@ onUnmounted(() => {
     <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
       <nav class="flex items-center gap-6" aria-label="Navegación principal">
         <RouterLink
-          to="/cola-de-trabajo"
+          :to="landingForRole(role)"
           class="text-base font-semibold text-slate-900 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
         >
           Mesa de ayuda

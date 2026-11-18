@@ -240,7 +240,7 @@ Verificar:
 
 Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalidad validada.
 
-### V-01. Solo veo mis tickets (FR-001, FR-002, SC-001)
+### V-01. Solo veo mis tickets (HU04-RF-001, HU04-RF-002, HU04-SC-001)
 
 1. Iniciar sesión como Técnico A y abrir `/cola-de-trabajo`.
 2. Revisar todos los tickets listados.
@@ -248,7 +248,7 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 **Esperado**: aparecen los 5 tickets activos de A; ninguno de B. Si se añade `?technician_id=<B>` o `?assignee_id=<B>` a la URL, la lista no cambia.
 
-### V-02. Orden por prioridad y tiempo restante (FR-012, FR-013, FR-014, FR-016, SC-002)
+### V-02. Orden por prioridad y tiempo restante (HU04-RF-012, HU04-RF-013, HU04-RF-014, HU04-RF-016, HU04-SC-002)
 
 1. Observar la columna de prioridad y el SLA.
 
@@ -256,17 +256,17 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 2. Cronometrar desde que la vista termina de cargar hasta identificar el ticket más urgente; repetir 3 veces y anotar la mediana.
 
-**Esperado**: la mediana es inferior a 10 s (SC-002).
+**Esperado**: la mediana es inferior a 10 s (HU04-SC-002).
 
-### V-03. Vencido en rojo con texto e icono (FR-018, FR-022, SC-003)
+### V-03. Vencido en rojo con texto e icono (HU04-RF-018, HU04-RF-022, HU04-SC-003)
 
 **Esperado**: el ticket vencido muestra fondo rojo suave, borde izquierdo rojo, icono de incumplimiento y el texto "Vencido hace 2 h" (o el tiempo real). El rojo no es el único indicador.
 
-### V-04. Próximo a vencer en ámbar (FR-019, SC-004)
+### V-04. Próximo a vencer en ámbar (HU04-RF-019, HU04-SC-004)
 
 **Esperado**: el ticket con 10 min restantes (SLA de 4 h, umbral 60 min) muestra fondo ámbar, borde ámbar, icono de advertencia y "Próximo a vencer · 10 min".
 
-### V-05. Umbral con SLA corto (FR-020, RN-09)
+### V-05. Umbral con SLA corto (HU04-RF-020, HU04-RN-09)
 
 1. Abrir el ticket con SLA total de 30 min y 20 min restantes.
 
@@ -276,7 +276,7 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 **Esperado**: pasa a ámbar con "Próximo a vencer".
 
-### V-06. Límite exacto y vencimiento (FR-008, FR-009)
+### V-06. Límite exacto y vencimiento (HU04-RF-008, HU04-RF-009)
 
 1. Usar un ticket cuyo `remaining_seconds` sea exactamente 0.
 
@@ -284,13 +284,13 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 2. Avanzar un segundo (o ajustar el fixture a −1 s).
 
-**Esperado**: rojo, "Vencido hace menos de 1 min" y luego el tiempo correspondiente. El ticket sigue visible y accesible (SC-010).
+**Esperado**: rojo, "Vencido hace menos de 1 min" y luego el tiempo correspondiente. El ticket sigue visible y accesible (HU04-SC-010).
 
-### V-07. Sin SLA (FR-010, FR-015)
+### V-07. Sin SLA (HU04-RF-010, HU04-RF-015)
 
 **Esperado**: el ticket sin deadline muestra "Sin SLA definido" en gris, sin alarma, y aparece al final de su grupo de prioridad (Alta), después de los que sí tienen SLA.
 
-### V-08. Filtro por estado (FR-023, FR-025)
+### V-08. Filtro por estado (HU04-RF-023, HU04-RF-025)
 
 1. Seleccionar solo "En progreso".
 
@@ -300,13 +300,13 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 **Esperado**: aparece el ticket Resuelto con resultado histórico "Dentro de plazo" (sin cuenta atrás ni rojo/ámbar). El Cerrado no aparece.
 
-### V-09. Filtro por prioridad (FR-024)
+### V-09. Filtro por prioridad (HU04-RF-024)
 
 1. Seleccionar "Crítica".
 
 **Esperado**: solo las Críticas de A, ordenadas por tiempo restante.
 
-### V-10. Filtros combinados y limpieza (FR-025, FR-026, FR-027, FR-028, SC-006)
+### V-10. Filtros combinados y limpieza (HU04-RF-025, HU04-RF-026, HU04-RF-027, HU04-RF-028, HU04-SC-006)
 
 1. Seleccionar "Alta" + "En progreso" a la vez.
 
@@ -322,33 +322,33 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 4. Cronometrar la búsqueda de un ticket concreto usando los filtros; repetir 3 veces y anotar la mediana.
 
-**Esperado**: la mediana es inferior a 15 s (SC-006).
+**Esperado**: la mediana es inferior a 15 s (HU04-SC-006).
 
-### V-11. Finalizados al final y ordenados por finalización (FR-034, FR-035, SC-011, SC-012)
+### V-11. Finalizados al final y ordenados por finalización (HU04-RF-034, HU04-RF-035, HU04-SC-011, HU04-SC-012)
 
 1. Seleccionar estados activos + "Resuelto" + "Cerrado".
 
 **Esperado**: primero todos los activos con el orden de urgencia; después los finalizados, sin mezclarse, aunque uno sea Crítico. Entre finalizados, el más recientemente finalizado va primero. El Resuelto muestra "Dentro de plazo"; el Cerrado muestra "Incumplido hace [tiempo]" (tiempo que rebasó el límite al finalizar), sin alerta activa.
 
-### V-12. Estado vacío sin asignaciones (FR-030, SC-009)
+### V-12. Estado vacío sin asignaciones (HU04-RF-030, HU04-SC-009)
 
 1. Iniciar sesión con un técnico sin tickets.
 
 **Esperado**: "No tienes tickets asignados actualmente." No es un error y no hay botón de reintento.
 
-### V-13. Solo tickets finalizados (FR-030, escenario 4.2)
+### V-13. Solo tickets finalizados (HU04-RF-030, escenario 4.2)
 
 1. Iniciar sesión con un técnico cuyos únicos tickets están Resueltos/Cerrados.
 
 **Esperado**: "No tienes tickets activos. Puedes consultar los finalizados cambiando el filtro de estado." Al filtrar por Resuelto/Cerrado, aparecen.
 
-### V-14. Filtros sin resultados (FR-031)
+### V-14. Filtros sin resultados (HU04-RF-031)
 
 1. Aplicar una combinación que no exista (por ejemplo, Baja + Pendiente de usuario).
 
 **Esperado**: "No hay resultados para los filtros seleccionados." + botón "Limpiar filtros". Es distinto del estado vacío por falta de asignaciones.
 
-### V-15. Error de carga y reintento (FR-032, SC-009)
+### V-15. Error de carga y reintento (HU04-RF-032, HU04-SC-009)
 
 1. Detener el backend o simular un 500.
 2. Abrir o refrescar la cola.
@@ -359,35 +359,35 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 **Esperado**: la tabla se mantiene y aparece un aviso de que no se pudo actualizar, con opción de reintentar.
 
-### V-16. Sesión caducada (FR-033)
+### V-16. Sesión caducada (HU04-RF-033)
 
 1. Invalidar el token JWT (o esperar a que caduque).
 2. Provocar una petición (poll o cambio de filtro).
 
 **Esperado**: redirección a login; tras autenticarse, se vuelve a `/cola-de-trabajo` con la cola cargada.
 
-### V-17. Actualización automática (FR-005, RN-14)
+### V-17. Actualización automática (HU04-RF-005, HU04-RN-14)
 
 1. Con la vista abierta, reasignar uno de los tickets de A a B desde otra sesión.
 2. Esperar hasta 60 s.
 
 **Esperado**: el ticket desaparece de la cola de A sin recargar la página (máximo 60 s). Si se cambia el estado de un ticket, se refleja en el siguiente ciclo. Al volver a la pestaña tras estar oculta, la cola se actualiza de inmediato.
 
-### V-18. Cambio de hora oficial (RN-04, caso límite)
+### V-18. Cambio de hora oficial (HU04-RN-04, caso límite)
 
 1. Usar un ticket con deadline UTC conocido.
 2. Consultar la cola antes y después del cambio de hora (o simular con el reloj del entorno de pruebas).
 
 **Esperado**: `remaining_seconds` y el texto de duración cambian solo por el tiempo real transcurrido; no hay saltos de una hora. Las fechas absolutas se muestran en Europe/Madrid con el formato correcto.
 
-### V-19. Paginación (FR-017)
+### V-19. Paginación (HU04-RF-017)
 
 1. Crear más de 25 tickets para A (o reducir `page_size` en la URL a 2 para la prueba).
 2. Revisar la primera y la segunda página.
 
 **Esperado**: la primera página contiene los más urgentes del conjunto completo; no hay tickets repetidos ni omitidos entre páginas; el total de páginas y el número de resultados son correctos.
 
-### V-20. Accesibilidad (FR-022, RN-16)
+### V-20. Accesibilidad (HU04-RF-022, HU04-RN-16)
 
 1. Navegar la vista solo con teclado (Tab, Shift+Tab, Enter, Espacio).
 2. Activar un lector de pantalla.
@@ -406,7 +406,7 @@ Marcar cada uno como ✅ o ❌. Todos deben pasar para considerar la funcionalid
 
 **Esperado**: los tickets Alta siguen mostrando su prioridad almacenada y mantienen su posición; el filtro de prioridad la incluye y la marca como inactiva si el diseño lo indica. No se rompe el listado.
 
-### V-23. Arranque contenerizado y persistencia (FR-037–FR-043, RNF-09–RNF-13, SC-013)
+### V-23. Arranque contenerizado y persistencia (HU04-RF-037–HU04-RF-043, HU04-RNF-09–HU04-RNF-13, HU04-SC-013)
 
 1. En un equipo con Docker y sin Python, Node ni PostgreSQL instalados, clonar el repositorio y ejecutar `docker compose up --build`.
 2. Abrir `http://localhost:8080/cola-de-trabajo` y comprobar que la SPA carga y que las peticiones `/api/...` llegan al backend.
@@ -434,7 +434,7 @@ Esta sección registra qué parte de cada escenario queda demostrada por la suit
 |-----------|------------------------|--------|
 | V-01 Solo mis tickets | `test_returns_only_authenticated_technician_tickets`, `test_injected_technician_id_is_ignored`; store: «carga la cola y guarda los datos de la respuesta» | ✅ |
 | V-02 Orden por prioridad y tiempo | `test_order_priority_then_deadline_then_number`, `test_sla_parity_values_for_active_tickets` | ✅ |
-| V-02 Mediana < 10 s (SC-002) | Requiere cronometraje humano sobre la vista real | ⚠️ Manual |
+| V-02 Mediana < 10 s (HU04-SC-002) | Requiere cronometraje humano sobre la vista real | ⚠️ Manual |
 | V-03 Vencido en rojo + icono + texto | `test_one_second_after_deadline_is_overdue`; `SlaIndicator`: «muestra el estado vencido en rojo, con icono y texto» | ✅ |
 | V-04 Próximo a vencer en ámbar | `test_long_sla_ten_minutes_remaining_is_at_risk`; `SlaIndicator`: «muestra el estado próximo a vencer en ámbar» | ✅ |
 | V-05 Umbral con SLA corto | `test_short_sla_twenty_minutes_remaining_is_on_time`, `test_short_sla_boundary_15_30_is_on_time`, `test_short_sla_exact_threshold_is_at_risk`; `sla.spec`: «aplica el umbral corto de un SLA de 30 min (borde 15:30)» | ✅ |
@@ -443,7 +443,7 @@ Esta sección registra qué parte de cada escenario queda demostrada por la suit
 | V-08 Filtro por estado | `test_filter_by_status`, `test_finalized_only_filter_and_historical_outcome`; `WorkQueueFilters`: selección/deselección de estado | ✅ |
 | V-09 Filtro por prioridad | `test_filter_by_priority_level`; `WorkQueueFilters`: selección/deselección de prioridad | ✅ |
 | V-10 Filtros combinados + URL + limpieza | `test_combined_filters_use_and`; store: «lee los filtros válidos de la URL», «descarta los valores de URL inválidos», «aplica debounce…», «limpia los filtros…»; `WorkQueueFilters`: «emite "clear"…» | ✅ |
-| V-10 Mediana < 15 s (SC-006) | Requiere cronometraje humano sobre la vista real | ⚠️ Manual |
+| V-10 Mediana < 15 s (HU04-SC-006) | Requiere cronometraje humano sobre la vista real | ⚠️ Manual |
 | V-11 Finalizados al final y por fecha | `test_finalized_are_last_and_ordered_by_finalized_at_desc`, `test_finalized_only_filter_and_historical_outcome`; `SlaIndicator`: finalizado cumplido/incumplido/sin SLA | ✅ |
 | V-12 Sin asignaciones | `test_technician_without_tickets_gets_empty_queue`; store: «distingue cola vacía, solo finalizados y sin resultados»; `WorkQueueFilters`: «no ofrece "Limpiar filtros" en el vacío sin asignaciones» | ✅ |
 | V-13 Solo finalizados | `test_only_finalized_technician_gets_empty_default_items`; store: «distingue cola vacía…»; `WorkQueueStates`: «distingue los tres estados vacíos», «muestra el estado solo finalizados…» | ✅ |
@@ -460,7 +460,7 @@ Esta sección registra qué parte de cada escenario queda demostrada por la suit
 
 **Pendiente de validación manual en navegador** (no bloquea la corrección automatizada, sí el cierre formal de la historia):
 
-1. V-02 y V-10: medianas cronometradas de SC-002 y SC-006.
+1. V-02 y V-10: medianas cronometradas de HU04-SC-002 y HU04-SC-006.
 2. V-15 y V-16: representación visual del error, reintento y redirección real a login.
 3. V-17: reasignación en vivo desde otra sesión y refresco al recuperar el foco.
 4. V-20: recorrido con teclado y lector de pantalla.

@@ -56,8 +56,8 @@ La solución reutiliza el modelo existente (`categories`, `priorities`, `tickets
 - Histórico paginado (25 por defecto, 100 máximo) para mantener respuestas acotadas.
 
 **Constraints**:
-- Interfaz y mensajes 100 % en español de España (FR-026).
-- Fechas almacenadas en UTC y presentadas en `Europe/Madrid` (FR-026).
+- Interfaz y mensajes 100 % en español de España (HU08-RF-026).
+- Fechas almacenadas en UTC y presentadas en `Europe/Madrid` (HU08-RF-026).
 - Accesibilidad WCAG 2.1 AA, navegación por teclado y `role="alert"` para errores.
 - Sin nuevas tecnologías ni servicios externos.
 - Sin `PATCH`, `PUT` ni `DELETE`: los comandos se modelan como recursos `POST`.

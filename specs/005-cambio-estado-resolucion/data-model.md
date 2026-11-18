@@ -136,7 +136,7 @@ class TimelineEventType(str, Enum):
 
 ## 4. Estados y transiciones
 
-### 4.1. Matriz (RN-02)
+### 4.1. Matriz (HU05-RN-02)
 
 | Origen \ Destino | `abierto` | `en_progreso` | `pendiente_usuario` | `resuelto` | `cerrado` |
 |---|---|---|---|---|---|
@@ -168,8 +168,8 @@ La transición automática de HU-03 la ejecuta `apply_user_response_transition` 
 
 ### 4.3. Invariantes
 
-1. `tickets.status` coincide con el `to_status` de la última entrada `status_change` del ticket (RF-033).
-2. Toda transición `status_change` con `to_status = 'resuelto'` ejecutada por HU-05 tiene una entrada `resolution` con `body` no vacío y el mismo `request_id` (RF-008/RF-012). Los tickets `resuelto`/`cerrado` anteriores a `0003_ticket_timeline` son legado: se auditan y se excluyen de la aserción; la migración no crea resoluciones sintéticas.
+1. `tickets.status` coincide con el `to_status` de la última entrada `status_change` del ticket (HU05-RF-033).
+2. Toda transición `status_change` con `to_status = 'resuelto'` ejecutada por HU-05 tiene una entrada `resolution` con `body` no vacío y el mismo `request_id` (HU05-RF-008/HU05-RF-012). Los tickets `resuelto`/`cerrado` anteriores a `0003_ticket_timeline` son legado: se auditan y se excluyen de la aserción; la migración no crea resoluciones sintéticas.
 3. `tickets.status IN ('resuelto','cerrado')` ⇔ `tickets.finalized_at IS NOT NULL` (restricción existente).
 4. `tickets.closed_at IS NOT NULL` ⇒ `tickets.status = 'cerrado'`.
 5. Las entradas de `ticket_timeline_entries` son inmutables: no hay `UPDATE` ni `DELETE` en la aplicación.
@@ -189,7 +189,7 @@ La transición automática de HU-03 la ejecuta `apply_user_response_transition` 
 | Obligatoria solo al destino `resuelto` | Servicio: `if target == resuelto and not text: raise ApiError(422, "resolution_required", …)` |
 | No vacía tras `strip()` | `text.strip()`; si queda `""`, error |
 | 1–5.000 caracteres tras `strip()` | `len(text) > 5000` ⇒ `resolution_too_long` |
-| No permitida en otros destinos | Si `target != resuelto` y `resolution` no es `null` ⇒ `resolution_not_allowed`; se valida antes del no-op por mismo estado (RF-034) |
+| No permitida en otros destinos | Si `target != resuelto` y `resolution` no es `null` ⇒ `resolution_not_allowed`; se valida antes del no-op por mismo estado (HU05-RF-034) |
 | Inmutable | Solo `INSERT`; sin endpoints de edición/borrado |
 | Texto plano | Se guarda y se devuelve como texto; el frontend no usa `v-html` |
 
