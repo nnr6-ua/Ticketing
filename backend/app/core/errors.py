@@ -103,12 +103,16 @@ def register_exception_handlers(app: FastAPI) -> None:
         # Los payloads y parámetros mal formados se normalizan a un único
         # código estable; el detalle interno nunca se expone al cliente.
         logger.info("Solicitud no válida: %s", exc.errors())
-        return error_response(
-            422,
-            "invalid_request",
-            "La solicitud no es válida. Revisa los datos e inténtalo de nuevo.",
-            request=request,
-        )
+        message = "La solicitud no es válida. Revisa los datos e inténtalo de nuevo."
+        for error in exc.errors():
+            field = error.get("loc", ())[-1] if error.get("loc") else None
+            if field == "title":
+                message = "El título debe tener entre 5 y 120 caracteres."
+                break
+            if field == "description":
+                message = "La descripción debe tener entre 20 y 5000 caracteres."
+                break
+        return error_response(422, "invalid_request", message, request=request)
 
     @app.exception_handler(Exception)
     async def _handle_unexpected_error(

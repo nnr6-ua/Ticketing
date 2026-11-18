@@ -43,6 +43,7 @@ from app.models import (
     UserRole,
 )
 from app.models.enums import NotificationType, TimelineEventType
+from app.services.ticket_numbers import sync_ticket_number_sequence
 
 NAMESPACE = uuid.UUID("6f1f4c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70")
 
@@ -729,6 +730,7 @@ def main() -> None:
             [critica, alta, media, baja],
             now,
         )
+        sync_ticket_number_sequence(session)
 
         session.commit()
 

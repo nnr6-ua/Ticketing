@@ -81,8 +81,9 @@ npm run dev
 ```
 
 Abrir `http://localhost:5173/login`. Con el usuario
-`usuario@example.com` (rol `usuario`) el login redirige directamente a
-`/tickets/new`. Con un técnico se entra a la cola de trabajo.
+`usuario@example.com` (rol `usuario`) el login lleva a `/mis-tickets`; desde la
+cabecera o desde el listado se accede a `/tickets/new`. Con un técnico se entra
+a la cola de trabajo.
 
 ## Variables de entorno
 

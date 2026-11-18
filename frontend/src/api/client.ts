@@ -89,6 +89,7 @@ function buildUrl(path: string, query?: Record<string, string | number | undefin
 interface RequestOptions {
   signal?: AbortSignal
   query?: Record<string, string | number | undefined>
+  fallbackMessage?: string
 }
 
 async function parseError(
@@ -172,7 +173,7 @@ export async function apiGet<T>(path: string, options: RequestOptions = {}): Pro
   }
 
   if (!response.ok) {
-    throw await parseError(response)
+    throw await parseError(response, options.fallbackMessage)
   }
 
   return (await response.json()) as T
@@ -206,7 +207,44 @@ export async function apiPost<TResponse, TBody>(
   }
 
   if (!response.ok) {
-    throw await parseError(response, 'No se pudo completar la solicitud.')
+    throw await parseError(
+      response,
+      options.fallbackMessage ?? 'No se pudo completar la solicitud.',
+    )
+  }
+
+  return (await response.json()) as TResponse
+}
+
+export async function apiPostForm<TResponse>(
+  path: string,
+  body: FormData,
+  options: RequestOptions = {},
+): Promise<TResponse> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  const token = getAccessToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method: 'POST',
+      headers,
+      body,
+      signal: options.signal,
+      credentials: 'omit',
+    })
+  } catch (caught) {
+    throw networkError(caught)
+  }
+
+  if (!response.ok) {
+    throw await parseError(
+      response,
+      options.fallbackMessage ?? 'No se pudo completar la solicitud.',
+    )
   }
 
   return (await response.json()) as TResponse

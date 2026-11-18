@@ -23,7 +23,7 @@ from app.schemas.ticket_creation import (
 )
 from app.services.attachments import cleanup_staged, stage_files
 from app.services.suggestions import suggest
-from app.services.ticket_creation import create_ticket
+from app.services.ticket_creation import create_ticket, find_duplicate_ticket
 
 router = APIRouter(tags=["Creación de tickets"])
 
@@ -119,6 +119,11 @@ async def create_ticket_endpoint(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> TicketRead:
+    existing = find_duplicate_ticket(session, current_user, title, description)
+    if existing is not None:
+        response.status_code = 200
+        return _ticket_read(session, existing, duplicate=True)
+
     settings = get_settings()
     temp_dir = settings.attachments_dir / "tmp"
     staged = await stage_files(attachments or [], temp_dir)

@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ApiClientError } from "@/api/client";
 import {
-  ApiError,
   createTicket,
   getPriorities,
   getSuggestion,
@@ -84,7 +84,10 @@ export function useTicketForm() {
       if (requestId !== suggestionRequestId) return;
       suggestion.value = result;
       if (!priorityTouched.value) {
-        priorityId.value = result.priority.id;
+        const selectable = priorities.value.some(
+          (priority) => priority.id === result.priority.id,
+        );
+        priorityId.value = selectable ? result.priority.id : null;
       }
     } catch {
       if (requestId !== suggestionRequestId) return;
@@ -128,7 +131,7 @@ export function useTicketForm() {
       });
     } catch (error) {
       errorMessage.value =
-        error instanceof ApiError
+        error instanceof ApiClientError
           ? error.message
           : "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
       return null;

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,7 @@ from app.services.attachments import (
 )
 from app.services.duplicates import compute_content_hash, normalize_text
 from app.services.sla_resolution import resolve_sla
+from app.services.ticket_numbers import max_ticket_number_value
 from app.services.suggestions import Suggestion, suggest
 
 MAX_TITLE_LENGTH = 120
@@ -66,16 +67,23 @@ def _find_duplicate(
     )
 
 
+def find_duplicate_ticket(
+    session: Session, creator: User, title: str, description: str
+) -> Ticket | None:
+    """Localiza un duplicado antes de validar o preparar los adjuntos."""
+
+    clean_title, clean_description = _validate_fields(title, description)
+    return _find_duplicate(
+        session, creator.id, compute_content_hash(clean_title, clean_description)
+    )
+
+
 def _next_ticket_number(session: Session) -> str:
     bind = session.get_bind()
     if bind is not None and bind.dialect.name == "postgresql":
-        value = session.scalar(select(func.nextval("ticket_number_seq")))
+        value = session.scalar(select(text("nextval('ticket_number_seq')")))
     else:
-        value = 1
-        for number in session.scalars(select(Ticket.number)):
-            suffix = number.rsplit("-", 1)[-1]
-            if suffix.isdigit():
-                value = max(value, int(suffix) + 1)
+        value = max_ticket_number_value(session.scalars(select(Ticket.number)).all()) + 1
     return f"TK-{int(value):06d}"
 
 
@@ -87,11 +95,25 @@ def _resolve_priority(
     if priority_id is None:
         return suggestion.priority
 
-    priority = session.get(Priority, UUID(str(priority_id)))
+    try:
+        priority_uuid = UUID(str(priority_id))
+    except (TypeError, ValueError):
+        raise ApiError(
+            422,
+            "invalid_priority",
+            "La prioridad seleccionada no existe, no está activa o es de sistema.",
+        ) from None
+
+    priority = session.get(Priority, priority_uuid)
+    is_system_fallback = (
+        suggestion.priority.is_system
+        and priority is not None
+        and priority.id == suggestion.priority.id
+    )
     if (
         priority is None
         or not priority.is_active
-        or priority.is_system
+        or (priority.is_system and not is_system_fallback)
     ):
         raise ApiError(
             422,

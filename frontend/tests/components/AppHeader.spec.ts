@@ -2,7 +2,7 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getAccessToken } from '@/api/client'
+import { getAccessToken, getStoredUserRole } from '@/api/client'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import { getNotifications } from '@/services/notifications'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -24,10 +24,11 @@ vi.mock('@/api/client', async () => {
   const actual = await vi.importActual<typeof import('@/api/client')>(
     '@/api/client',
   )
-  return { ...actual, getAccessToken: vi.fn() }
+  return { ...actual, getAccessToken: vi.fn(), getStoredUserRole: vi.fn() }
 })
 
 const tokenMock = vi.mocked(getAccessToken)
+const roleMock = vi.mocked(getStoredUserRole)
 const getMock = vi.mocked(getNotifications)
 void actualClient
 
@@ -62,6 +63,8 @@ describe('AppHeader', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     tokenMock.mockReset()
+    roleMock.mockReset()
+    roleMock.mockReturnValue(null)
     getMock.mockReset()
     getMock.mockResolvedValue(emptyResponse())
   })
@@ -110,5 +113,19 @@ describe('AppHeader', () => {
     wrapper.unmount()
 
     expect(stopSpy).toHaveBeenCalled()
+  })
+
+  it('ofrece un enlace visible a la creación de tickets para el rol usuario', async () => {
+    tokenMock.mockReturnValue('token')
+    roleMock.mockReturnValue('usuario')
+    const wrapper = mountHeader()
+    await flushPromises()
+
+    const targets = wrapper
+      .findAllComponents(RouterLinkStub)
+      .map((link) => link.props('to'))
+    expect(targets).toContain('/tickets/new')
+    expect(targets).not.toContain('/cola-de-trabajo')
+    wrapper.unmount()
   })
 })

@@ -162,7 +162,7 @@ En la creación: `event_type = 'created'`, `from_status = NULL`,
 Índice: `ix_attachments_ticket` sobre `(ticket_id)`.
 
 `relative_path` es relativo a `ATTACHMENTS_DIR`, por ejemplo
-`TK-000001/8f14e45f-....png`. Los archivos se escriben primero en
+`attachments/TK-000001/8f14e45f-....png`. Los archivos se escriben primero en
 `ATTACHMENTS_DIR/tmp` y se mueven al directorio del ticket solo cuando la
 transacción va a confirmarse.
 

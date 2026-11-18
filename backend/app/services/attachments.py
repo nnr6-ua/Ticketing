@@ -136,7 +136,7 @@ def move_staged(
     if not staged:
         return []
 
-    relative_dir = Path(ticket_number)
+    relative_dir = Path("attachments") / ticket_number
     target_dir = attachments_dir / relative_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 

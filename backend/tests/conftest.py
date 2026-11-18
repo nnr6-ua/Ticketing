@@ -47,6 +47,7 @@ from app import models  # noqa: E402,F401
 from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.ticket_numbers import sync_ticket_number_sequence  # noqa: E402
 from app.models import (  # noqa: E402
     Category,
     ConfigurationVersion,
@@ -91,6 +92,7 @@ def db() -> Session:
     # conexiones del pool evita que queden planes preparados con el OID viejo.
     engine.dispose()
     session = SessionLocal()
+    sync_ticket_number_sequence(session)
     session.add(
         ConfigurationVersion(
             id=uuid.UUID("0f5a7f8e-4ef7-4e0d-9a1e-9f6e2e3d4c10"),

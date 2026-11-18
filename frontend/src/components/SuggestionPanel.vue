@@ -60,7 +60,11 @@ const emit = defineEmits<{
           />
         </div>
         <p v-if="suggestion?.priority_is_fallback" class="mt-1 text-xs text-amber-700">
-          Prioridad por defecto; puedes cambiarla.
+          {{
+            suggestion.priority.is_system
+              ? "Se usará la prioridad «Sin clasificar»."
+              : "Prioridad por defecto; puedes cambiarla."
+          }}
         </p>
       </div>
     </div>

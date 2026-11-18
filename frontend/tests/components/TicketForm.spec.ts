@@ -107,6 +107,36 @@ describe('useTicketForm · validación y preservación de datos', () => {
     expect(form.submitting.value).toBe(false)
   })
 
+  it('no envía la prioridad de sistema como selección manual', async () => {
+    const systemPriority: Priority = {
+      id: 'p-sys',
+      name: 'Sin clasificar',
+      level: 4,
+      color: '#64748b',
+      is_system: true,
+    }
+    getPriorities.mockResolvedValue([])
+    getSuggestion.mockResolvedValue({
+      category: { id: 'c-sys', name: 'Sin clasificar' },
+      priority: systemPriority,
+      category_is_fallback: true,
+      priority_is_fallback: true,
+    } satisfies SuggestionResponse)
+    createTicket.mockResolvedValue(ticket)
+
+    const { form } = mountForm()
+    await flushPromises()
+    form.title.value = 'Necesito ayuda con una gestión'
+    form.description.value =
+      'Me gustaría que alguien revise este asunto cuando sea posible, gracias.'
+    await form.submit()
+
+    expect(form.priorityId.value).toBeNull()
+    expect(createTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ priorityId: null }),
+    )
+  })
+
   it('envía los datos recortados y devuelve el ticket creado', async () => {
     const { form } = mountForm()
     await flushPromises()

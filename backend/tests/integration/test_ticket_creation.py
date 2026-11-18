@@ -15,6 +15,7 @@ from app.models import (
     Category,
     Priority,
     Ticket,
+    TicketStatus,
     TicketTimelineEntry,
     TimelineEventType,
     User,
@@ -176,6 +177,22 @@ def test_rejects_unknown_priority(
     assert response.json()["detail"]["code"] == "invalid_priority"
 
 
+def test_rejects_malformed_priority_id(
+    client: TestClient,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    response = client.post(
+        "/api/v1/tickets",
+        data=payload(priority_id="no-es-un-uuid"),
+        headers=auth(catalogs.user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_priority"
+
+
 def test_requires_authentication(
     client: TestClient,
     catalogs: SimpleNamespace,
@@ -208,6 +225,9 @@ def test_creates_ticket_with_attachment(
     attachment = db.scalar(select(Attachment))
     assert attachment is not None
     assert attachment.stored_filename.endswith(".png")
+    assert attachment.relative_path.startswith(
+        f"attachments/{body['ticket_number']}/"
+    )
     stored = attachments_dir / attachment.relative_path
     assert stored.exists()
     assert stored.read_bytes() == PNG
@@ -274,6 +294,33 @@ def test_ticket_numbers_increment(
     first_number = int(first.json()["ticket_number"].split("-")[1])
     second_number = int(second.json()["ticket_number"].split("-")[1])
     assert second_number == first_number + 1
+
+
+def test_numbers_continue_after_existing_high_ticket(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    db.add(
+        Ticket(
+            number="TK-000101",
+            title="Ticket histórico",
+            description="Ticket ya existente antes de la siembra de la secuencia.",
+            status=TicketStatus.abierto,
+            creator_id=catalogs.user.id,
+            category_id=catalogs.otros.id,
+            priority_id=catalogs.media.id,
+            content_hash="0" * 64,
+        )
+    )
+    db.commit()
+
+    response = client.post("/api/v1/tickets", data=payload(), headers=auth(catalogs.user))
+
+    assert response.status_code == 201
+    assert response.json()["ticket_number"] == "TK-000102"
 
 
 def test_suggestions_endpoint(
@@ -363,7 +410,10 @@ def test_rejects_lengths_outside_contract(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["code"] == "invalid_request"
+    body = response.json()["detail"]
+    assert body["code"] == "invalid_request"
+    expected = "título" if field == "title" else "descripción"
+    assert expected in body["message"].lower()
 
 
 def test_preserves_special_characters_and_formatting(
@@ -425,6 +475,15 @@ def test_uses_system_catalog_when_custom_catalogs_are_inactive(
         category.is_active = False
     for priority in db.scalars(select(Priority)).all():
         priority.is_active = False
+    system_priority = Priority(
+        name="Sin clasificar",
+        level=4,
+        color="#64748b",
+        base_hours="72",
+        is_system=True,
+        is_active=True,
+        sort_order=999,
+    )
     db.add_all(
         [
             Category(
@@ -433,15 +492,7 @@ def test_uses_system_catalog_when_custom_catalogs_are_inactive(
                 is_active=True,
                 sort_order=999,
             ),
-            Priority(
-                name="Sin clasificar",
-                level=4,
-                color="#64748b",
-                base_hours="72",
-                is_system=True,
-                is_active=True,
-                sort_order=999,
-            ),
+            system_priority,
         ]
     )
     db.commit()
@@ -456,6 +507,19 @@ def test_uses_system_catalog_when_custom_catalogs_are_inactive(
     body = response.json()
     assert body["category"]["name"] == "Sin clasificar"
     assert body["priority"]["name"] == "Sin clasificar"
+
+    explicit = client.post(
+        "/api/v1/tickets",
+        data=payload(
+            title="Consulta sin categoría",
+            description="No encuentro la categoría adecuada para esta consulta.",
+            priority_id=str(system_priority.id),
+        ),
+        headers=auth(catalogs.user),
+    )
+
+    assert explicit.status_code == 201
+    assert explicit.json()["priority"]["name"] == "Sin clasificar"
 
 
 def test_accepts_jpeg_and_gif_attachments(
@@ -610,6 +674,37 @@ def test_duplicate_keeps_only_original_attachments(
     assert files[0].read_bytes() == PNG
 
 
+def test_duplicate_with_invalid_attachment_returns_reference(
+    client: TestClient,
+    db: Session,
+    catalogs: SimpleNamespace,
+    auth,
+    attachments_dir,
+) -> None:
+    headers = auth(catalogs.user)
+    first = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("original.png", PNG, "image/png")},
+        headers=headers,
+    )
+    second = client.post(
+        "/api/v1/tickets",
+        data=payload(),
+        files={"attachments": ("notas.txt", b"texto", "text/plain")},
+        headers=headers,
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    assert second.json()["ticket_number"] == first.json()["ticket_number"]
+    assert db.scalar(select(func.count(Ticket.id))) == 1
+    files = [path for path in attachments_dir.rglob("*") if path.is_file()]
+    assert len(files) == 1
+    assert files[0].read_bytes() == PNG
+
+
 @pytest.mark.postgres
 @pytest.mark.skipif(IS_SQLITE, reason="Requiere PostgreSQL para concurrencia real")
 def test_concurrent_identical_requests_create_one_ticket(
@@ -617,7 +712,13 @@ def test_concurrent_identical_requests_create_one_ticket(
     catalogs: SimpleNamespace,
     attachments_dir,
 ) -> None:
+    import asyncio
+    from io import BytesIO
+
+    from starlette.datastructures import Headers, UploadFile
+
     from app.db.session import SessionLocal
+    from app.services.attachments import stage_files
 
     barrier = threading.Barrier(2)
     results: list[tuple[str, bool]] = []
@@ -629,6 +730,18 @@ def test_concurrent_identical_requests_create_one_ticket(
         try:
             user = session.get(User, catalogs.user.id)
             assert user is not None
+            staged = asyncio.run(
+                stage_files(
+                    [
+                        UploadFile(
+                            filename="foto.png",
+                            file=BytesIO(PNG),
+                            headers=Headers({"content-type": "image/png"}),
+                        )
+                    ],
+                    attachments_dir / "tmp",
+                )
+            )
             barrier.wait(timeout=10)
             ticket, duplicate = create_ticket(
                 session,
@@ -636,7 +749,7 @@ def test_concurrent_identical_requests_create_one_ticket(
                 title="No funciona la VPN",
                 description="No puedo conectar desde ayer por la tarde.",
                 priority_id=None,
-                staged=[],
+                staged=staged,
                 attachments_dir=attachments_dir,
             )
             with lock:
@@ -661,4 +774,8 @@ def test_concurrent_identical_requests_create_one_ticket(
 
     db.expire_all()
     assert db.scalar(select(func.count(Ticket.id))) == 1
-    assert db.scalar(select(func.count(Attachment.id))) == 0
+    assert db.scalar(select(func.count(Attachment.id))) == 1
+    files = [path for path in attachments_dir.rglob("*") if path.is_file()]
+    assert len(files) == 1
+    assert files[0].parent.name == results[0][0]
+    assert not list((attachments_dir / "tmp").rglob("*"))

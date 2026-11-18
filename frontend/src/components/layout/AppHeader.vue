@@ -10,6 +10,7 @@ const notifications = useNotificationsStore()
 
 const role = getStoredUserRole()
 const canViewSlaDashboard = role === 'supervisor' || role === 'admin'
+const canCreateTicket = role === 'usuario'
 
 onMounted(() => {
   if (getAccessToken()) {
@@ -31,6 +32,14 @@ onUnmounted(() => {
           class="text-base font-semibold text-slate-900 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
         >
           Mesa de ayuda
+        </RouterLink>
+        <RouterLink
+          v-if="canCreateTicket"
+          to="/tickets/new"
+          class="text-sm font-medium text-slate-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+          data-testid="new-ticket-link"
+        >
+          Nuevo ticket
         </RouterLink>
         <RouterLink
           v-if="canViewSlaDashboard"

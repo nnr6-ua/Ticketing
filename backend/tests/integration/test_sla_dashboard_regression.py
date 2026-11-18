@@ -15,7 +15,7 @@ from tests.conftest import make_token
 from tests.integration._hu07 import API, OPTIONS_API, assert_vary_authorization
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_HEAD = "0007_merge_hu06_hu08"
+EXPECTED_HEAD = "0008_sync_ticket_number_sequence"
 WORK_QUEUE_API = "/api/v1/me/work-queue"
 
 
@@ -143,6 +143,7 @@ def test_alembic_head_is_unchanged():
         "0005_ticket_information.py",
         "0006_sla_configuration.py",
         "0007_merge_hu06_hu08.py",
+        "0008_sync_ticket_number_sequence.py",
     ]
 
 
