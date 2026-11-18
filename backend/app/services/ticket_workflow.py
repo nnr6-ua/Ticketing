@@ -71,10 +71,18 @@ RESOLUTION_TOO_LONG = (
 RESOLUTION_NOT_ALLOWED = (
     "La descripción de la solución solo se indica al marcar el ticket como Resuelto."
 )
-COMMENT_REQUIRED = "El comentario interno no puede estar vacío."
-COMMENT_TOO_LONG = (
-    "El comentario interno no puede superar los 5.000 caracteres."
-)
+def _comment_label(is_internal: bool) -> str:
+    return "comentario interno" if is_internal else "comentario público"
+
+
+def _comment_required_message(is_internal: bool) -> str:
+    return f"El {_comment_label(is_internal)} no puede estar vacío."
+
+
+def _comment_too_long_message(is_internal: bool) -> str:
+    return f"El {_comment_label(is_internal)} no puede superar los 5.000 caracteres."
+
+
 REQUEST_ID_REUSED = (
     "La solicitud ya se utilizó con otros datos. Genera una nueva solicitud e "
     "inténtalo de nuevo."
@@ -1164,7 +1172,7 @@ def respond_to_information(
 
 
 # ---------------------------------------------------------------------------
-# Comando: comentario interno
+# Comando: comentario interno o público
 # ---------------------------------------------------------------------------
 def add_internal_comment(
     session: Session,
@@ -1172,9 +1180,10 @@ def add_internal_comment(
     current_user: User,
     payload: InternalCommentRequest,
 ) -> InternalCommentResponse:
-    """Añade una nota interna sin cambiar el estado del ticket."""
+    """Añade un comentario sin cambiar el estado del ticket."""
 
     started = time.perf_counter()
+    is_internal = payload.is_internal
     ticket = _locked_ticket(session, ticket_id)
     _ensure_writer(current_user, ticket)
 
@@ -1183,22 +1192,27 @@ def add_internal_comment(
         logger.warning(
             "Comentario no válido code=comment_required ticket_id=%s", ticket.id
         )
-        raise ApiError(422, "comment_required", COMMENT_REQUIRED)
+        raise ApiError(422, "comment_required", _comment_required_message(is_internal))
     if len(body) > MAX_BODY_LENGTH:
         logger.warning(
             "Comentario no válido code=comment_too_long ticket_id=%s", ticket.id
         )
-        raise ApiError(422, "comment_too_long", COMMENT_TOO_LONG)
+        raise ApiError(422, "comment_too_long", _comment_too_long_message(is_internal))
 
     existing = _comment_entries(session, ticket.id, payload.request_id)
     if existing:
         entry = existing[0]
-        if entry.author_id == current_user.id and entry.body == body:
+        if (
+            entry.author_id == current_user.id
+            and entry.body == body
+            and entry.is_internal == is_internal
+        ):
             logger.info(
-                "Comentario idempotente ticket_id=%s actor_id=%s created=false "
-                "request_id=%s",
+                "Comentario idempotente ticket_id=%s actor_id=%s is_internal=%s "
+                "created=false request_id=%s",
                 ticket.id,
                 current_user.id,
+                is_internal,
                 payload.request_id,
             )
             return InternalCommentResponse(
@@ -1218,7 +1232,7 @@ def add_internal_comment(
             from_status=None,
             to_status=None,
             body=body,
-            is_internal=True,
+            is_internal=is_internal,
             author_id=current_user.id,
             author=current_user,
             created_at=now,
@@ -1237,8 +1251,8 @@ def add_internal_comment(
 
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
     logger.info(
-        "Comentario interno ticket_id=%s actor_id=%s created=true "
-        "request_id=%s duration_ms=%s",
+        "%s ticket_id=%s actor_id=%s created=true request_id=%s duration_ms=%s",
+        _comment_label(is_internal).capitalize(),
         ticket.id,
         current_user.id,
         payload.request_id,

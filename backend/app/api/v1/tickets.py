@@ -233,10 +233,10 @@ def create_information_response(
 @router.post(
     "/tickets/{ticket_id}/internal-comments",
     response_model=InternalCommentResponse,
-    summary="Añadir un comentario interno",
+    summary="Añadir un comentario interno o público",
     responses={
         200: {"description": "Reintento idempotente: la entrada ya existía."},
-        201: {"description": "Comentario interno creado."},
+        201: {"description": "Comentario creado."},
         401: {"description": "Token JWT ausente, inválido o caducado."},
         403: {"description": "Rol o asignación no autorizados."},
         404: {"description": "El ticket no existe."},

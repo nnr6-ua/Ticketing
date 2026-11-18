@@ -49,6 +49,20 @@ describe('InternalCommentForm', () => {
     )
   })
 
+  it('permite publicar el comentario y refleja la visibilidad', async () => {
+    const wrapper = mount(InternalCommentForm, { props: { modelValue: 'Texto' } })
+
+    expect(wrapper.find('label').text()).toBe('Comentario interno')
+
+    await wrapper.find('#comment-is-internal').setValue(false)
+
+    expect(wrapper.emitted('visibility-change')).toEqual([[false]])
+    await wrapper.setProps({ isInternal: false })
+    expect(wrapper.find('label').text()).toBe('Comentario público')
+    expect(wrapper.text()).toContain('Visible para el usuario creador del ticket.')
+    expect(submitButton(wrapper).text()).toContain('Añadir comentario público')
+  })
+
   it('emite submit solo con texto válido', async () => {
     const wrapper = mount(InternalCommentForm, { props: { modelValue: '' } })
 

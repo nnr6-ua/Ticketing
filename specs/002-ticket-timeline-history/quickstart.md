@@ -65,7 +65,9 @@ Expected outcome:
   `author` (id, name, role), `created_at`, and, for `status_change`,
   `from_status`/`to_status`; for `resolution`, `body`; for public comments,
   `body`.
-- Entries with `is_internal = true` are NOT present in `items`.
+- Entries with `is_internal = true` are NOT present in `items`; public
+  technician comments (`is_internal = false`) appear with `body`, `author` and
+  `created_at`.
 - `pagination.total_items`, `pagination.total_pages`, `pagination.has_next`,
   `pagination.has_previous` are consistent.
 

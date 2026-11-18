@@ -105,6 +105,7 @@ export interface StatusTransitionResponse {
 export interface InternalCommentRequest {
   body: string
   request_id: string
+  is_internal?: boolean
 }
 
 export interface InternalCommentResponse {

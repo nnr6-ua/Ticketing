@@ -50,8 +50,7 @@ class TicketTimelineEntry(Base):
         ),
         CheckConstraint(
             "(event_type <> 'internal_comment') OR "
-            "(from_status IS NULL AND to_status IS NULL "
-            "AND body IS NOT NULL AND is_internal = true)",
+            "(from_status IS NULL AND to_status IS NULL AND body IS NOT NULL)",
             name="ck_timeline_internal_comment",
         ),
         CheckConstraint(

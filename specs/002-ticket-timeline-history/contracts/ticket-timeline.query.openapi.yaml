@@ -78,17 +78,29 @@ paths:
                 $ref: "#/components/schemas/TimelineResponse"
         "401":
           description: No autenticado (token JWT inválido o ausente)
-        "403":
-          description: No tiene permiso para leer este ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
-          description: Ticket no encontrado
+          description: Ticket no encontrado o no accesible para el usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Parámetros de paginación no válidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Identidad obtenida exclusivamente del token JWT (Authorization: Bearer)
+      description: "Identidad obtenida exclusivamente del token JWT (Authorization: Bearer)"
   schemas:
     AuthorRef:
       type: object
@@ -98,6 +110,7 @@ components:
           format: uuid
         name:
           type: string
+          description: Nombre del autor, o «Sistema» si la entrada no tiene autor registrado.
         role:
           type: string
           enum: [usuario, tecnico, supervisor, admin]
@@ -110,7 +123,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [status_change, resolution, internal_comment]
+          enum: [created, status_change, resolution, internal_comment]
         from_status:
           type: string
           nullable: true
@@ -125,6 +138,9 @@ components:
           maxLength: 5000
         is_internal:
           type: boolean
+          description: >
+            `true` para notas internas del técnico; `false` para comentarios
+            públicos y demás entradas visibles para el usuario creador.
         author:
           $ref: "#/components/schemas/AuthorRef"
         created_at:

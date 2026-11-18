@@ -25,6 +25,7 @@ import type {
   InformationRequestRef,
   InformationRequestResponse,
   InformationResponseResponse,
+  InternalCommentRequest,
   InternalCommentResponse,
   Pagination,
   StatusTransitionRequest,
@@ -400,17 +401,23 @@ export const useTicketDetailStore = defineStore('ticketDetail', () => {
   async function addComment(
     ticketId: string,
     requestId: string,
+    isInternal = true,
   ): Promise<InternalCommentResponse | null> {
     const body = commentText.value.trim()
     submitting.value = true
     clearError()
     notice.value = null
     try {
-      const response = await addInternalComment(ticketId, { body, request_id: requestId })
+      const payload: InternalCommentRequest = { body, request_id: requestId }
+      if (!isInternal) {
+        payload.is_internal = false
+      }
+      const response = await addInternalComment(ticketId, payload)
       commentText.value = ''
+      const noun = isInternal ? 'comentario interno' : 'comentario público'
       notice.value = response.created
-        ? 'El comentario interno se ha añadido.'
-        : 'El comentario interno ya estaba registrado.'
+        ? `El ${noun} se ha añadido.`
+        : `El ${noun} ya estaba registrado.`
       await loadTimeline(ticketId)
       return response
     } catch (caught) {

@@ -168,14 +168,16 @@ paths:
       tags: [Ticket workflow]
       operationId: createInternalComment
       deprecated: false
-      summary: Añadir un comentario interno
+      summary: Añadir un comentario interno o público
       description: |
-        Permite **solo al técnico asignado** añadir una nota interna en cualquier
-        estado, incluido `cerrado`. No cambia el estado del ticket. `supervisor`
-        y `admin` reciben `403 forbidden` aunque puedan leer la timeline interna,
-        y un `tecnico` no asignado recibe `403 not_ticket_assignee`.
+        Permite **solo al técnico asignado** añadir un comentario interno
+        (`is_internal=true`, valor por defecto) o público (`is_internal=false`)
+        en cualquier estado, incluido `cerrado`. No cambia el estado del ticket.
+        `supervisor` y `admin` reciben `403 forbidden` aunque puedan leer la
+        timeline interna, y un `tecnico` no asignado recibe `403 not_ticket_assignee`.
         `request_id` es obligatorio y actúa como clave de idempotencia: un
-        reintento con el mismo valor devuelve la entrada existente sin duplicarla.
+        reintento con el mismo valor, autor y visibilidad devuelve la entrada
+        existente sin duplicarla.
       parameters:
         - $ref: '#/components/parameters/TicketId'
       requestBody:
@@ -191,13 +193,13 @@ paths:
                   request_id: 6f1c2a7e-9b3d-4f4e-8a1b-2c3d4e5f6a7b
       responses:
         '200':
-          description: Comentario interno creado o recuperado por idempotencia
+          description: Comentario creado o recuperado por idempotencia
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InternalCommentResponse'
         '201':
-          description: Comentario interno creado
+          description: Comentario creado
           content:
             application/json:
               schema:
@@ -709,8 +711,16 @@ components:
           format: uuid
           description: |
             Clave de idempotencia generada por el cliente. Un reintento idéntico
-            (mismo autor y `body` normalizado) devuelve `created=false`;
-            reutilizarla con otro `body` o autor devuelve `409 request_id_reused`.
+            (mismo autor, `body` normalizado y `is_internal`) devuelve
+            `created=false`; reutilizarla con otro `body`, autor o visibilidad
+            devuelve `409 request_id_reused`.
+        is_internal:
+          type: boolean
+          default: true
+          description: |
+            `true` para una nota interna (oculta al usuario creador); `false`
+            para un comentario público del técnico, visible en la línea temporal
+            del creador según RN-03 de HU-02.
 
     InternalCommentResponse:
       type: object
