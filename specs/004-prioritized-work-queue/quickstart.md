@@ -504,4 +504,4 @@ La funcionalidad se considera validada cuando:
 - Decisiones: [research.md](./research.md)
 - Modelo de datos: [data-model.md](./data-model.md)
 - Contrato: [contracts/work-queue.openapi.yaml](./contracts/work-queue.openapi.yaml)
-- Modelo base: [../001-helpdesk-ticketing/spec.md](../001-helpdesk-ticketing/spec.md)
+- Modelo base: [../000-helpdesk-ticketing/spec.md](../000-helpdesk-ticketing/spec.md)

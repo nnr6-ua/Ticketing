@@ -1,6 +1,6 @@
 # Tasks: Creación de tickets de incidencia
 
-**Input**: Design documents from `/specs/002-crear-ticket/`
+**Input**: Design documents from `/specs/001-crear-ticket/`
 
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
 
@@ -147,9 +147,9 @@
 - [x] T053 [P] Añadir tests de contrato de validación, identidad y forma de error en `backend/tests/contract/test_validation.py`: 401 sin `X-Employee-Id`, 422 por longitudes, prioridad inactiva o de sistema y cuerpo mal formado
 - [x] T054 [P] Ampliar `frontend/src/tests/TicketForm.spec.ts` con pérdida de conexión, error 401, error de validación por campo y reintento sin duplicado
 - [x] T055 [P] Revisar accesibilidad en `frontend/src/components/`: etiquetas asociadas, foco visible, navegación por teclado, contraste, `aria-live` para errores/sugerencias y textos alternativos de miniaturas
-- [x] T056 [P] Crear `README.md` raíz con resumen del stack, requisitos, arranque rápido y enlace a `specs/002-crear-ticket/quickstart.md`
+- [x] T056 [P] Crear `README.md` raíz con resumen del stack, requisitos, arranque rápido y enlace a `specs/001-crear-ticket/quickstart.md`
 - [x] T057 Ejecutar `pytest` en `backend/` y `npm run test` en `frontend/`, corregir fallos y dejar ambas suites en verde
-- [x] T058 Ejecutar los escenarios 1–10 de `specs/002-crear-ticket/quickstart.md` y corregir cualquier desviación de comportamiento o mensaje (validado con pruebas de API, componentes y servidor real; la revisión visual manual en navegador queda opcional)
+- [x] T058 Ejecutar los escenarios 1–10 de `specs/001-crear-ticket/quickstart.md` y corregir cualquier desviación de comportamiento o mensaje (validado con pruebas de API, componentes y servidor real; la revisión visual manual en navegador queda opcional)
 - [x] T059 Revisar seguridad y configuración en `backend/app/api/deps.py`, `backend/app/main.py`, `backend/app/core/config.py`, `backend/.env.example`, `frontend/.env.example` y `.gitignore`: `X-Employee-Id` solo desde proxy de confianza, CORS con origen concreto, `ATTACHMENTS_DIR` fuera del directorio servido al frontend, ausencia de secretos en código y `.env.example` sin credenciales reales
 
 ---

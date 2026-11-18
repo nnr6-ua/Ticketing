@@ -1,8 +1,8 @@
 # Implementation Plan: Creación de tickets de incidencia
 
-**Branch**: `002-crear-ticket` | **Date**: 2026-10-29 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-crear-ticket` | **Date**: 2026-10-29 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/002-crear-ticket/spec.md`
+**Input**: Feature specification from `/specs/001-crear-ticket/spec.md`
 
 ## Summary
 
@@ -64,7 +64,7 @@ Constitución aplicable: [`CONSTITUTION.md`](../../CONSTITUTION.md) (la plantill
 ### Documentation (this feature)
 
 ```text
-specs/002-crear-ticket/
+specs/001-crear-ticket/
 ├── plan.md              # Este archivo
 ├── research.md          # Fase 0
 ├── data-model.md        # Fase 1
