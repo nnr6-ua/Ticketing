@@ -1,6 +1,12 @@
 """Modelos del dominio expuestos por el paquete `app.models`."""
 
+from app.models.attachment import Attachment
 from app.models.category import Category
+from app.models.configuration import (
+    ConfigurationAuditEntry,
+    ConfigurationVersion,
+    SlaRule,
+)
 from app.models.enums import (
     DEFAULT_ACTIVE_STATUSES,
     ESCALATION_LEVEL_LABELS,
@@ -8,6 +14,8 @@ from app.models.enums import (
     FINAL_STATUSES,
     STATUS_LABELS,
     AssigneeChangeKind,
+    ConfigAction,
+    ConfigEntityType,
     EscalationLevel,
     NotificationType,
     SlaOutcome,
@@ -24,7 +32,12 @@ from app.models.user import User
 
 __all__ = [
     "AssigneeChangeKind",
+    "Attachment",
     "Category",
+    "ConfigAction",
+    "ConfigEntityType",
+    "ConfigurationAuditEntry",
+    "ConfigurationVersion",
     "DEFAULT_ACTIVE_STATUSES",
     "ESCALATION_LEVEL_LABELS",
     "ESCALATION_LEVEL_ORDER",
@@ -33,6 +46,7 @@ __all__ = [
     "Notification",
     "NotificationType",
     "Priority",
+    "SlaRule",
     "STATUS_LABELS",
     "SlaOutcome",
     "SlaState",

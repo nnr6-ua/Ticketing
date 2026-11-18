@@ -22,6 +22,38 @@ WORKFLOW_WRITE_ERROR_MESSAGE = (
     "No se pudo guardar el cambio. El ticket no se ha modificado. "
     "Inténtalo de nuevo."
 )
+ADMIN_FORBIDDEN_MESSAGE = (
+    "Esta configuración está disponible solo para administración."
+)
+CONFIGURATION_ERROR_MESSAGES: dict[str, str] = {
+    "stale_configuration": (
+        "La configuración ha cambiado. Recarga y vuelve a intentarlo."
+    ),
+    "duplicate_catalog_name": "Ya existe una entidad con ese nombre.",
+    "duplicate_priority_level": "Ya hay una prioridad activa con ese nivel.",
+    "duplicate_sla_rule": "Ya existe una regla vigente para esa combinación.",
+    "last_active_catalog_item": (
+        "No se puede desactivar la última entidad activa."
+    ),
+    "default_replacement_required": (
+        "Designa otra entidad predeterminada antes de desactivar la actual."
+    ),
+    "catalog_in_use": (
+        "La entidad tiene tickets o reglas asociadas. Desactívala en su lugar."
+    ),
+    "default_catalog_item": (
+        "Designa otra entidad predeterminada antes de eliminar esta."
+    ),
+    "system_catalog_item": "Las entidades de sistema no se pueden modificar.",
+    "inactive_catalog_item": "La categoría o la prioridad no está activa.",
+    "empty_batch": "El lote no contiene cambios.",
+    "configuration_not_initialized": (
+        "La configuración base no está inicializada."
+    ),
+    "configuration_not_configured": (
+        "No hay un plazo SLA válido para la combinación seleccionada."
+    ),
+}
 
 # El contrato del dashboard de SLA (HU-07) exige no-store también en 401/403/422.
 # El prefijo evita alterar las respuestas de error del resto de endpoints.

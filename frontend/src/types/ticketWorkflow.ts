@@ -14,9 +14,12 @@ export type TicketStatus =
   | 'cerrado'
 
 export type TimelineEventType =
+  | 'created'
   | 'status_change'
   | 'resolution'
   | 'internal_comment'
+  | 'information_request'
+  | 'user_response'
   | 'assignee_change'
 
 export interface StatusOption {
@@ -39,6 +42,7 @@ export interface TimelineEntry {
   is_internal: boolean
   author: AuthorRef
   created_at: string
+  reply_to_id: string | null
   change_kind: AssigneeChangeKind | null
   previous_assignee: AssigneeRef | null
   new_assignee: AssigneeRef | null
@@ -46,6 +50,13 @@ export interface TimelineEntry {
   from_escalation_level_label: string | null
   to_escalation_level: EscalationLevel | null
   to_escalation_level_label: string | null
+}
+
+export interface InformationRequestRef {
+  id: string
+  body: string
+  requested_at: string
+  requested_by: AuthorRef
 }
 
 export interface TicketWorkflowSnapshot {
@@ -67,6 +78,12 @@ export interface WorkflowResponse {
   can_change_status: boolean
   can_comment_internally: boolean
   can_view_internal: boolean
+  can_request_information: boolean
+  can_respond_to_information: boolean
+  awaiting_user_response: boolean
+  active_information_request: InformationRequestRef | null
+  reminder_active: boolean
+  reminder_due_at: string | null
   can_reassign: boolean
   can_escalate: boolean
 }
@@ -93,6 +110,34 @@ export interface InternalCommentRequest {
 export interface InternalCommentResponse {
   entry: TimelineEntry
   created: boolean
+}
+
+export interface InformationRequestRequest {
+  body: string
+  expected_updated_at: string
+  request_id: string
+}
+
+export interface InformationRequestResponse {
+  changed: boolean
+  message: string | null
+  ticket: TicketWorkflowSnapshot
+  timeline_entries: TimelineEntry[]
+  information_request: InformationRequestRef
+}
+
+export interface InformationResponseRequest {
+  body: string
+  expected_updated_at: string
+  request_id: string
+}
+
+export interface InformationResponseResponse {
+  changed: boolean
+  message: string | null
+  ticket: TicketWorkflowSnapshot
+  timeline_entries: TimelineEntry[]
+  information_response: TimelineEntry
 }
 
 export interface Pagination {

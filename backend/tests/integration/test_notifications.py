@@ -427,7 +427,7 @@ def test_cache_headers(
     response = inbox(client, headers)
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert "Authorization" in response.headers["Vary"]
 
 
 # ---------------------------------------------------------------------------

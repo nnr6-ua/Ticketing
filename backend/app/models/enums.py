@@ -29,9 +29,12 @@ class TicketStatus(str, Enum):
 
 
 class TimelineEventType(str, Enum):
+    created = "created"
     status_change = "status_change"
     resolution = "resolution"
     internal_comment = "internal_comment"
+    information_request = "information_request"
+    user_response = "user_response"
     assignee_change = "assignee_change"
 
 
@@ -70,6 +73,23 @@ class SlaState(str, Enum):
     overdue = "overdue"
     no_sla = "no_sla"
     finalized = "finalized"
+
+
+class ConfigEntityType(str, Enum):
+    category = "category"
+    priority = "priority"
+    sla_rule = "sla_rule"
+
+
+class ConfigAction(str, Enum):
+    create = "create"
+    update = "update"
+    deactivate = "deactivate"
+    reactivate = "reactivate"
+    delete = "delete"
+    set_default = "set_default"
+    rule_upsert = "rule_upsert"
+    rule_retire = "rule_retire"
 
 
 class SlaOutcome(str, Enum):

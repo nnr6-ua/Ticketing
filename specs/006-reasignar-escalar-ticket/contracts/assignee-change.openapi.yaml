@@ -890,7 +890,7 @@ components:
           description: |-
             Tipo de entrada. `assignee_change` se añade en HU-06 al conjunto
             existente de HU-05.
-          enum: [status_change, resolution, internal_comment, assignee_change]
+          enum: [created, status_change, resolution, internal_comment, information_request, user_response, assignee_change]
           example: assignee_change
         from_status:
           oneOf:
@@ -913,6 +913,11 @@ components:
         created_at:
           type: string
           format: date-time
+        reply_to_id:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
         change_kind:
           oneOf:
             - $ref: '#/components/schemas/AssigneeChangeKind'
@@ -1004,6 +1009,20 @@ components:
             Verdadero si `can_reassign` y el nivel del responsable actual no es
             `especialista`. No indica disponibilidad de técnicos en el nivel
             superior; para eso, `has_available_escalation_target` en las opciones.
+        # Campos aditivos de HU-03.
+        can_request_information:
+          type: boolean
+        can_respond_to_information:
+          type: boolean
+        awaiting_user_response:
+          type: boolean
+        active_information_request:
+          type: [object, 'null']
+        reminder_active:
+          type: boolean
+        reminder_due_at:
+          type: [string, 'null']
+          format: date-time
 
     AssigneeChangeResponse:
       type: object

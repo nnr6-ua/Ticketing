@@ -141,7 +141,11 @@ def _to_item(ticket: Ticket, now: datetime) -> WorkQueueItem:
     priority = PriorityRef(
         id=ticket.priority.id,
         name=ticket.priority.name,
-        level=ticket.priority.level,
+        level=(
+            ticket.sla_priority_level
+            if ticket.sla_priority_level is not None
+            else ticket.priority.level
+        ),
         color=ticket.priority.color,
         is_active=ticket.priority.is_active,
     )
@@ -167,6 +171,7 @@ def _ordered_statement(
     """Consulta base con propiedad, filtros y el orden de urgencia fijado."""
 
     is_final = case((_finals_condition(), 1), else_=0)
+    urgency_level = func.coalesce(Ticket.sla_priority_level, Priority.level)
 
     statement = (
         select(Ticket)
@@ -175,13 +180,13 @@ def _ordered_statement(
         .where(Ticket.status.in_(statuses))
     )
     if priorities:
-        statement = statement.where(Priority.level.in_(priorities))
+        statement = statement.where(urgency_level.in_(priorities))
 
     return statement.order_by(
         is_final.asc(),
         case(
             (_finals_condition(), None),
-            else_=Priority.level,
+            else_=urgency_level,
         ).asc().nulls_last(),
         case(
             (_finals_condition(), None),
@@ -216,24 +221,29 @@ def _counts(session: Session, user_id: UUID) -> Counts:
 def _available_priorities(session: Session, user_id: UUID) -> list[PriorityFilterOption]:
     """Prioridades presentes en la cola del técnico, sin contadores."""
 
+    level = func.coalesce(Ticket.sla_priority_level, Priority.level).label(
+        "urgency_level"
+    )
     statement = (
-        select(Priority)
+        select(Priority, level)
         .join(Ticket, Ticket.priority_id == Priority.id)
         .where(Ticket.assignee_id == user_id)
-        .distinct()
-        .order_by(Priority.level.asc(), Priority.name.asc())
+        .order_by(level.asc(), Priority.name.asc())
     )
-    rows = session.scalars(statement).unique().all()
-    return [
-        PriorityFilterOption(
-            id=priority.id,
-            name=priority.name,
-            level=priority.level,
-            color=priority.color,
-            is_active=priority.is_active,
+    options: dict[tuple[object, int], PriorityFilterOption] = {}
+    for priority, effective_level in session.execute(statement).unique().all():
+        key = (priority.id, int(effective_level))
+        options.setdefault(
+            key,
+            PriorityFilterOption(
+                id=priority.id,
+                name=priority.name,
+                level=int(effective_level),
+                color=priority.color,
+                is_active=priority.is_active,
+            ),
         )
-        for priority in rows
-    ]
+    return list(options.values())
 
 
 def build_work_queue(
@@ -258,7 +268,11 @@ def build_work_queue(
         .where(Ticket.assignee_id == current_user.id)
         .where(Ticket.status.in_(statuses))
         .where(
-            Priority.level.in_(priorities) if priorities else True
+            func.coalesce(Ticket.sla_priority_level, Priority.level).in_(
+                priorities
+            )
+            if priorities
+            else True
         )
     ) or 0
     total_items = int(filtered_count)

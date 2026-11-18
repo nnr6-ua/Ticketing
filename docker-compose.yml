@@ -29,9 +29,12 @@ services:
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
       MIGRATION_MAX_ATTEMPTS: ${MIGRATION_MAX_ATTEMPTS:-30}
       MIGRATION_RETRY_SECONDS: ${MIGRATION_RETRY_SECONDS:-2}
+      ATTACHMENTS_DIR: ${ATTACHMENTS_DIR:-/app/attachments}
       PORT: 8000
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ticketing_attachments:/app/attachments
     depends_on:
       db:
         condition: service_healthy
@@ -69,3 +72,4 @@ services:
 
 volumes:
   ticketing_db_data:
+  ticketing_attachments:

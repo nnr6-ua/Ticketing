@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -27,8 +28,13 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import (
     Category,
+    ConfigAction,
+    ConfigEntityType,
+    ConfigurationAuditEntry,
+    ConfigurationVersion,
     EscalationLevel,
     Priority,
+    SlaRule,
     Ticket,
     TicketStatus,
     User,
@@ -72,20 +78,40 @@ def upsert_priority(
     color: str,
     base_hours: str,
     is_active: bool = True,
+    keywords: list[str] | None = None,
+    is_default: bool = False,
+    is_system: bool = False,
+    sort_order: int | None = None,
 ) -> Priority:
-    priority = session.scalar(select(Priority).where(Priority.level == level))
+    priority = session.scalar(select(Priority).where(Priority.name == name))
     if priority is None:
-        priority = Priority(id=sid(f"priority-{level}"), level=level, name=name)
+        priority = Priority(
+            id=sid(f"priority-{name.casefold().replace(' ', '-')}"),
+            level=level,
+            name=name,
+        )
         session.add(priority)
     priority.name = name
+    priority.level = level
     priority.color = color
     priority.base_hours = base_hours  # type: ignore[assignment]
     priority.is_active = is_active
+    priority.keywords = keywords or []
+    priority.is_default = is_default
+    priority.is_system = is_system
+    priority.sort_order = sort_order if sort_order is not None else level * 10
     return priority
 
 
 def upsert_category(
-    session: Session, *, key: str, name: str, description: str
+    session: Session,
+    *,
+    key: str,
+    name: str,
+    description: str,
+    keywords: list[str] | None = None,
+    is_default: bool = False,
+    is_system: bool = False,
 ) -> Category:
     category = session.scalar(select(Category).where(Category.name == name))
     if category is None:
@@ -93,6 +119,16 @@ def upsert_category(
         session.add(category)
     category.description = description
     category.is_active = True
+    category.keywords = keywords or []
+    category.is_default = is_default
+    category.is_system = is_system
+    category.sort_order = {
+        "red": 10,
+        "hardware": 20,
+        "software": 30,
+        "otros": 100,
+        "sin_clasificar": 999,
+    }.get(key, 50)
     return category
 
 
@@ -128,6 +164,115 @@ def upsert_ticket(
     ticket.updated_at = finalized_at or created_at
     ticket.sla_version = "v1"
     return ticket
+
+
+def seed_configuration(
+    session: Session,
+    actor: User,
+    categories: list[Category],
+    priorities: list[Priority],
+    now: datetime,
+) -> None:
+    if session.scalar(select(ConfigurationVersion).limit(1)) is not None:
+        return
+
+    base = ConfigurationVersion(
+        id=sid("configuration-version-1"),
+        version=1,
+        created_at=now,
+        created_by_id=actor.id,
+        note="Configuración base de demostración (HU-08).",
+    )
+    session.add(base)
+
+    factors = {
+        "Red": Decimal("1.50"),
+        "Hardware": Decimal("1.00"),
+        "Software": Decimal("1.25"),
+        "Otros": Decimal("1.00"),
+    }
+    rules: dict[tuple[str, str], SlaRule] = {}
+    for category in categories:
+        for priority in priorities:
+            hours = (
+                Decimal(str(priority.base_hours))
+                * factors.get(category.name, Decimal("1.00"))
+            ).quantize(Decimal("0.01"))
+            rule = SlaRule(
+                id=sid(f"sla-rule-v1-{category.name}-{priority.name}"),
+                category_id=category.id,
+                priority_id=priority.id,
+                hours=hours,
+                configuration_version_id=base.id,
+                created_by_id=actor.id,
+                created_at=now,
+                valid_from_version=1,
+            )
+            session.add(rule)
+            rules[(category.name, priority.name)] = rule
+            session.add(
+                ConfigurationAuditEntry(
+                    id=sid(f"audit-v1-{category.name}-{priority.name}"),
+                    configuration_version_id=base.id,
+                    entity_type=ConfigEntityType.sla_rule,
+                    entity_id=rule.id,
+                    action=ConfigAction.rule_upsert,
+                    actor_id=actor.id,
+                    occurred_at=now,
+                    summary=(
+                        f"Regla SLA inicial: {category.name} / "
+                        f"{priority.name} ({hours:.2f} h)."
+                    ),
+                    new_values={
+                        "category": category.name,
+                        "priority": priority.name,
+                        "hours": f"{hours:.2f}",
+                    },
+                )
+            )
+
+    changed_at = now + timedelta(minutes=1)
+    updated = ConfigurationVersion(
+        id=sid("configuration-version-2"),
+        version=2,
+        created_at=changed_at,
+        created_by_id=actor.id,
+        note="Ajuste de demostración: plazo de Red / Crítica.",
+    )
+    session.add(updated)
+
+    previous_rule = rules[("Red", "Crítica")]
+    previous_rule.valid_to_version = 2
+    new_hours = previous_rule.hours + Decimal("2.00")
+    new_rule = SlaRule(
+        id=sid("sla-rule-v2-red-critica"),
+        category_id=previous_rule.category_id,
+        priority_id=previous_rule.priority_id,
+        hours=new_hours,
+        configuration_version_id=updated.id,
+        created_by_id=actor.id,
+        created_at=changed_at,
+        valid_from_version=2,
+        supersedes_id=previous_rule.id,
+    )
+    session.add(new_rule)
+    session.add(
+        ConfigurationAuditEntry(
+            id=sid("audit-v2-red-critica"),
+            configuration_version_id=updated.id,
+            entity_type=ConfigEntityType.sla_rule,
+            entity_id=new_rule.id,
+            action=ConfigAction.rule_upsert,
+            actor_id=actor.id,
+            occurred_at=changed_at,
+            summary=(
+                "Ajuste de plazo SLA: Red / Crítica de "
+                f"{previous_rule.hours:.2f} h a {new_hours:.2f} h."
+            ),
+            previous_values={"hours": f"{previous_rule.hours:.2f}"},
+            new_values={"hours": f"{new_hours:.2f}"},
+        )
+    )
 
 
 def main() -> None:
@@ -192,6 +337,13 @@ def main() -> None:
             role=UserRole.supervisor,
             team="Soporte",
         )
+        admin = upsert_user(
+            session,
+            key="user-admin",
+            name="Administración",
+            email="admin@example.com",
+            role=UserRole.admin,
+        )
         upsert_user(
             session,
             key="user-solicitante",
@@ -201,16 +353,48 @@ def main() -> None:
         )
 
         critica = upsert_priority(
-            session, level=1, name="Crítica", color="#dc2626", base_hours="4"
+            session,
+            level=1,
+            name="Crítica",
+            color="#dc2626",
+            base_hours="4",
+            keywords=["urgente", "crítico", "caído", "no puedo trabajar", "toda la oficina"],
         )
         alta = upsert_priority(
-            session, level=2, name="Alta", color="#ea580c", base_hours="8"
+            session,
+            level=2,
+            name="Alta",
+            color="#ea580c",
+            base_hours="8",
+            keywords=["importante", "bloqueado", "error grave", "afecta a varios"],
         )
         media = upsert_priority(
-            session, level=3, name="Media", color="#ca8a04", base_hours="24"
+            session,
+            level=3,
+            name="Media",
+            color="#ca8a04",
+            base_hours="24",
+            is_default=True,
         )
         baja = upsert_priority(
-            session, level=4, name="Baja", color="#16a34a", base_hours="72"
+            session,
+            level=4,
+            name="Baja",
+            color="#16a34a",
+            base_hours="72",
+            keywords=["leve", "consulta", "cuando pueda", "no urgente"],
+        )
+        # Fallback de sistema: solo se usa si no queda ninguna prioridad
+        # personalizada activa. El CHECK de nivel admite 1–4, por eso comparte
+        # nivel 4 y se ordena al final para no aparecer en los listados.
+        upsert_priority(
+            session,
+            level=4,
+            name="Sin clasificar",
+            color="#64748b",
+            base_hours="72",
+            is_system=True,
+            sort_order=999,
         )
 
         red = upsert_category(
@@ -218,18 +402,35 @@ def main() -> None:
             key="red",
             name="Red",
             description="Conectividad y acceso remoto.",
+            keywords=["wifi", "vpn", "internet", "red", "conexión", "proxy", "dns"],
         )
         hardware = upsert_category(
             session,
             key="hardware",
             name="Hardware",
             description="Equipos y periféricos.",
+            keywords=["portátil", "ordenador", "monitor", "teclado", "ratón", "batería"],
         )
         software = upsert_category(
             session,
             key="software",
             name="Software",
             description="Aplicaciones corporativas.",
+            keywords=["aplicación", "programa", "instalar", "actualizar", "error", "correo"],
+        )
+        otros = upsert_category(
+            session,
+            key="otros",
+            name="Otros",
+            description="Solicitudes que no encajan en otra categoría.",
+            is_default=True,
+        )
+        upsert_category(
+            session,
+            key="sin_clasificar",
+            name="Sin clasificar",
+            description="Categoría de sistema para tickets sin catálogo activo.",
+            is_system=True,
         )
 
         # Técnico A: 5 activos + 1 resuelto en plazo + 1 cerrado incumplido.
@@ -370,6 +571,14 @@ def main() -> None:
 
         # Técnico D no tiene tickets (cola vacía).
 
+        seed_configuration(
+            session,
+            admin,
+            [red, hardware, software, otros],
+            [critica, alta, media, baja],
+            now,
+        )
+
         session.commit()
 
     print("Seed completado:")
@@ -378,6 +587,7 @@ def main() -> None:
     print("  Técnico C: 1 resuelto (solo finalizados)")
     print("  Técnico D: sin tickets")
     print("  Supervisor: rol no autorizado (403)")
+    print("  Configuración: versión 2 con 16 reglas SLA vigentes e historial")
 
 
 if __name__ == "__main__":

@@ -397,7 +397,7 @@ components:
       description: |-
         Tipo de entrada de la línea temporal. `assignee_change` se añade de
         forma aditiva en HU-06.
-      enum: [status_change, resolution, internal_comment, assignee_change]
+      enum: [created, status_change, resolution, internal_comment, information_request, user_response, assignee_change]
       example: status_change
 
     UserRole:
@@ -460,6 +460,10 @@ components:
           type: string
           format: date-time
           example: '2026-11-02T10:16:00.000000+00:00'
+        reply_to_id:
+          type: [string, 'null']
+          format: uuid
+          description: Petición respondida; añadido de forma compatible en HU-03.
         # Campos aditivos de HU-06. Son nulos en las entradas de HU-05.
         change_kind:
           oneOf:
@@ -575,6 +579,25 @@ components:
           type: boolean
         can_view_internal:
           type: boolean
+        can_request_information:
+          type: boolean
+          description: Añadido por HU-03.
+        can_respond_to_information:
+          type: boolean
+          description: Añadido por HU-03.
+        awaiting_user_response:
+          type: boolean
+          description: Añadido por HU-03.
+        active_information_request:
+          type: [object, 'null']
+          description: Añadido por HU-03.
+        reminder_active:
+          type: boolean
+          description: Añadido por HU-03.
+        reminder_due_at:
+          type: [string, 'null']
+          format: date-time
+          description: Añadido por HU-03.
         # Capacidades aditivas de HU-06.
         can_reassign:
           type: boolean

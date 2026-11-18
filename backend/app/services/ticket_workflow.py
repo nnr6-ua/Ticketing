@@ -26,6 +26,10 @@ from app.models import (
     UserRole,
 )
 from app.schemas.ticket_workflow import (
+    InformationRequestRequest,
+    InformationRequestResponse,
+    InformationResponseRequest,
+    InformationResponseResponse,
     InternalCommentRequest,
     InternalCommentResponse,
     StatusTransitionRequest,
@@ -41,6 +45,9 @@ from app.services.ticket_state_machine import (
 )
 from app.services.ticket_timeline import (
     as_utc,
+    can_read_ticket,
+    information_request_ref,
+    information_state,
     serialize_entry,
     viewer_capabilities,
 )
@@ -72,12 +79,32 @@ REQUEST_ID_REUSED = (
     "La solicitud ya se utilizó con otros datos. Genera una nueva solicitud e "
     "inténtalo de nuevo."
 )
+INFORMATION_REQUEST_REQUIRED = (
+    "Escribe qué información necesitas del usuario."
+)
+INFORMATION_REQUEST_TOO_LONG = (
+    "La petición de información no puede superar los 5.000 caracteres."
+)
+INFORMATION_RESPONSE_REQUIRED = (
+    "Escribe la información que te ha pedido el técnico."
+)
+INFORMATION_RESPONSE_TOO_LONG = (
+    "La respuesta no puede superar los 5.000 caracteres."
+)
+INFORMATION_REQUEST_ALREADY_OPEN = (
+    "Ya hay una petición de información pendiente de respuesta."
+)
 
 MAX_BODY_LENGTH = 5000
 
 _TRANSITION_EVENTS = (
     TimelineEventType.status_change,
     TimelineEventType.resolution,
+)
+_INFORMATION_EVENTS = (
+    TimelineEventType.status_change,
+    TimelineEventType.information_request,
+    TimelineEventType.user_response,
 )
 
 
@@ -115,6 +142,14 @@ def _stale() -> ApiError:
 
 def _request_id_reused() -> ApiError:
     return ApiError(409, "request_id_reused", REQUEST_ID_REUSED)
+
+
+def _information_request_already_open() -> ApiError:
+    return ApiError(
+        409,
+        "information_request_already_open",
+        INFORMATION_REQUEST_ALREADY_OPEN,
+    )
 
 
 def _now() -> datetime:
@@ -248,12 +283,23 @@ def get_workflow(session: Session, ticket: Ticket, user: User) -> WorkflowRespon
     """Proyección de lectura del flujo del ticket."""
 
     capabilities = viewer_capabilities(user, ticket)
+    state = information_state(session, ticket)
     can_reassign, can_escalate = assignee_change_capabilities(user, ticket)
     return WorkflowResponse(
         ticket=build_snapshot(ticket, user),
         can_change_status=capabilities.can_change_status,
         can_comment_internally=capabilities.can_comment_internally,
         can_view_internal=capabilities.can_view_internal,
+        can_request_information=capabilities.can_request_information,
+        can_respond_to_information=capabilities.can_respond_to_information,
+        awaiting_user_response=capabilities.awaiting_user_response,
+        active_information_request=(
+            information_request_ref(state.active_request)
+            if state.active_request is not None
+            else None
+        ),
+        reminder_active=state.reminder_active,
+        reminder_due_at=state.reminder_due_at,
         can_reassign=can_reassign,
         can_escalate=can_escalate,
     )
@@ -319,6 +365,95 @@ def _classify_transition_replay(
     return "replay"
 
 
+def _information_entries(
+    session: Session, ticket_id: UUID, request_id: UUID
+) -> list[TicketTimelineEntry]:
+    statement = (
+        select(TicketTimelineEntry)
+        .where(
+            TicketTimelineEntry.ticket_id == ticket_id,
+            TicketTimelineEntry.request_id == request_id,
+            TicketTimelineEntry.event_type.in_(_INFORMATION_EVENTS),
+        )
+        .order_by(
+            TicketTimelineEntry.event_order.asc(),
+            TicketTimelineEntry.id.asc(),
+        )
+    )
+    return list(session.scalars(statement).unique().all())
+
+
+def _classify_information_replay(
+    entries: list[TicketTimelineEntry],
+    command: str,
+    actor_id: UUID,
+    normalized_body: str,
+) -> str:
+    """Devuelve `none`, `replay` o `reused` para peticiones y respuestas."""
+
+    if not entries:
+        return "none"
+
+    if command == "information_request":
+        request = next(
+            (
+                entry
+                for entry in entries
+                if entry.event_type == TimelineEventType.information_request
+            ),
+            None,
+        )
+        status_change = next(
+            (
+                entry
+                for entry in entries
+                if entry.event_type == TimelineEventType.status_change
+                and entry.from_status == TicketStatus.en_progreso
+                and entry.to_status == TicketStatus.pendiente_usuario
+            ),
+            None,
+        )
+        matches = (
+            request is not None
+            and status_change is not None
+            and request.author_id == actor_id
+            and status_change.author_id == actor_id
+            and request.body == normalized_body
+            and request.reply_to_id is None
+        )
+        return "replay" if matches else "reused"
+
+    if command == "information_response":
+        response = next(
+            (
+                entry
+                for entry in entries
+                if entry.event_type == TimelineEventType.user_response
+            ),
+            None,
+        )
+        status_change = next(
+            (
+                entry
+                for entry in entries
+                if entry.event_type == TimelineEventType.status_change
+                and entry.from_status == TicketStatus.pendiente_usuario
+                and entry.to_status == TicketStatus.en_progreso
+            ),
+            None,
+        )
+        matches = (
+            response is not None
+            and status_change is not None
+            and response.author_id == actor_id
+            and status_change.author_id == actor_id
+            and response.body == normalized_body
+        )
+        return "replay" if matches else "reused"
+
+    return "reused"
+
+
 def _comment_entries(
     session: Session, ticket_id: UUID, request_id: UUID
 ) -> list[TicketTimelineEntry]:
@@ -369,6 +504,56 @@ def _validate_resolution(
             raise ApiError(422, "resolution_too_long", RESOLUTION_TOO_LONG)
         return body
     return None
+
+
+def _validate_information_request_body(ticket_id: UUID, raw_body: str) -> str:
+    body = raw_body.strip()
+    if not body:
+        logger.warning(
+            "Petición no válida code=information_request_required ticket_id=%s",
+            ticket_id,
+        )
+        raise ApiError(
+            422,
+            "information_request_required",
+            INFORMATION_REQUEST_REQUIRED,
+        )
+    if len(body) > MAX_BODY_LENGTH:
+        logger.warning(
+            "Petición no válida code=information_request_too_long ticket_id=%s",
+            ticket_id,
+        )
+        raise ApiError(
+            422,
+            "information_request_too_long",
+            INFORMATION_REQUEST_TOO_LONG,
+        )
+    return body
+
+
+def _validate_information_response_body(ticket_id: UUID, raw_body: str) -> str:
+    body = raw_body.strip()
+    if not body:
+        logger.warning(
+            "Respuesta no válida code=information_response_required ticket_id=%s",
+            ticket_id,
+        )
+        raise ApiError(
+            422,
+            "information_response_required",
+            INFORMATION_RESPONSE_REQUIRED,
+        )
+    if len(body) > MAX_BODY_LENGTH:
+        logger.warning(
+            "Respuesta no válida code=information_response_too_long ticket_id=%s",
+            ticket_id,
+        )
+        raise ApiError(
+            422,
+            "information_response_too_long",
+            INFORMATION_RESPONSE_TOO_LONG,
+        )
+    return body
 
 
 def _invalid_transition(current: TicketStatus, target: TicketStatus) -> ApiError:
@@ -447,6 +632,35 @@ def _insert_resolution(
         created_at=now,
         event_order=1,
         request_id=request_id,
+    )
+    session.add(entry)
+    return entry
+
+
+def _insert_information_entry(
+    session: Session,
+    ticket: Ticket,
+    actor: User,
+    event_type: TimelineEventType,
+    body: str,
+    now: datetime,
+    request_id: UUID,
+    *,
+    reply_to_id: UUID | None = None,
+) -> TicketTimelineEntry:
+    entry = TicketTimelineEntry(
+        ticket_id=ticket.id,
+        event_type=event_type,
+        from_status=None,
+        to_status=None,
+        body=body,
+        is_internal=False,
+        author_id=actor.id,
+        author=actor,
+        created_at=now,
+        event_order=1,
+        request_id=request_id,
+        reply_to_id=reply_to_id,
     )
     session.add(entry)
     return entry
@@ -595,6 +809,7 @@ def apply_user_response_transition(
     *,
     request_id: UUID,
     expected_updated_at: datetime,
+    now: datetime | None = None,
 ) -> StatusTransitionResponse:
     """Transición automática `pendiente_usuario -> en_progreso` para HU-03.
 
@@ -649,15 +864,15 @@ def apply_user_response_transition(
         raise _invalid_transition(locked.status, target)
 
     from_status = locked.status
-    now = _now()
-    _apply_ticket_effects(locked, target, now)
+    transition_now = now or _now()
+    _apply_ticket_effects(locked, target, transition_now)
     status_entry = _insert_status_change(
         session,
         locked,
         actor,
         from_status,
         target,
-        now,
+        transition_now,
         request_id,
     )
     session.flush()
@@ -667,6 +882,284 @@ def apply_user_response_transition(
         message=None,
         ticket=build_snapshot(locked, actor),
         timeline_entries=[serialize_entry(status_entry)],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Comandos: petición y respuesta de información (HU-03)
+# ---------------------------------------------------------------------------
+def request_information(
+    session: Session,
+    ticket_id: UUID,
+    current_user: User,
+    payload: InformationRequestRequest,
+) -> InformationRequestResponse:
+    """Solicita información al creador de forma atómica e idempotente."""
+
+    started = time.perf_counter()
+    ticket = _locked_ticket(session, ticket_id)
+    if not can_read_ticket(current_user, ticket):
+        raise _not_found()
+    if current_user.role != UserRole.tecnico:
+        logger.warning(
+            "Acceso denegado code=forbidden ticket_id=%s", ticket.id
+        )
+        raise _forbidden()
+    if ticket.assignee_id is None or ticket.assignee_id != current_user.id:
+        logger.warning(
+            "Acceso denegado code=not_ticket_assignee ticket_id=%s", ticket.id
+        )
+        raise _not_assignee()
+
+    body = _validate_information_request_body(ticket.id, payload.body)
+    entries = _information_entries(session, ticket.id, payload.request_id)
+    replay = _classify_information_replay(
+        entries, "information_request", current_user.id, body
+    )
+    if replay == "replay":
+        request_entry = next(
+            entry
+            for entry in entries
+            if entry.event_type == TimelineEventType.information_request
+        )
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        logger.info(
+            "Petición de información idempotente ticket_id=%s actor_id=%s "
+            "changed=false request_id=%s duration_ms=%s",
+            ticket.id,
+            current_user.id,
+            payload.request_id,
+            duration_ms,
+        )
+        return InformationRequestResponse(
+            changed=False,
+            message=REPLAY_MESSAGE,
+            ticket=build_snapshot(ticket, current_user),
+            timeline_entries=[],
+            information_request=information_request_ref(request_entry),
+        )
+    if replay == "reused":
+        logger.warning(
+            "request_id reutilizado code=request_id_reused ticket_id=%s",
+            ticket.id,
+        )
+        raise _request_id_reused()
+
+    state = information_state(session, ticket)
+    if state.active_request is not None:
+        logger.warning(
+            "Petición ya abierta code=information_request_already_open "
+            "ticket_id=%s",
+            ticket.id,
+        )
+        raise _information_request_already_open()
+
+    if ticket.status != TicketStatus.en_progreso:
+        logger.warning(
+            "Transición inválida code=invalid_transition ticket_id=%s",
+            ticket.id,
+        )
+        raise _invalid_transition(ticket.status, TicketStatus.pendiente_usuario)
+
+    expected = as_utc(payload.expected_updated_at)
+    current = as_utc(ticket.updated_at)
+    if expected is None or current is None or expected != current:
+        logger.warning(
+            "Conflicto de versión code=stale_ticket ticket_id=%s", ticket.id
+        )
+        raise _stale()
+
+    if not is_transition_allowed(
+        ticket.status, TicketStatus.pendiente_usuario
+    ):
+        logger.warning(
+            "Transición inválida code=invalid_transition ticket_id=%s",
+            ticket.id,
+        )
+        raise _invalid_transition(ticket.status, TicketStatus.pendiente_usuario)
+
+    now = _now()
+    from_status = ticket.status
+    try:
+        _apply_ticket_effects(ticket, TicketStatus.pendiente_usuario, now)
+        status_entry = _insert_status_change(
+            session,
+            ticket,
+            current_user,
+            from_status,
+            TicketStatus.pendiente_usuario,
+            now,
+            payload.request_id,
+        )
+        request_entry = _insert_information_entry(
+            session,
+            ticket,
+            current_user,
+            TimelineEventType.information_request,
+            body,
+            now,
+            payload.request_id,
+        )
+        session.flush()
+        session.commit()
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        session.rollback()
+        logger.exception(
+            "Error inesperado al solicitar información ticket_id=%s", ticket.id
+        )
+        raise ApiError(500, "internal_error", INTERNAL_ERROR_MESSAGE) from exc
+
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    logger.info(
+        "Petición de información ticket_id=%s actor_id=%s from_status=%s "
+        "to_status=pendiente_usuario changed=true request_id=%s duration_ms=%s",
+        ticket.id,
+        current_user.id,
+        from_status.value,
+        payload.request_id,
+        duration_ms,
+    )
+    return InformationRequestResponse(
+        changed=True,
+        message=None,
+        ticket=build_snapshot(ticket, current_user),
+        timeline_entries=[
+            serialize_entry(status_entry),
+            serialize_entry(request_entry),
+        ],
+        information_request=information_request_ref(request_entry),
+    )
+
+
+def respond_to_information(
+    session: Session,
+    ticket_id: UUID,
+    current_user: User,
+    payload: InformationResponseRequest,
+) -> InformationResponseResponse:
+    """Registra la respuesta del creador y devuelve el ticket a `en_progreso`."""
+
+    started = time.perf_counter()
+    ticket = _locked_ticket(session, ticket_id)
+    if not can_read_ticket(current_user, ticket):
+        raise _not_found()
+    if current_user.id != ticket.creator_id:
+        logger.warning(
+            "Acceso denegado code=forbidden ticket_id=%s", ticket.id
+        )
+        raise _forbidden()
+
+    body = _validate_information_response_body(ticket.id, payload.body)
+    entries = _information_entries(session, ticket.id, payload.request_id)
+    replay = _classify_information_replay(
+        entries, "information_response", current_user.id, body
+    )
+    if replay == "replay":
+        response_entry = next(
+            entry
+            for entry in entries
+            if entry.event_type == TimelineEventType.user_response
+        )
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        logger.info(
+            "Respuesta de información idempotente ticket_id=%s actor_id=%s "
+            "changed=false request_id=%s duration_ms=%s",
+            ticket.id,
+            current_user.id,
+            payload.request_id,
+            duration_ms,
+        )
+        return InformationResponseResponse(
+            changed=False,
+            message=REPLAY_MESSAGE,
+            ticket=build_snapshot(ticket, current_user),
+            timeline_entries=[],
+            information_response=serialize_entry(response_entry),
+        )
+    if replay == "reused":
+        logger.warning(
+            "request_id reutilizado code=request_id_reused ticket_id=%s",
+            ticket.id,
+        )
+        raise _request_id_reused()
+
+    if ticket.status != TicketStatus.pendiente_usuario:
+        logger.warning(
+            "Transición inválida code=invalid_transition ticket_id=%s",
+            ticket.id,
+        )
+        raise _invalid_transition(ticket.status, TicketStatus.en_progreso)
+
+    expected = as_utc(payload.expected_updated_at)
+    current = as_utc(ticket.updated_at)
+    if expected is None or current is None or expected != current:
+        logger.warning(
+            "Conflicto de versión code=stale_ticket ticket_id=%s", ticket.id
+        )
+        raise _stale()
+
+    if not is_transition_allowed(ticket.status, TicketStatus.en_progreso):
+        logger.warning(
+            "Transición inválida code=invalid_transition ticket_id=%s",
+            ticket.id,
+        )
+        raise _invalid_transition(ticket.status, TicketStatus.en_progreso)
+
+    state = information_state(session, ticket)
+    active_request = state.active_request
+    now = _now()
+    try:
+        transition = apply_user_response_transition(
+            session,
+            ticket,
+            current_user,
+            request_id=payload.request_id,
+            expected_updated_at=payload.expected_updated_at,
+            now=now,
+        )
+        response_entry = _insert_information_entry(
+            session,
+            ticket,
+            current_user,
+            TimelineEventType.user_response,
+            body,
+            now,
+            payload.request_id,
+            reply_to_id=(
+                active_request.id if active_request is not None else None
+            ),
+        )
+        session.flush()
+        session.commit()
+    except ApiError:
+        session.rollback()
+        raise
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        session.rollback()
+        logger.exception(
+            "Error inesperado al responder información ticket_id=%s", ticket.id
+        )
+        raise ApiError(500, "internal_error", INTERNAL_ERROR_MESSAGE) from exc
+
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    logger.info(
+        "Respuesta de información ticket_id=%s actor_id=%s from_status="
+        "pendiente_usuario to_status=en_progreso changed=true request_id=%s "
+        "duration_ms=%s",
+        ticket.id,
+        current_user.id,
+        payload.request_id,
+        duration_ms,
+    )
+    return InformationResponseResponse(
+        changed=True,
+        message=None,
+        ticket=build_snapshot(ticket, current_user),
+        timeline_entries=[
+            *transition.timeline_entries,
+            serialize_entry(response_entry),
+        ],
+        information_response=serialize_entry(response_entry),
     )
 
 

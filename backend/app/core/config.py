@@ -5,6 +5,7 @@ No se incluyen secretos ni valores reales: todos los parámetros sensibles
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -36,6 +37,9 @@ class Settings(BaseSettings):
 
     # Orígenes permitidos para el frontend en desarrollo (separados por coma).
     frontend_origins: str = "http://localhost:5173"
+
+    # Directorio raíz donde se guardan los adjuntos de los tickets.
+    attachments_dir: Path = Path("./attachments")
 
 
 @lru_cache

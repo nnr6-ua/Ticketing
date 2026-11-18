@@ -11,6 +11,8 @@ import {
   addInternalComment,
   getTimeline,
   getWorkflow,
+  requestInformation,
+  respondToInformation,
   transitionStatus,
 } from '@/services/ticketWorkflow'
 import { useTicketDetailStore } from '@/stores/ticketDetail'
@@ -19,6 +21,8 @@ import type {
   AssigneeRef,
 } from '@/types/assigneeChange'
 import type {
+  InformationRequestResponse,
+  InformationResponseResponse,
   StatusTransitionResponse,
   TicketWorkflowSnapshot,
   TimelineEntry,
@@ -30,6 +34,8 @@ vi.mock('@/services/ticketWorkflow', () => ({
   getWorkflow: vi.fn(),
   getTimeline: vi.fn(),
   transitionStatus: vi.fn(),
+  requestInformation: vi.fn(),
+  respondToInformation: vi.fn(),
   addInternalComment: vi.fn(),
 }))
 
@@ -42,6 +48,8 @@ vi.mock('@/services/assigneeChange', () => ({
 const getWorkflowMock = vi.mocked(getWorkflow)
 const getTimelineMock = vi.mocked(getTimeline)
 const transitionMock = vi.mocked(transitionStatus)
+const requestInformationMock = vi.mocked(requestInformation)
+const respondToInformationMock = vi.mocked(respondToInformation)
 const addCommentMock = vi.mocked(addInternalComment)
 const optionsMock = vi.mocked(getAssigneeChangeOptions)
 
@@ -78,22 +86,19 @@ function makeTicket(
 
 function makeWorkflow(
   ticketOverrides: Partial<TicketWorkflowSnapshot> = {},
-  capabilities: Partial<
-    Pick<
-      WorkflowResponse,
-      | 'can_change_status'
-      | 'can_comment_internally'
-      | 'can_view_internal'
-      | 'can_reassign'
-      | 'can_escalate'
-    >
-  > = {},
+  capabilities: Partial<WorkflowResponse> = {},
 ): WorkflowResponse {
   return {
     ticket: makeTicket(ticketOverrides),
     can_change_status: true,
     can_comment_internally: true,
     can_view_internal: true,
+    can_request_information: false,
+    can_respond_to_information: false,
+    awaiting_user_response: false,
+    active_information_request: null,
+    reminder_active: false,
+    reminder_due_at: null,
     can_reassign: false,
     can_escalate: false,
     ...capabilities,
@@ -110,6 +115,7 @@ function makeEntry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
     is_internal: false,
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-04T10:00:00Z',
+    reply_to_id: null,
     change_kind: null,
     previous_assignee: null,
     new_assignee: null,
@@ -204,6 +210,8 @@ describe('TicketWorkflowPanel', () => {
     getWorkflowMock.mockReset()
     getTimelineMock.mockReset()
     transitionMock.mockReset()
+    requestInformationMock.mockReset()
+    respondToInformationMock.mockReset()
     addCommentMock.mockReset()
     optionsMock.mockReset()
     getWorkflowMock.mockResolvedValue(makeWorkflow())
@@ -839,4 +847,151 @@ describe('TicketWorkflowPanel', () => {
     expect(store.canSeeInternal).toBe(true)
     wrapper.unmount()
   })
+
+  it('solicita información desde la transición a pendiente de usuario', async () => {
+    const base = makeWorkflow()
+    getWorkflowMock
+      .mockResolvedValueOnce(
+        makeWorkflow(
+          {
+            status: 'en_progreso',
+            status_label: 'En progreso',
+            allowed_transitions: [
+              { value: 'pendiente_usuario', label: 'Pendiente de usuario' },
+              { value: 'resuelto', label: 'Resuelto' },
+            ],
+          },
+          { can_request_information: true },
+        ),
+      )
+      .mockResolvedValue(
+        makeWorkflow(
+          {
+            ...base.ticket,
+            status: 'pendiente_usuario',
+            status_label: 'Pendiente de usuario',
+            updated_at: '2026-11-04T10:05:00Z',
+          },
+          {
+            can_request_information: false,
+            awaiting_user_response: true,
+            active_information_request: {
+              id: 'r1',
+              body: '¿Qué navegador usas?',
+              requested_at: '2026-11-04T10:05:00Z',
+              requested_by: {
+                id: 'u1',
+                name: 'Técnica Asignada',
+                role: 'tecnico',
+              },
+            },
+          },
+        ),
+      )
+    requestInformationMock.mockResolvedValue({
+      changed: true,
+      message: null,
+      ticket: makeTicket({
+        status: 'pendiente_usuario',
+        status_label: 'Pendiente de usuario',
+        updated_at: '2026-11-04T10:05:00Z',
+      }),
+      timeline_entries: [],
+      information_request: {
+        id: 'r1',
+        body: '¿Qué navegador usas?',
+        requested_at: '2026-11-04T10:05:00Z',
+        requested_by: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
+      },
+    } satisfies InformationRequestResponse)
+    const wrapper = mountPanel()
+    await settle()
+
+    await selectTarget(wrapper, 'pendiente_usuario')
+
+    expect(wrapper.find('#information-request').exists()).toBe(true)
+    expect(buttonByText(wrapper, 'Guardar cambio').element.closest('form')).toBeTruthy()
+
+    await wrapper.find('#information-request').setValue('  ¿Qué navegador usas?  ')
+    await wrapper.find('#information-request').element.closest('form')!
+      .dispatchEvent(new Event('submit'))
+    await settle()
+
+    expect(requestInformationMock).toHaveBeenCalledTimes(1)
+    const [, payload] = requestInformationMock.mock.calls[0]!
+    expect(payload.body).toBe('¿Qué navegador usas?')
+    expect(payload.expected_updated_at).toBe('2026-11-04T10:00:00Z')
+    expect(payload.request_id).toBe(REQUEST_1)
+    expect(wrapper.find('#information-request').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('muestra la petición activa, el recordatorio y permite responder', async () => {
+    getWorkflowMock.mockResolvedValue(
+      makeWorkflow(
+        {
+          status: 'pendiente_usuario',
+          status_label: 'Pendiente de usuario',
+          allowed_transitions: [
+            { value: 'en_progreso', label: 'En progreso' },
+          ],
+        },
+        {
+          can_change_status: false,
+          can_respond_to_information: true,
+          awaiting_user_response: true,
+          reminder_active: true,
+          reminder_due_at: '2026-11-06T10:00:00Z',
+          active_information_request: {
+            id: 'r1',
+            body: '¿Qué navegador usas?',
+            requested_at: '2026-11-04T10:00:00Z',
+            requested_by: {
+              id: 'u1',
+              name: 'Técnica Asignada',
+              role: 'tecnico',
+            },
+          },
+        },
+      ),
+    )
+    respondToInformationMock.mockResolvedValue({
+      changed: true,
+      message: null,
+      ticket: makeTicket({
+        status: 'en_progreso',
+        status_label: 'En progreso',
+        updated_at: '2026-11-04T10:10:00Z',
+      }),
+      timeline_entries: [],
+      information_response: makeEntry({
+        id: 'e2',
+        type: 'user_response',
+        from_status: null,
+        to_status: null,
+        body: 'Uso Chrome 131.',
+        reply_to_id: 'r1',
+      }),
+    } satisfies InformationResponseResponse)
+    const wrapper = mountPanel()
+    await settle()
+
+    expect(wrapper.text()).toContain('El técnico necesita esta información')
+    expect(wrapper.text()).toContain('¿Qué navegador usas?')
+    expect(wrapper.text()).toContain(
+      'Han pasado más de 48 horas desde la petición.',
+    )
+
+    await wrapper.find('#information-response').setValue('  Uso Chrome 131.  ')
+    await wrapper.find('#information-response').element.closest('form')!
+      .dispatchEvent(new Event('submit'))
+    await settle()
+
+    expect(respondToInformationMock).toHaveBeenCalledTimes(1)
+    expect(respondToInformationMock.mock.calls[0]?.[1].body).toBe(
+      'Uso Chrome 131.',
+    )
+    wrapper.unmount()
+  })
+
 })

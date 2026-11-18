@@ -1001,4 +1001,3 @@ Los estados disponibles son los definidos en RF-02.1 del sistema:
 | Al mover a «Resuelto», el sistema requiere obligatoriamente una descripción de la solución. | RN-03, RN-04 | RF-008 a RF-011, RF-029, RF-030 |
 | La solución queda guardada y visible en la línea temporal. | RN-04, RN-05, RN-09 | RF-012 a RF-020 |
 | El técnico puede añadir comentarios internos en cualquier momento. | RN-06, RN-07 | RF-021 a RF-026 |
-

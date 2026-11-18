@@ -122,6 +122,12 @@ function makeWorkflow(capabilities: Partial<WorkflowResponse> = {}): WorkflowRes
     can_view_internal: true,
     can_reassign: false,
     can_escalate: false,
+    can_request_information: false,
+    can_respond_to_information: false,
+    awaiting_user_response: false,
+    active_information_request: null,
+    reminder_active: false,
+    reminder_due_at: null,
     ...capabilities,
   }
 }

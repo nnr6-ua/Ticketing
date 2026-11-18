@@ -116,7 +116,7 @@ def test_options_response_matches_contract(
         "especialista",
     ]
     assert response.headers["Cache-Control"] == "no-store"
-    assert response.headers["Vary"] == "Authorization"
+    assert "Authorization" in response.headers["Vary"]
 
 
 def test_reassignment_response_matches_contract(

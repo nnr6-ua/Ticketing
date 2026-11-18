@@ -25,6 +25,10 @@ from app.schemas.assignee_change import (
     ReassignmentRequest,
 )
 from app.schemas.ticket_workflow import (
+    InformationRequestRequest,
+    InformationRequestResponse,
+    InformationResponseRequest,
+    InformationResponseResponse,
     InternalCommentRequest,
     InternalCommentResponse,
     StatusTransitionRequest,
@@ -42,6 +46,8 @@ from app.services.ticket_workflow import (
     add_internal_comment,
     change_status,
     get_workflow,
+    request_information,
+    respond_to_information,
 )
 
 router = APIRouter(tags=["Flujo del ticket"])
@@ -144,6 +150,82 @@ def create_status_transition(
         raise
     except Exception as exc:  # noqa: BLE001 - se traduce a error estable
         raise _write_error(ticket_id, "cambiar el estado") from exc
+    _no_store(response)
+    return result
+
+
+@router.post(
+    "/tickets/{ticket_id}/information-requests",
+    response_model=InformationRequestResponse,
+    summary="Solicitar información al usuario creador",
+    responses={
+        200: {"description": "Reintento idempotente: la petición ya existía."},
+        201: {"description": "Petición creada y ticket en «Pendiente de usuario»."},
+        401: {"description": "Token JWT ausente, inválido o caducado."},
+        403: {"description": "Rol o asignación no autorizados."},
+        404: {"description": "El ticket no existe o no es accesible."},
+        409: {
+            "description": (
+                "Transición no permitida, petición ya abierta, versión "
+                "desactualizada o request_id reutilizado."
+            )
+        },
+        422: {"description": "Mensaje o payload no válidos."},
+        500: {"description": "Error inesperado del servidor."},
+    },
+)
+def create_information_request(
+    ticket_id: UUID,
+    payload: InformationRequestRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> InformationRequestResponse:
+    try:
+        result = request_information(session, ticket_id, current_user, payload)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        raise _write_error(ticket_id, "solicitar información") from exc
+    response.status_code = 201 if result.changed else 200
+    _no_store(response)
+    return result
+
+
+@router.post(
+    "/tickets/{ticket_id}/information-responses",
+    response_model=InformationResponseResponse,
+    summary="Responder a la petición de información del técnico",
+    responses={
+        200: {"description": "Reintento idempotente: la respuesta ya existía."},
+        201: {"description": "Respuesta creada y ticket de vuelta a «En progreso»."},
+        401: {"description": "Token JWT ausente, inválido o caducado."},
+        403: {"description": "El usuario no es el creador del ticket."},
+        404: {"description": "El ticket no existe o no es accesible."},
+        409: {
+            "description": (
+                "Transición no permitida, versión desactualizada o "
+                "request_id reutilizado."
+            )
+        },
+        422: {"description": "Respuesta o payload no válidos."},
+        500: {"description": "Error inesperado del servidor."},
+    },
+)
+def create_information_response(
+    ticket_id: UUID,
+    payload: InformationResponseRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> InformationResponseResponse:
+    try:
+        result = respond_to_information(session, ticket_id, current_user, payload)
+    except ApiError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - se traduce a error estable
+        raise _write_error(ticket_id, "responder a la información") from exc
+    response.status_code = 201 if result.changed else 200
     _no_store(response)
     return result
 

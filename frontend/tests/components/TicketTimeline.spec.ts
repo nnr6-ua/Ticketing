@@ -14,6 +14,7 @@ function entry(overrides: Partial<TimelineEntry>): TimelineEntry {
     is_internal: false,
     author: { id: 'u1', name: 'Técnica Asignada', role: 'tecnico' },
     created_at: '2026-11-02T10:16:00Z',
+    reply_to_id: null,
     change_kind: null,
     previous_assignee: null,
     new_assignee: null,

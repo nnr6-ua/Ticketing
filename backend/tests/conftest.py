@@ -40,7 +40,7 @@ os.environ.pop("AUTH_AUDIENCE", None)
 
 import jwt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app import models  # noqa: E402,F401
@@ -49,6 +49,7 @@ from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Category,
+    ConfigurationVersion,
     EscalationLevel,
     Priority,
     Ticket,
@@ -79,10 +80,26 @@ def _cleanup_temp_dir():
 def db() -> Session:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    if not IS_SQLITE:
+        # La secuencia de numeración la crea la migración 0004; en las pruebas
+        # el esquema se construye desde los modelos, así que se replica aquí.
+        with engine.begin() as connection:
+            connection.execute(
+                text("CREATE SEQUENCE IF NOT EXISTS ticket_number_seq START 1 INCREMENT 1")
+            )
     # En PostgreSQL, recrear los tipos ENUM cambia su OID. Descartar las
     # conexiones del pool evita que queden planes preparados con el OID viejo.
     engine.dispose()
     session = SessionLocal()
+    session.add(
+        ConfigurationVersion(
+            id=uuid.UUID("0f5a7f8e-4ef7-4e0d-9a1e-9f6e2e3d4c10"),
+            version=1,
+            created_by_id=None,
+            note="Línea base de configuración",
+        )
+    )
+    session.commit()
     try:
         yield session
     finally:
@@ -118,6 +135,27 @@ def auth():
         return {"Authorization": f"Bearer {make_token(user, **kwargs)}"}
 
     return _auth
+
+
+@pytest.fixture()
+def admin_user(db: Session) -> User:
+    """Administrador reutilizable para las pruebas de HU-08."""
+
+    user = User(
+        id=uuid.uuid5(uuid.NAMESPACE_DNS, "hu08-admin"),
+        name="Administración",
+        email="admin@example.com",
+        role=UserRole.admin,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    return user
+
+
+@pytest.fixture()
+def admin_headers(admin_user: User) -> dict[str, str]:
+    return {"Authorization": f"Bearer {make_token(admin_user)}"}
 
 
 @dataclass
@@ -756,6 +794,7 @@ def timeline_entry_factory(db: Session):
         created_at: datetime | None = None,
         event_order: int = 0,
         request_id: uuid.UUID | None = None,
+        reply_to_id: uuid.UUID | None = None,
         commit: bool = True,
     ) -> TicketTimelineEntry:
         if is_internal is None:
@@ -772,6 +811,7 @@ def timeline_entry_factory(db: Session):
             created_at=created_at or datetime.now(timezone.utc),
             event_order=event_order,
             request_id=request_id or uuid.uuid4(),
+            reply_to_id=reply_to_id,
         )
         db.add(entry)
         if commit:
@@ -781,21 +821,145 @@ def timeline_entry_factory(db: Session):
     return _factory
 
 
+@dataclass
+class SeededInformation:
+    ticket: Ticket
+    request: TicketTimelineEntry
+    status_change: TicketTimelineEntry
+    request_id: uuid.UUID
+
+
+@pytest.fixture()
+def pending_information(
+    db: Session, seeded_workflow: SeededWorkflow
+) -> SeededInformation:
+    """Ticket pendiente con una petición activa del técnico asignado."""
+
+    ticket = seeded_workflow.tickets["pendiente_usuario"]
+    author = seeded_workflow.users["tecnico_asignado"]
+    request_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"hu03-request-{ticket.id}")
+    now = seeded_workflow.now
+
+    status_change = TicketTimelineEntry(
+        ticket_id=ticket.id,
+        event_type=TimelineEventType.status_change,
+        from_status=TicketStatus.en_progreso,
+        to_status=TicketStatus.pendiente_usuario,
+        body=None,
+        is_internal=False,
+        author_id=author.id,
+        author=author,
+        created_at=now,
+        event_order=0,
+        request_id=request_id,
+    )
+    request = TicketTimelineEntry(
+        ticket_id=ticket.id,
+        event_type=TimelineEventType.information_request,
+        from_status=None,
+        to_status=None,
+        body="¿Qué versión del navegador usas?",
+        is_internal=False,
+        author_id=author.id,
+        author=author,
+        created_at=now,
+        event_order=1,
+        request_id=request_id,
+    )
+    db.add_all([status_change, request])
+    db.commit()
+    return SeededInformation(
+        ticket=ticket,
+        request=request,
+        status_change=status_change,
+        request_id=request_id,
+    )
+
+
+@pytest.fixture()
+def information_request_factory(db: Session):
+    """Crea una petición pública válida sin cambiar el ticket."""
+
+    def _factory(
+        *,
+        ticket: Ticket,
+        author: User,
+        body: str = "¿Qué información necesitas?",
+        created_at: datetime | None = None,
+        request_id: uuid.UUID | None = None,
+    ) -> TicketTimelineEntry:
+        entry = TicketTimelineEntry(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.information_request,
+            from_status=None,
+            to_status=None,
+            body=body,
+            is_internal=False,
+            author_id=author.id,
+            author=author,
+            created_at=created_at or datetime.now(timezone.utc),
+            event_order=1,
+            request_id=request_id or uuid.uuid4(),
+        )
+        db.add(entry)
+        db.commit()
+        return entry
+
+    return _factory
+
+
+@pytest.fixture()
+def user_response_factory(db: Session):
+    """Crea una respuesta pública, opcionalmente vinculada a una petición."""
+
+    def _factory(
+        *,
+        ticket: Ticket,
+        author: User,
+        body: str = "Uso Chrome 131.",
+        reply_to_id: uuid.UUID | None = None,
+        created_at: datetime | None = None,
+        request_id: uuid.UUID | None = None,
+    ) -> TicketTimelineEntry:
+        entry = TicketTimelineEntry(
+            ticket_id=ticket.id,
+            event_type=TimelineEventType.user_response,
+            from_status=None,
+            to_status=None,
+            body=body,
+            is_internal=False,
+            author_id=author.id,
+            author=author,
+            created_at=created_at or datetime.now(timezone.utc),
+            event_order=1,
+            request_id=request_id or uuid.uuid4(),
+            reply_to_id=reply_to_id,
+        )
+        db.add(entry)
+        db.commit()
+        return entry
+
+    return _factory
+
+
 __all__ = [
     "JWT_ALGORITHM",
     "JWT_SECRET",
     "SeededAssigneeChange",
+    "SeededInformation",
     "SeededQueue",
     "SeededWorkflow",
     "auth_headers",
     "client",
     "db",
+    "information_request_factory",
     "make_token",
     "seeded",
     "seeded_assignee_change",
     "seeded_workflow",
     "select",
     "timeline_entry_factory",
+    "user_response_factory",
 ]
 
 

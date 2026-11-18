@@ -35,3 +35,6 @@ Thumbs.db
 # Alembic / datos locales
 *.sqlite3
 *.db
+
+# Adjuntos subidos en desarrollo (se persisten fuera del repositorio)
+backend/attachments/

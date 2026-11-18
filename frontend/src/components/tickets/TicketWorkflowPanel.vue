@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 
+import InformationRequestForm from '@/components/tickets/InformationRequestForm.vue'
+import InformationResponseForm from '@/components/tickets/InformationResponseForm.vue'
 import InternalCommentForm from '@/components/tickets/InternalCommentForm.vue'
 import ResolutionForm from '@/components/tickets/ResolutionForm.vue'
 import TicketAssigneeChangePanel from '@/components/tickets/TicketAssigneeChangePanel.vue'
@@ -16,6 +18,7 @@ const store = useTicketDetailStore()
 const {
   ticket,
   timeline,
+  pagination,
   canChangeStatus,
   canComment,
   canSeeInternal,
@@ -28,6 +31,13 @@ const {
   errorCode,
   resolutionText,
   commentText,
+  informationRequest,
+  canRequestInformation,
+  canRespondToInformation,
+  awaitingUserResponse,
+  reminderActive,
+  informationRequestText,
+  informationResponseText,
   notice,
   assigneeErrorCode,
 } = storeToRefs(store)
@@ -39,8 +49,12 @@ const requestId = ref('')
 const lastRequestSignature = ref('')
 const commentRequestId = ref('')
 const lastCommentSignature = ref('')
+const informationRequestError = ref<string | null>(null)
+const informationResponseError = ref<string | null>(null)
 const resolutionInput = ref<{ focus: () => void } | null>(null)
 const commentInput = ref<{ focus: () => void } | null>(null)
+const informationRequestInput = ref<{ focus: () => void } | null>(null)
+const informationResponseInput = ref<{ focus: () => void } | null>(null)
 
 const RESOLUTION_REQUIRED_MESSAGE =
   'Indica la descripción de la solución para marcar el ticket como Resuelto.'
@@ -54,6 +68,12 @@ const resolutionIsValid = computed(
   () =>
     selectedTarget.value !== 'resuelto' ||
     resolutionText.value.trim().length > 0,
+)
+
+const informationRequestIsValid = computed(
+  () =>
+    informationRequestText.value.trim().length >= 1 &&
+    informationRequestText.value.trim().length <= 5000,
 )
 
 const assignmentLost = computed(
@@ -76,17 +96,25 @@ const assigneeInconsistent = computed(() => {
   return latestChange.new_assignee.id !== ticket.value.assignee_id
 })
 
-const canSubmit = computed(
-  () =>
-    !submitting.value &&
-    selectedTarget.value !== null &&
-    resolutionIsValid.value &&
-    resolutionText.value.trim().length <= 5000,
-)
+const canSubmit = computed(() => {
+  if (submitting.value || selectedTarget.value === null) {
+    return false
+  }
+  if (selectedTarget.value === 'pendiente_usuario') {
+    return informationRequestIsValid.value
+  }
+  return (
+    resolutionIsValid.value && resolutionText.value.trim().length <= 5000
+  )
+})
 
 async function load(): Promise<void> {
   await store.loadWorkflow(props.ticketId)
   await store.loadTimeline(props.ticketId)
+}
+
+async function onPageChange(page: number): Promise<void> {
+  await store.loadTimeline(props.ticketId, page, 50)
 }
 
 function ensureRequestId(): string {
@@ -127,9 +155,20 @@ async function focusComment(): Promise<void> {
   commentInput.value?.focus()
 }
 
+async function focusInformationRequest(): Promise<void> {
+  await nextTick()
+  informationRequestInput.value?.focus()
+}
+
+async function focusInformationResponse(): Promise<void> {
+  await nextTick()
+  informationResponseInput.value?.focus()
+}
+
 function onSelectTarget(target: TicketStatus): void {
   selectedTarget.value = target
   resolutionError.value = null
+  informationRequestError.value = null
 }
 
 async function submitTransition(): Promise<void> {
@@ -138,6 +177,10 @@ async function submitTransition(): Promise<void> {
   }
 
   const target = selectedTarget.value
+  if (target === 'pendiente_usuario') {
+    await submitInformationRequest()
+    return
+  }
   if (target === 'resuelto' && resolutionText.value.trim().length === 0) {
     resolutionError.value = RESOLUTION_REQUIRED_MESSAGE
     await focusResolution()
@@ -168,7 +211,53 @@ async function submitTransition(): Promise<void> {
   }
 }
 
-async function submitInternalComment(): Promise<void> {  const body = commentText.value.trim()
+async function submitInformationRequest(): Promise<void> {
+  const body = informationRequestText.value.trim()
+  if (body.length === 0) {
+    informationRequestError.value =
+      'Escribe qué información necesitas del usuario.'
+    await focusInformationRequest()
+    return
+  }
+  if (body.length > 5000) {
+    informationRequestError.value =
+      'La petición de información no puede superar los 5.000 caracteres.'
+    await focusInformationRequest()
+    return
+  }
+
+  informationRequestError.value = null
+  const response = await store.requestInformation(props.ticketId, body)
+  if (response) {
+    selectedTarget.value = null
+    informationRequestError.value = null
+  }
+}
+
+async function submitInformationResponse(): Promise<void> {
+  const body = informationResponseText.value.trim()
+  if (body.length === 0) {
+    informationResponseError.value =
+      'Escribe la información que te ha pedido el técnico.'
+    await focusInformationResponse()
+    return
+  }
+  if (body.length > 5000) {
+    informationResponseError.value =
+      'La respuesta no puede superar los 5.000 caracteres.'
+    await focusInformationResponse()
+    return
+  }
+
+  informationResponseError.value = null
+  const response = await store.respondToInformation(props.ticketId, body)
+  if (response) {
+    informationResponseError.value = null
+  }
+}
+
+async function submitInternalComment(): Promise<void> {
+  const body = commentText.value.trim()
   if (body.length === 0) {
     commentError.value = COMMENT_REQUIRED_MESSAGE
     await focusComment()
@@ -203,6 +292,14 @@ watch(commentText, () => {
   commentError.value = null
 })
 
+watch(informationRequestText, () => {
+  informationRequestError.value = null
+})
+
+watch(informationResponseText, () => {
+  informationResponseError.value = null
+})
+
 watch(errorCode, (code) => {
   if (code === 'request_id_reused') {
     resetTransitionRequest()
@@ -216,13 +313,34 @@ watch(errorCode, (code) => {
     commentError.value = error.value
     void focusComment()
   }
+  if (
+    code === 'information_request_required' ||
+    code === 'information_request_too_long'
+  ) {
+    informationRequestError.value = error.value
+    void focusInformationRequest()
+  }
+  if (
+    code === 'information_response_required' ||
+    code === 'information_response_too_long'
+  ) {
+    informationResponseError.value = error.value
+    void focusInformationResponse()
+  }
 })
 
 watch(canChangeStatus, (allowed) => {
   if (!allowed) {
     selectedTarget.value = null
     resolutionError.value = null
+    informationRequestError.value = null
     resetTransitionRequest()
+  }
+})
+
+watch(canRespondToInformation, (allowed) => {
+  if (!allowed) {
+    informationResponseError.value = null
   }
 })
 
@@ -233,6 +351,8 @@ watch(
     selectedTarget.value = null
     resolutionError.value = null
     commentError.value = null
+    informationRequestError.value = null
+    informationResponseError.value = null
     resetTransitionRequest()
     resetCommentRequest()
     void load()
@@ -361,7 +481,25 @@ onMounted(() => {
               :error="resolutionError"
             />
 
-            <div v-if="canChangeStatus" class="mt-4">
+            <InformationRequestForm
+              v-if="
+                canRequestInformation &&
+                selectedTarget === 'pendiente_usuario'
+              "
+              ref="informationRequestInput"
+              v-model="informationRequestText"
+              class="mt-4"
+              :disabled="submitting"
+              :error="informationRequestError"
+              @submit="submitInformationRequest"
+            />
+
+            <div
+              v-if="
+                canChangeStatus && selectedTarget !== 'pendiente_usuario'
+              "
+              class="mt-4"
+            >
               <button
                 type="button"
                 :disabled="!canSubmit"
@@ -385,6 +523,39 @@ onMounted(() => {
           />
 
           <div
+            v-if="canRespondToInformation"
+            class="rounded-lg border border-slate-200 bg-white p-6"
+          >
+            <p
+              v-if="reminderActive"
+              role="status"
+              aria-live="polite"
+              class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+            >
+              Han pasado más de 48 horas desde la petición. El equipo técnico
+              sigue esperando tu respuesta.
+            </p>
+            <InformationResponseForm
+              ref="informationResponseInput"
+              v-model="informationResponseText"
+              :request="informationRequest"
+              :disabled="submitting"
+              :error="informationResponseError"
+              @submit="submitInformationResponse"
+            />
+          </div>
+
+          <div
+            v-else-if="awaitingUserResponse && reminderActive"
+            role="status"
+            aria-live="polite"
+            class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          >
+            Han pasado más de 48 horas desde la petición. El equipo técnico
+            sigue esperando tu respuesta.
+          </div>
+
+          <div
             v-if="canComment"
             class="rounded-lg border border-slate-200 bg-white p-6"
           >
@@ -403,6 +574,8 @@ onMounted(() => {
             :entries="timeline"
             :can-see-internal="canSeeInternal"
             :loading="timelineLoading && timeline.length === 0"
+            :pagination="pagination"
+            @page-change="onPageChange"
           />
         </div>
       </div>

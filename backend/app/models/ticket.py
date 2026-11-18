@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -11,8 +12,11 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Numeric,
+    SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -52,6 +56,12 @@ class Ticket(Base):
         Index("ix_tickets_assignee_finalized_at", "assignee_id", "finalized_at"),
         Index("ix_tickets_assignee_priority", "assignee_id", "priority_id"),
         Index("ix_tickets_number", "number"),
+        Index("ix_tickets_sla_config_version", "sla_config_version_id"),
+        UniqueConstraint(
+            "creator_id",
+            "content_hash",
+            name="uq_tickets_creator_content_hash",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -94,6 +104,16 @@ class Ticket(Base):
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
     )
     sla_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sla_priority_level: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    sla_hours_applied: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )
+    sla_config_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("configuration_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     priority: Mapped[Priority] = relationship(lazy="joined")
     category: Mapped[Category | None] = relationship(lazy="joined")

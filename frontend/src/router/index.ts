@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { getAccessToken, getStoredUserRole } from '@/api/client'
+import { getAccessToken } from '@/api/client'
+import { getStoredUserRole } from '@/auth/session'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,6 +14,16 @@ const router = createRouter({
       path: '/cola-de-trabajo',
       name: 'work-queue',
       component: () => import('@/views/WorkQueuePage.vue'),
+    },
+    {
+      path: '/mis-tickets',
+      name: 'my-tickets',
+      component: () => import('@/views/MyTicketsPage.vue'),
+    },
+    {
+      path: '/tickets/new',
+      name: 'ticket-create',
+      component: () => import('@/views/TicketCreatePage.vue'),
     },
     {
       path: '/tickets/:id',
@@ -31,6 +42,12 @@ const router = createRouter({
       component: () => import('@/views/AccessForbiddenPage.vue'),
     },
     {
+      path: '/admin/configuracion',
+      name: 'admin-configuration',
+      component: () => import('@/views/AdminConfigurationPage.vue'),
+      meta: { requiresAdmin: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginPage.vue'),
@@ -39,16 +56,18 @@ const router = createRouter({
 })
 
 /**
- * Guard cosmético de navegación (HU-07).
+ * Guard cosmético de navegación.
  *
- * Solo actúa sobre rutas que declaran `meta.requiresRoles`; el resto de la
- * navegación (`/cola-de-trabajo`, `/tickets/:id`, `/login`) queda intacta. Sin
- * token se envía a login conservando el destino. Con token, el rol del payload
- * debe estar en `requiresRoles`; si no, se bloquea el dashboard y se muestra
- * el estado `forbidden` en una ruta neutra, sin llegar a cargar métricas.
- * La autorización real la impone el backend (`403 forbidden`).
+ * Evalúa tanto `meta.requiresAdmin` (rutas de administración de `master`)
+ * como `meta.requiresRoles` (dashboard de SLA de HU-07). La autorización real
+ * la impone siempre el backend (`403 forbidden`).
  */
 router.beforeEach((to) => {
+  if (to.meta.requiresAdmin) {
+    if (getStoredUserRole() === 'admin') return true
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
   const requiredRoles = to.meta.requiresRoles as string[] | undefined
   if (!requiredRoles || requiredRoles.length === 0) {
     return true
