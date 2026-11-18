@@ -8,11 +8,19 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.models.enums import SlaOutcome, SlaState
 
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
+
+# Umbrales del semáforo del dashboard de cumplimiento (HU-07).
+# Son constantes de negocio versionadas en código, no configuración de entorno.
+# El valor exacto de un umbral pertenece siempre a la banda superior.
+SLA_GREEN_THRESHOLD_PCT = 90.0  # verde: cumplimiento >= 90 %
+SLA_AMBER_THRESHOLD_PCT = 70.0  # ámbar: 70 % <= cumplimiento < 90 %
+# rojo: cumplimiento < 70 %
 
 
 def as_utc(value: datetime) -> datetime:
@@ -87,3 +95,22 @@ def breach_delay_seconds(
         return None
     delay = math.floor((as_utc(finalized_at) - as_utc(deadline)).total_seconds())
     return delay if delay > 0 else None
+
+
+def compliance_band(pct: Decimal | float | None) -> str:
+    """Banda del semáforo para un porcentaje de cumplimiento ya redondeado.
+
+    Devuelve ``"verde"``, ``"ambar"``, ``"rojo"`` o ``"sin_datos"``. Los
+    umbrales exactos pertenecen a la banda superior: ``90.0`` es verde y
+    ``70.0`` es ámbar.
+    """
+
+    if pct is None:
+        return "sin_datos"
+
+    value = float(pct)
+    if value >= SLA_GREEN_THRESHOLD_PCT:
+        return "verde"
+    if value >= SLA_AMBER_THRESHOLD_PCT:
+        return "ambar"
+    return "rojo"

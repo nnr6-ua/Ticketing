@@ -55,6 +55,10 @@ CONFIGURATION_ERROR_MESSAGES: dict[str, str] = {
     ),
 }
 
+# El contrato del dashboard de SLA (HU-07) exige no-store también en 401/403/422.
+# El prefijo evita alterar las respuestas de error del resto de endpoints.
+SLA_DASHBOARD_PATH = "/api/v1/sla-dashboard"
+
 
 class ApiError(Exception):
     """Error de negocio o de autenticación con código y mensaje estables."""
@@ -66,10 +70,20 @@ class ApiError(Exception):
         self.message = message
 
 
-def error_response(status_code: int, code: str, message: str) -> JSONResponse:
+def error_response(
+    status_code: int,
+    code: str,
+    message: str,
+    *,
+    request: Request | None = None,
+) -> JSONResponse:
+    headers = None
+    if request is not None and request.url.path.startswith(SLA_DASHBOARD_PATH):
+        headers = {"Cache-Control": "no-store", "Vary": "Authorization"}
     return JSONResponse(
         status_code=status_code,
         content={"detail": {"code": code, "message": message}},
+        headers=headers,
     )
 
 
@@ -77,12 +91,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     """Registra los manejadores de error de la aplicación."""
 
     @app.exception_handler(ApiError)
-    async def _handle_api_error(_: Request, exc: ApiError) -> JSONResponse:
-        return error_response(exc.status_code, exc.code, exc.message)
+    async def _handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
+        return error_response(
+            exc.status_code, exc.code, exc.message, request=request
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(
-        _: Request, exc: RequestValidationError
+        request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         # Los payloads y parámetros mal formados se normalizan a un único
         # código estable; el detalle interno nunca se expone al cliente.
@@ -91,13 +107,17 @@ def register_exception_handlers(app: FastAPI) -> None:
             422,
             "invalid_request",
             "La solicitud no es válida. Revisa los datos e inténtalo de nuevo.",
+            request=request,
         )
 
     @app.exception_handler(Exception)
-    async def _handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+    async def _handle_unexpected_error(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.exception("Error inesperado al servir la cola de trabajo: %s", exc)
         return error_response(
             500,
             "internal_error",
             WORK_QUEUE_ERROR_MESSAGE,
+            request=request,
         )

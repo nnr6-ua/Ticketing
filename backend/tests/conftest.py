@@ -961,3 +961,13 @@ __all__ = [
     "timeline_entry_factory",
     "user_response_factory",
 ]
+
+
+@pytest.fixture()
+def dashboard_seed(db: Session):
+    """Población de control de HU-07 (dashboard de cumplimiento de SLA)."""
+
+    from tests.integration._hu07 import seed_dashboard
+
+    return seed_dashboard(db)
+
