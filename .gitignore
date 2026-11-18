@@ -1,39 +1,40 @@
-# Entornos virtuales y dependencias
-.venv/
-venv/
-node_modules/
+# Python / backend
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
-build/
-coverage/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 
-# Configuración local y secretos
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Entorno y secretos
 .env
 .env.*
 !.env.example
 
-# Bases de datos locales
-*.db
-*.sqlite
-*.sqlite3
-
-# Herramientas
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.vite/
-.vitest/
-
-# Sistema operativo
+# Editores y sistema
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 *.tmp
 *.swp
+*.log
 
-# Editores
-.vscode/
-.idea/
+# Alembic / datos locales
+*.sqlite3
+*.db
+
+# Adjuntos subidos en desarrollo (se persisten fuera del repositorio)
+backend/attachments/

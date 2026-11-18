@@ -79,6 +79,11 @@ def test_error_responses_match_contract(seeded_client, monkeypatch) -> None:
     forbidden = client.get(ENDPOINT, headers=seed.header_for("supervisor"))
     assert forbidden.status_code == 403
     validator.validate(forbidden.json())
+    # El mensaje de la cola de trabajo no cambia con el de las escrituras.
+    assert (
+        forbidden.json()["detail"]["message"]
+        == "Esta vista está disponible solo para técnicos."
+    )
 
     invalid = client.get(
         f"{ENDPOINT}?status=desconocido", headers=seed.header_for("a")

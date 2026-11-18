@@ -17,7 +17,7 @@ El enfoque técnico es deliberadamente simple:
 - **Tiempo y SLA**: todas las fechas se almacenan y transportan en UTC (`TIMESTAMPTZ` / ISO 8601 con `Z`). El backend devuelve segundos restantes calculados contra el reloj del servidor; el frontend los consume como duración relativa y los decrementa con un reloj monotónico, sin depender de la hora local del navegador. Europe/Madrid se usa solo para formatear fechas absolutas.
 - **Contenerización**: una imagen multi-etapa con destinos `backend` y `frontend` y un `docker-compose.yml` que levanta PostgreSQL 16, aplica las migraciones al arrancar y sirve la SPA con Nginx, con datos persistentes en un volumen y configuración por variables de entorno.
 
-Esta historia no crea, edita, reasigna ni cambia estados de tickets: consume el modelo de datos base definido en `specs/001-helpdesk-ticketing/spec.md`.
+Esta historia no crea, edita, reasigna ni cambia estados de tickets: consume el modelo de datos base definido en `specs/000-helpdesk-ticketing/spec.md`.
 
 ## Contexto Técnico
 
@@ -92,7 +92,7 @@ specs/004-prioritized-work-queue/
 
 ### Código fuente (raíz del repositorio)
 
-El repositorio aún no contiene código de aplicación. Se adopta la estructura web backend + frontend, coherente con la pila compartida del proyecto. La migración `0001_base_schema.py` crea el esquema base de `specs/001-helpdesk-ticketing/spec.md` y el seed determinista permite ejecutar los escenarios de validación.
+El repositorio aún no contiene código de aplicación. Se adopta la estructura web backend + frontend, coherente con la pila compartida del proyecto. La migración `0001_base_schema.py` crea el esquema base de `specs/000-helpdesk-ticketing/spec.md` y el seed determinista permite ejecutar los escenarios de validación.
 
 ```text
 Dockerfile                               # Imagen multi-etapa: backend y frontend

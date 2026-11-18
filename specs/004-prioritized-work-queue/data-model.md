@@ -2,7 +2,7 @@
 
 **Funcionalidad**: `specs/004-prioritized-work-queue`
 **Fecha**: 2026-10-29
-**Fuente**: modelo base de `specs/001-helpdesk-ticketing/spec.md` + requisitos de `spec.md`
+**Fuente**: modelo base de `specs/000-helpdesk-ticketing/spec.md` + requisitos de `spec.md`
 **Tipo de cambio**: lectura sobre el modelo existente y una columna de soporte (`tickets.finalized_at`)
 
 ---

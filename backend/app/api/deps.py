@@ -10,18 +10,22 @@ from __future__ import annotations
 from uuid import UUID
 
 import jwt
-from fastapi import Depends
+from fastapi import Depends, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import ApiError
+from app.core.errors import ADMIN_FORBIDDEN_MESSAGE, ApiError
 from app.db.session import get_session
 from app.models import User, UserRole
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 UNAUTHENTICATED_MESSAGE = "La sesión no es válida o ha caducado."
+WORK_QUEUE_FORBIDDEN_MESSAGE = "Esta vista está disponible solo para técnicos."
+SLA_DASHBOARD_FORBIDDEN_MESSAGE = (
+    "No tienes permiso para acceder a este dashboard."
+)
 
 
 def _unauthorized() -> ApiError:
@@ -68,12 +72,44 @@ def get_current_user(
 
 
 def require_technician(current_user: User = Depends(get_current_user)) -> User:
-    """Restringe la vista al rol `tecnico`."""
+    """Restringe la vista de la cola de trabajo al rol `tecnico`."""
 
     if current_user.role != UserRole.tecnico:
         raise ApiError(
             403,
             "forbidden",
-            "Esta vista está disponible solo para técnicos.",
+            WORK_QUEUE_FORBIDDEN_MESSAGE,
+        )
+    return current_user
+
+def require_supervisor_or_admin(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Restringe el dashboard de SLA a `supervisor` y `admin`.
+
+    El identificador y el rol provienen exclusivamente del JWT; nunca de
+    parámetros de consulta. Las respuestas (incluidos los errores de rol) no
+    deben almacenarse en cachés compartidas.
+    """
+
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Authorization"
+
+    if current_user.role not in (UserRole.supervisor, UserRole.admin):
+        raise ApiError(
+            403,
+            "forbidden",
+            SLA_DASHBOARD_FORBIDDEN_MESSAGE,
+        )
+     return current_user
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Restringe la configuración administrativa al rol `admin`."""
+
+    if current_user.role != UserRole.admin:
+        raise ApiError(
+            403,
+            "forbidden",
+            ADMIN_FORBIDDEN_MESSAGE,
         )
     return current_user

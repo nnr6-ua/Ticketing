@@ -10,7 +10,7 @@ Este documento registra las decisiones que sostienen [plan.md](./plan.md). Cada 
 
 ## Contexto de partida
 
-El repositorio no contiene todavía código de aplicación: solo especificaciones, configuración de Spec Kit y `CONSTITUTION.md`. La pila compartida del proyecto está fijada por el usuario: **Vue 3, FastAPI, PostgreSQL y Tailwind**. El modelo de datos base procede de `specs/001-helpdesk-ticketing/spec.md`:
+El repositorio no contiene todavía código de aplicación: solo especificaciones, configuración de Spec Kit y `CONSTITUTION.md`. La pila compartida del proyecto está fijada por el usuario: **Vue 3, FastAPI, PostgreSQL y Tailwind**. El modelo de datos base procede de `specs/000-helpdesk-ticketing/spec.md`:
 
 - `Ticket`: id, número, título, estado, prioridad, categoría, creador, asignado, fecha_creación, fecha_límite_SLA, fecha_cierre, versión_SLA_aplicada.
 - `Prioridad`: id, nombre, nivel (1-4), color, plazo_base_horas, activa.

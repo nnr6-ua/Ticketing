@@ -28,12 +28,68 @@ class TicketStatus(str, Enum):
         return STATUS_LABELS[self]
 
 
+class TimelineEventType(str, Enum):
+    created = "created"
+    status_change = "status_change"
+    resolution = "resolution"
+    internal_comment = "internal_comment"
+    information_request = "information_request"
+    user_response = "user_response"
+    assignee_change = "assignee_change"
+
+
+class EscalationLevel(str, Enum):
+    nivel_1 = "nivel_1"
+    nivel_2 = "nivel_2"
+    especialista = "especialista"
+
+
+ESCALATION_LEVEL_ORDER: tuple[EscalationLevel, ...] = (
+    EscalationLevel.nivel_1,
+    EscalationLevel.nivel_2,
+    EscalationLevel.especialista,
+)
+
+ESCALATION_LEVEL_LABELS: dict[EscalationLevel, str] = {
+    EscalationLevel.nivel_1: "Nivel 1",
+    EscalationLevel.nivel_2: "Nivel 2",
+    EscalationLevel.especialista: "Especialista",
+}
+
+
+class AssigneeChangeKind(str, Enum):
+    reassignment = "reassignment"
+    escalation = "escalation"
+
+
+class NotificationType(str, Enum):
+    ticket_reassigned = "ticket_reassigned"
+    ticket_escalated = "ticket_escalated"
+
+
 class SlaState(str, Enum):
     on_time = "on_time"
     at_risk = "at_risk"
     overdue = "overdue"
     no_sla = "no_sla"
     finalized = "finalized"
+
+
+class ConfigEntityType(str, Enum):
+    category = "category"
+    priority = "priority"
+    sla_rule = "sla_rule"
+
+
+class ConfigAction(str, Enum):
+    create = "create"
+    update = "update"
+    deactivate = "deactivate"
+    reactivate = "reactivate"
+    delete = "delete"
+    set_default = "set_default"
+    rule_upsert = "rule_upsert"
+    rule_retire = "rule_retire"
 
 
 class SlaOutcome(str, Enum):

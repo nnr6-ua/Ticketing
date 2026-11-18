@@ -2,54 +2,47 @@
 .git
 .gitignore
 .gitattributes
-.github
-.specify
-.opencode
-specs
 
-# Documentación y configuración que no forma parte de las imágenes
-README.md
-CONSTITUTION.md
-docker-compose*.yml
-Dockerfile
-.dockerignore
-
-# Secretos y configuración local (solo se permite el ejemplo)
-**/.env
-**/.env.*
-!**/.env.example
-
-# Dependencias y entornos virtuales
-**/node_modules
-**/.venv
-**/venv
-**/__pycache__
+# Entornos virtuales y cachés de Python
+**/__pycache__/
 **/*.py[cod]
-**/*.egg-info
-
-# Artefactos de compilación y pruebas
-**/dist
-**/build
-**/coverage
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
 **/.coverage
-**/htmlcov
-**/.pytest_cache
-**/.mypy_cache
-**/.ruff_cache
-**/.vite
-**/.vitest
-backend/tests
-frontend/tests
+**/coverage.xml
+**/htmlcov/
 
-# Bases de datos locales
-**/*.db
-**/*.sqlite
-**/*.sqlite3
+# Dependencias y artefactos de Node
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.tsbuildinfo
 
-# Sistema operativo y editores
+# Entorno y secretos (nunca viajan en la imagen)
+.env
+.env.*
+!.env.example
+
+# Editores y sistema
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 *.tmp
 *.swp
-.vscode
-.idea
+*.log
+
+# Datos locales
+**/*.sqlite3
+**/*.db
+**/attachments/
+
+# Documentación y herramientas que no forman parte de la imagen
+specs/
+.specify/
+.opencode/
+CONSTITUTION.md
+fix.ps1

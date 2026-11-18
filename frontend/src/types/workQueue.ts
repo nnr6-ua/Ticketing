@@ -123,6 +123,7 @@ export type WorkQueueErrorKind =
   | 'unauthorized'
   | 'forbidden'
   | 'invalid'
+  | 'conflict'
   | 'server'
   | 'network'
 

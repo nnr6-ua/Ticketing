@@ -12,6 +12,7 @@ export type ApiErrorKind =
   | 'unauthorized'
   | 'forbidden'
   | 'invalid'
+  | 'conflict'
   | 'server'
   | 'network'
 
@@ -46,6 +47,30 @@ export function setAccessToken(token: string | null): void {
     }
   } catch {
     // Almacenamiento no disponible: la vista seguirá sin token y devolverá 401.
+  }
+}
+
+/**
+ * Decodifica el payload del JWT almacenado (sin verificar la firma) y devuelve
+ * el rol. Es un dato solo cosmético para la navegación: la autorización real
+ * la impone el backend con `403`.
+ */
+export function getStoredUserRole(): string | null {
+  const token = getAccessToken()
+  if (!token) {
+    return null
+  }
+  const parts = token.split('.')
+  if (parts.length < 2) {
+    return null
+  }
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(padded)) as { role?: unknown }
+    return typeof payload.role === 'string' ? payload.role : null
+  } catch {
+    return null
   }
 }
 
@@ -103,6 +128,14 @@ async function parseError(
       'invalid',
       message ?? 'Los filtros seleccionados no son válidos.',
       422,
+      code,
+    )
+  }
+  if (response.status === 409) {
+    return new ApiClientError(
+      'conflict',
+      message ?? 'La solicitud entra en conflicto con el estado actual.',
+      409,
       code,
     )
   }
