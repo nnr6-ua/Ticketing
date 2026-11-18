@@ -953,6 +953,14 @@ def request_information(
         )
         raise _request_id_reused()
 
+    expected = as_utc(payload.expected_updated_at)
+    current = as_utc(ticket.updated_at)
+    if expected is None or current is None or expected != current:
+        logger.warning(
+            "Conflicto de versión code=stale_ticket ticket_id=%s", ticket.id
+        )
+        raise _stale()
+
     state = information_state(session, ticket)
     if state.active_request is not None:
         logger.warning(
@@ -968,14 +976,6 @@ def request_information(
             ticket.id,
         )
         raise _invalid_transition(ticket.status, TicketStatus.pendiente_usuario)
-
-    expected = as_utc(payload.expected_updated_at)
-    current = as_utc(ticket.updated_at)
-    if expected is None or current is None or expected != current:
-        logger.warning(
-            "Conflicto de versión code=stale_ticket ticket_id=%s", ticket.id
-        )
-        raise _stale()
 
     if not is_transition_allowed(
         ticket.status, TicketStatus.pendiente_usuario
@@ -1091,13 +1091,6 @@ def respond_to_information(
         )
         raise _request_id_reused()
 
-    if ticket.status != TicketStatus.pendiente_usuario:
-        logger.warning(
-            "Transición inválida code=invalid_transition ticket_id=%s",
-            ticket.id,
-        )
-        raise _invalid_transition(ticket.status, TicketStatus.en_progreso)
-
     expected = as_utc(payload.expected_updated_at)
     current = as_utc(ticket.updated_at)
     if expected is None or current is None or expected != current:
@@ -1105,6 +1098,13 @@ def respond_to_information(
             "Conflicto de versión code=stale_ticket ticket_id=%s", ticket.id
         )
         raise _stale()
+
+    if ticket.status != TicketStatus.pendiente_usuario:
+        logger.warning(
+            "Transición inválida code=invalid_transition ticket_id=%s",
+            ticket.id,
+        )
+        raise _invalid_transition(ticket.status, TicketStatus.en_progreso)
 
     if not is_transition_allowed(ticket.status, TicketStatus.en_progreso):
         logger.warning(

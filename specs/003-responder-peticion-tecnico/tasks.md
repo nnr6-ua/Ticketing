@@ -150,12 +150,12 @@
 
 - [X] T051 [P] Revisar el logging de `backend/app/services/ticket_workflow.py`: registrar ticket, actor, comando, `request_id` y resultado, sin cuerpos ni datos sensibles.
 - [X] T052 [P] Revisar accesibilidad y responsive en `frontend/src/components/tickets/InformationRequestForm.vue`, `InformationResponseForm.vue`, `TicketWorkflowPanel.vue`, `TicketTimeline.vue` y `frontend/src/views/MyTicketsPage.vue`: foco, `aria-*`, contraste, teclado, `prefers-reduced-motion` y textos en español de España.
-- [ ] T053 [P] Probar `alembic upgrade head` y `alembic downgrade 0004_ticket_creation` sobre PostgreSQL, verificando el bloque `autocommit_block` y que el `downgrade` conserva los valores del enum.
+- [X] T053 [P] Probar `alembic upgrade head` y `alembic downgrade 0004_ticket_creation` sobre PostgreSQL, verificando el bloque `autocommit_block` y que el `downgrade` conserva los valores del enum.
 - [X] T054 [P] Ejecutar la suite completa de backend (`python -m pytest`) y corregir cualquier fallo de HU-03 o regresión.
 - [X] T055 [P] Ejecutar la suite completa de frontend (`npm run test -- --run`) y corregir cualquier fallo de HU-03 o regresión.
-- [ ] T056 Ejecutar las secciones 5–8 de `specs/003-responder-peticion-tecnico/quickstart.md` con dos usuarios y un ticket, incluida la simulación del recordatorio de 48 h, y registrar el resultado.
+- [X] T056 Ejecutar las secciones 5–8 de `specs/003-responder-peticion-tecnico/quickstart.md` con dos usuarios y un ticket, incluida la simulación del recordatorio de 48 h, y registrar el resultado.
 - [X] T057 [P] Auditar las guardas de arquitectura: sin tabla nueva, sin columnas nuevas en `tickets`, sin `PATCH`/`PUT`/`DELETE`, sin `v-html`, sin nuevas dependencias, sin adjuntos, sin correo, sin campana/centro de notificaciones y sin recordatorios periódicos.
-- [ ] T058 [P] Crear y ejecutar las pruebas de concurrencia en PostgreSQL en `backend/tests/integration/test_information_concurrency.py`: dos respuestas simultáneas, dos peticiones simultáneas y doble envío, comprobando que solo una se aplica, la otra recibe `stale_ticket` y no quedan cambios parciales.
+- [X] T058 [P] Crear y ejecutar las pruebas de concurrencia en PostgreSQL en `backend/tests/integration/test_information_concurrency.py`: dos respuestas simultáneas, dos peticiones simultáneas y doble envío, comprobando que solo una se aplica, la otra recibe `stale_ticket` y no quedan cambios parciales.
 - [X] T059 [P] Auditar seguridad y visibilidad: identidad solo desde JWT, ticket no legible `404`, supervisor no responde, comentarios internos ocultos al creador y cuerpos sin HTML enriquecido.
 - [X] T060 [P] Ejecutar las pruebas de regresión de HU-01, HU-02, HU-04 y HU-05 en `backend/tests/` y `frontend/tests/`, incluidos `frontend/tests/components/TicketWorkflowPanel.spec.ts`, `frontend/tests/components/TicketTimeline.spec.ts` y `frontend/tests/stores/ticketDetail.spec.ts`, y confirmar que la transición genérica de `pendiente_usuario` a `en_progreso` sigue funcionando.
 - [X] T061 [P] Extender `backend/tests/integration/test_ticket_workflow_performance.py` con la medición p95 de solicitud, respuesta y proyecciones de `workflow`/«Mis tickets»; verificar <300 ms de servidor y <2 s percibidos, y corregir cualquier N+1 detectado.
@@ -273,3 +273,21 @@ Task: "Línea temporal en frontend/tests/components/TicketTimeline.information.s
 - Verificar que las pruebas fallan antes de implementar.
 - No añadir tablas, columnas en `tickets`, endpoints de edición/borrado, dependencias nuevas, adjuntos, correo, campana ni recordatorios periódicos.
 - Mantener textos, fechas y mensajes en español de España y la estética de HU-05.
+
+---
+
+## Phase 7: Convergence
+
+- [X] T062 Exponer los tickets respondidos sin técnico asignado en la cola colectiva del equipo técnico en `backend/app/services/work_queue.py` y `backend/app/api/v1/work_queue.py`, sin cambios de esquema y restringido a técnicos, con aserción de integración en `backend/tests/integration/test_information_cycle.py` per RF-013, US3/AC1, caso límite "Ticket sin técnico asignado al responder" (missing)
+- [X] T063 Añadir en `backend/tests/integration/test_information_cycle.py` una prueba de dos ciclos sucesivos petición→respuesta que verifique el `reply_to_id` de cada respuesta contra su petición activa más reciente y la conservación de todas las entradas anteriores per RN-06, caso límite "Varias solicitudes en ciclos sucesivos", T045 (partial)
+- [X] T064 Crear `backend/tests/integration/test_information_visibility.py` y `backend/tests/contract/test_information_traceability_contract.py` con las aserciones de visibilidad pública, ausencia de comentarios internos, `reply_to_id`, inmutabilidad y rechazo en `resuelto`/`cerrado`, o consolidarlas con un índice de trazabilidad que las referencie per T045, T046, Constitution IV (partial)
+
+- Nota T058 (actualizada por T065): el orden de validación alineado con `plan.md` comprueba `expected_updated_at` antes que estado o petición abierta; el escritor perdedor recibe `409 stale_ticket`. Las pruebas verifican una sola escritura, sin entradas duplicadas ni cambios parciales.
+
+- Registro T056: secciones 5–8 validadas de forma ejecutable en `backend/tests/integration/test_information_cycle.py::test_quickstart_sections_5_to_8_end_to_end` (técnico, creador, supervisor y usuario ajeno; aviso, recordatorio simulado a 49 h, errores, replay, visibilidad y vuelta a la cola) y en las pruebas de componente `InformationResponseForm.spec.ts`, `TicketWorkflowPanel.information-response.spec.ts`, `TicketTimeline.information.spec.ts` y `MyTicketsPage.information.spec.ts`. Resultado: backend 230 passed / 9 skipped en SQLite y 239 passed en PostgreSQL efímero; frontend 166 passed.
+
+---
+
+## Phase 8: Convergence
+
+- [X] T065 Alinear la concurrencia de HU-03 con `plan.md` devolviendo `409 stale_ticket` al escritor perdedor en `backend/app/services/ticket_workflow.py` y `backend/tests/integration/test_information_concurrency.py`, sin modificar historias distintas de US3 per plan: HU-03 concurrency decision (contradicts)

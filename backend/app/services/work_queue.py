@@ -1,6 +1,7 @@
 """Servicio de lectura de la cola de trabajo priorizada.
 
-Tres consultas sobre la misma base (tickets del técnico autenticado):
+Tres consultas sobre la misma base (tickets asignados al técnico autenticado
+o disponibles en la cola colectiva, sin asignar):
 
 1. `items` de la página solicitada, con el orden de urgencia completo.
 2. `COUNT(*)` con los filtros de la petición (`pagination.total_items`).
@@ -15,7 +16,7 @@ import math
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import Select, case, func, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -61,6 +62,16 @@ MAX_PAGE_SIZE = 100
 
 def _finals_condition():
     return Ticket.status.in_(FINAL_STATUSES)
+
+
+def _visible_to_technician_condition(user_id: UUID):
+    return or_(
+        Ticket.assignee_id == user_id,
+        and_(
+            Ticket.assignee_id.is_(None),
+            Ticket.status == TicketStatus.en_progreso,
+        ),
+    )
 
 
 def _sla_info(ticket: Ticket, now: datetime) -> SlaInfo:
@@ -176,7 +187,7 @@ def _ordered_statement(
     statement = (
         select(Ticket)
         .join(Priority, Priority.id == Ticket.priority_id)
-        .where(Ticket.assignee_id == user_id)
+        .where(_visible_to_technician_condition(user_id))
         .where(Ticket.status.in_(statuses))
     )
     if priorities:
@@ -212,14 +223,14 @@ def _counts(session: Session, user_id: UUID) -> Counts:
             func.sum(case((_finals_condition(), 1), else_=0)),
             0,
         ).label("finalized"),
-    ).where(Ticket.assignee_id == user_id)
+    ).where(_visible_to_technician_condition(user_id))
 
     active, finalized = session.execute(statement).one()
     return Counts(active=int(active or 0), finalized=int(finalized or 0))
 
 
 def _available_priorities(session: Session, user_id: UUID) -> list[PriorityFilterOption]:
-    """Prioridades presentes en la cola del técnico, sin contadores."""
+    """Prioridades presentes en la cola del técnico y colectiva, sin contadores."""
 
     level = func.coalesce(Ticket.sla_priority_level, Priority.level).label(
         "urgency_level"
@@ -227,7 +238,7 @@ def _available_priorities(session: Session, user_id: UUID) -> list[PriorityFilte
     statement = (
         select(Priority, level)
         .join(Ticket, Ticket.priority_id == Priority.id)
-        .where(Ticket.assignee_id == user_id)
+        .where(_visible_to_technician_condition(user_id))
         .order_by(level.asc(), Priority.name.asc())
     )
     options: dict[tuple[object, int], PriorityFilterOption] = {}
@@ -265,7 +276,7 @@ def build_work_queue(
         select(func.count())
         .select_from(Ticket)
         .join(Priority, Priority.id == Ticket.priority_id)
-        .where(Ticket.assignee_id == current_user.id)
+        .where(_visible_to_technician_condition(current_user.id))
         .where(Ticket.status.in_(statuses))
         .where(
             func.coalesce(Ticket.sla_priority_level, Priority.level).in_(
