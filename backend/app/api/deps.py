@@ -102,7 +102,9 @@ def require_supervisor_or_admin(
             "forbidden",
             SLA_DASHBOARD_FORBIDDEN_MESSAGE,
         )
-     return current_user
+    return current_user
+
+
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Restringe la configuración administrativa al rol `admin`."""
 

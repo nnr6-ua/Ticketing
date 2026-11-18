@@ -155,6 +155,31 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 - **RNF-06**: Disponibilidad 99.5% en horario laboral
 - **RNF-07**: Sin claves ni secretos en código (configuración por variables de entorno)
 - **RNF-08**: Solo datos imprescindibles del usuario (nombre, email, rol, equipo)
+- **RNF-09**: Despliegue reproducible con Docker Compose. `docker compose up` DEBE levantar la aplicación y sus dependencias (PostgreSQL) sin pasos manuales previos, salvo disponer de Docker.
+- **RNF-10**: Los datos de PostgreSQL DEBEN persistir en un volumen nombrado. `docker compose down` no DEBE borrarlos; solo una acción explícita (`docker compose down -v`) puede eliminarlos.
+- **RNF-11**: Toda configuración sensible o dependiente del entorno (credenciales de base de datos, secreto JWT, emisor/audiencia, puertos y orígenes CORS) DEBE recibirse por variables de entorno. El repositorio solo incluye un `.env.example` sin secretos reales.
+- **RNF-12**: Las imágenes DEBEN construirse en múltiples etapas, ejecutar el backend con un usuario sin privilegios y declarar healthchecks para que Compose espere a que cada servicio esté listo.
+- **RNF-13**: Las migraciones de Alembic DEBEN aplicarse automáticamente al arrancar el backend, con reintentos mientras PostgreSQL termina de iniciarse, de modo que la base quede lista sin comandos manuales.
+
+## Despliegue con contenedores
+
+La aplicación se empaqueta en una única imagen multi-etapa con dos destinos construibles (`backend` y `frontend`) y se orquesta con `docker-compose.yml`:
+
+| Servicio | Imagen / construcción | Responsabilidad | Persistencia |
+|----------|-----------------------|-----------------|--------------|
+| `db` | `postgres:16-alpine` | Base de datos relacional | Volumen `ticketing_db_data` |
+| `backend` | Etapa `backend` del `Dockerfile` | FastAPI + Uvicorn + Alembic | Sin estado propio |
+| `frontend` | Etapa `frontend` del `Dockerfile` | SPA Vue compilada + Nginx y proxy `/api` | Sin estado propio |
+
+**Criterios de aceptación del despliegue**:
+
+1. **Dado** un equipo con Docker y sin Python, Node ni PostgreSQL instalados, **cuando** se ejecuta `docker compose up`, **entonces** la aplicación queda disponible en `http://localhost:8080` y la API en `http://localhost:8000`, con el esquema de base de datos migrado.
+2. **Dado** un arranque previo con datos, **cuando** se ejecuta `docker compose down` y después `docker compose up`, **entonces** los tickets y usuarios creados siguen existiendo.
+3. **Dado** un cambio en `JWT_SECRET`, `FRONTEND_PORT`, `FRONTEND_ORIGINS` o en las credenciales de PostgreSQL (recreando el volumen si la base ya estaba inicializada), **cuando** se recrean los contenedores, **entonces** la configuración nueva se aplica sin modificar el código ni la imagen.
+4. **Dado** un fallo temporal de PostgreSQL durante el arranque, **cuando** la base termina de iniciarse, **entonces** el backend aplica las migraciones y arranca sin intervención manual.
+5. **Dado** el repositorio clonado, **cuando** se revisa el historial, **entonces** no contiene `.env`, contraseñas, secretos JWT ni el volumen de datos.
+
+Los comandos concretos y las variables disponibles se documentan en el [`README.md`](../../README.md) de la raíz.
 
 ## Entidades Clave
 
