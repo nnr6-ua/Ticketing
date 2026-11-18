@@ -7,6 +7,7 @@ import {
 } from 'lucide-vue-next'
 
 import type { SlaState } from '@/types/workQueue'
+import type { SlaSemaphore } from '@/types/slaDashboard'
 
 /** Mapas estáticos: Tailwind detecta las clases completas en el build. */
 
@@ -42,4 +43,26 @@ export const SLA_ICON: Record<SlaState, Component> = {
   on_time: CheckCircle2,
   no_sla: MinusCircle,
   finalized: CheckCircle2,
+}
+
+/** Semáforo de cumplimiento (HU-07): clases estáticas para el build. */
+export const SEMAPHORE_BADGE_CLASS: Record<SlaSemaphore, string> = {
+  verde: 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-300',
+  ambar: 'bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-400',
+  rojo: 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-400',
+  sin_datos: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-300',
+}
+
+export const SEMAPHORE_ICON: Record<SlaSemaphore, Component> = {
+  verde: CheckCircle2,
+  ambar: AlertTriangle,
+  rojo: AlertOctagon,
+  sin_datos: MinusCircle,
+}
+
+export const SEMAPHORE_LABEL: Record<SlaSemaphore, string> = {
+  verde: 'En objetivo',
+  ambar: 'En riesgo',
+  rojo: 'Fuera de objetivo',
+  sin_datos: 'Sin datos',
 }

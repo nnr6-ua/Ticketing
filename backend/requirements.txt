@@ -10,4 +10,5 @@ pytest==8.3.4
 httpx==0.28.1
 PyYAML==6.0.2
 jsonschema==4.23.0
+tzdata==2024.2
 python-multipart==0.0.20

@@ -50,6 +50,30 @@ export function setAccessToken(token: string | null): void {
   }
 }
 
+/**
+ * Decodifica el payload del JWT almacenado (sin verificar la firma) y devuelve
+ * el rol. Es un dato solo cosmético para la navegación: la autorización real
+ * la impone el backend con `403`.
+ */
+export function getStoredUserRole(): string | null {
+  const token = getAccessToken()
+  if (!token) {
+    return null
+  }
+  const parts = token.split('.')
+  if (parts.length < 2) {
+    return null
+  }
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(padded)) as { role?: unknown }
+    return typeof payload.role === 'string' ? payload.role : null
+  } catch {
+    return null
+  }
+}
+
 function buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
   const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const search = new URLSearchParams()

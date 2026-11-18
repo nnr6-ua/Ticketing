@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: API de Dashboard de cumplimiento de SLA (HU-07)
+  description: |
+    Endpoints de solo lectura para el dashboard de supervisión de SLA.
+    Requieren rol `supervisor` o `admin` (JWT Bearer). Sin alcance por equipo:
+    los datos son globales. Todos los instantes se devuelven en UTC con sufijo
+    `Z`; la presentación es responsabilidad del cliente (Europe/Madrid, es-ES).
+    Formato de error: {"detail": {"code": "...", "message": "..."}}.
+  version: 1.0.0
+servers:
+  - url: /api/v1
+tags:
+  - name: Dashboard de SLA
+    description: Métricas agregadas de cumplimiento de SLA (solo lectura)
+paths:
+  /sla-dashboard:
+    get:
+      operationId: getSlaDashboard
+      summary: Snapshot completo del dashboard
+      description: |
+        Devuelve en una única respuesta coherente el resumen global, la matriz
+        por prioridad y categoría, los totales por prioridad y por categoría,
+        el ranking de técnicos con tickets vencidos y la meta (instantánea,
+        umbrales y filtros efectivos). Todas las secciones se calculan sobre la
+        misma población (tickets creados en el rango, días naturales
+        Europe/Madrid, ambos extremos incluidos).
+      tags: [Dashboard de SLA]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: false
+          description: Fecha inicial (día natural Europe/Madrid, incluido). Por defecto, hace 29 días naturales del día de la consulta.
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          required: false
+          description: Fecha final (día natural Europe/Madrid, incluido). Por defecto, el día de la consulta.
+          schema:
+            type: string
+            format: date
+        - name: categorias
+          in: query
+          required: false
+          description: |
+            Coma-separado de UUIDs de categoría; el literal `sin_categoria`
+            incluye los tickets sin categoría. Vacío/ausente = todas.
+          schema:
+            type: string
+          example: "5f0c...,sin_categoria"
+        - name: prioridades
+          in: query
+          required: false
+          description: Coma-separado de niveles de prioridad (1=Crítica, 2=Alta, 3=Media, 4=Baja). Vacío/ausente = todas.
+          schema:
+            type: string
+          example: "1,3"
+      responses:
+        '200':
+          description: Instantánea del dashboard
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: "no-store"
+            Vary:
+              schema: { type: string }
+              description: "Authorization"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaDashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Filtros inválidos (rango invertido, fechas o valores mal formados)
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: "no-store"
+            Vary:
+              schema: { type: string }
+              description: "Authorization"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+              examples:
+                invalid_date_range:
+                  value:
+                    detail:
+                      code: invalid_date_range
+                      message: La fecha inicial no puede ser posterior a la fecha final.
+                invalid_request:
+                  value:
+                    detail:
+                      code: invalid_request
+                      message: Revisa los filtros e inténtalo de nuevo.
+  /sla-dashboard/options:
+    get:
+      operationId: getSlaDashboardOptions
+      summary: Opciones de filtro presentes en el periodo
+      description: |
+        Categorías y prioridades con al menos un ticket creado en el periodo,
+        incluyendo las desactivadas (flag `is_active`) y la opción
+        `sin_categoria` cuando existan tickets sin categoría. No expone datos
+        agregados del negocio.
+      tags: [Dashboard de SLA]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: hasta
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Opciones de filtro del periodo
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: "no-store"
+            Vary:
+              schema: { type: string }
+              description: "Authorization"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaDashboardOptions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/InvalidFilters'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Sin sesión válida
+      headers:
+        Cache-Control:
+          schema: { type: string }
+          description: "no-store"
+        Vary:
+          schema: { type: string }
+          description: "Authorization"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+          example:
+            detail:
+              code: not_authenticated
+              message: Tu sesión ha caducado. Inicia sesión de nuevo.
+    Forbidden:
+      description: Rol sin acceso al dashboard (técnicos y usuarios)
+      headers:
+        Cache-Control:
+          schema: { type: string }
+          description: "no-store"
+        Vary:
+          schema: { type: string }
+          description: "Authorization"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+          example:
+            detail:
+              code: forbidden
+              message: No tienes permiso para acceder a este dashboard.
+    InvalidFilters:
+      description: Filtros inválidos
+      headers:
+        Cache-Control:
+          schema: { type: string }
+          description: "no-store"
+        Vary:
+          schema: { type: string }
+          description: "Authorization"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorDetail'
+  schemas:
+    ErrorDetail:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Código estable en snake_case
+            message:
+              type: string
+              description: Mensaje comprensible en español de España
+    Thresholds:
+      type: object
+      required: [green_pct, amber_pct]
+      properties:
+        green_pct:
+          type: number
+          format: float
+          example: 90.0
+        amber_pct:
+          type: number
+          format: float
+          example: 70.0
+    SlaSemaphore:
+      type: string
+      enum: [verde, ambar, rojo, sin_datos]
+      description: |
+        verde >= 90.0; ambar >= 70.0 y < 90.0; rojo < 70.0 (valor exacto de un
+        umbral pertenece a la banda superior). `sin_datos` cuando no hay
+        tickets atendidos con SLA (compliance_pct null). El valor del enum es
+        ASCII (`ambar`); la etiqueta es-ES mostrada es «En riesgo».
+    ComplianceMetrics:
+      type: object
+      required:
+        - ticket_count
+        - no_sla_count
+        - attended_with_sla
+        - on_time
+        - compliance_pct
+        - avg_response_seconds
+        - overdue_count
+        - semaphore
+      properties:
+        ticket_count:
+          type: integer
+          description: Tickets considerados en la agrupación
+        no_sla_count:
+          type: integer
+          description: Tickets sin SLA (excluidos de % y media, nunca vencidos)
+        attended_with_sla:
+          type: integer
+          description: Tickets con primera finalización y SLA (denominador)
+        on_time:
+          type: integer
+          description: Tickets finalizados dentro del límite, incluida la igualdad (numerador)
+        compliance_pct:
+          type: number
+          nullable: true
+          description: Porcentaje redondeado a un decimal (HALF_UP); null = «Sin datos»
+        avg_response_seconds:
+          type: number
+          nullable: true
+          description: Media exacta de segundos entre creación y primera finalización; null = «Sin datos»
+        overdue_count:
+          type: integer
+          description: Tickets vencidos (recuento de tickets, no de eventos)
+        semaphore:
+          $ref: '#/components/schemas/SlaSemaphore'
+    MatrixRow:
+      type: object
+      required: [priority_level, priority_name, priority_is_active, category_id, category_name, category_is_active]
+      allOf:
+        - type: object
+          properties:
+            priority_level:
+              type: integer
+              minimum: 1
+              maximum: 4
+              description: 1=Crítica, 2=Alta, 3=Media, 4=Baja
+            priority_name:
+              type: string
+            priority_is_active:
+              type: boolean
+              description: Estado vigente de la prioridad (para el sufijo «(inactiva)»)
+            category_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: null = fila «Sin categoría»
+            category_name:
+              type: string
+              description: Etiqueta histórica; «Sin categoría» si category_id es null
+            category_is_active:
+              type: boolean
+              nullable: true
+              description: Estado vigente de la categoría; null para «Sin categoría»
+        - $ref: '#/components/schemas/ComplianceMetrics'
+    TotalsEntry:
+      type: object
+      required: [scope]
+      allOf:
+        - type: object
+          properties:
+            scope:
+              type: string
+              enum: [priority, category, global]
+            priority_level:
+              type: integer
+              nullable: true
+            priority_name:
+              type: string
+              nullable: true
+            priority_is_active:
+              type: boolean
+              nullable: true
+            category_id:
+              type: string
+              format: uuid
+              nullable: true
+            category_name:
+              type: string
+              nullable: true
+              description: «Sin categoría» cuando category_id es null y scope = category
+            category_is_active:
+              type: boolean
+              nullable: true
+        - $ref: '#/components/schemas/ComplianceMetrics'
+    RankingEntry:
+      type: object
+      required: [technician_id, technician_name, team, is_active, overdue_count, avg_delay_seconds]
+      properties:
+        technician_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: null = fila «Sin asignar»
+        technician_name:
+          type: string
+          description: Nombre del técnico; «Sin asignar» en la fila sin responsable
+        team:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          nullable: true
+          description: Estado vigente del técnico (para el sufijo «(inactivo)»); null en «Sin asignar»
+        overdue_count:
+          type: integer
+        avg_delay_seconds:
+          type: number
+          description: Media exacta del retraso de sus tickets vencidos (desempate usa el valor exacto)
+    EffectiveFilters:
+      type: object
+      required: [desde, hasta, categorias, prioridades]
+      properties:
+        desde:
+          type: string
+          format: date
+          description: Fecha inicial efectiva (por defecto, calculada en servidor)
+        hasta:
+          type: string
+          format: date
+        categorias:
+          type: array
+          items:
+            type: string
+            description: UUID o el literal "sin_categoria"
+          description: Vacío = todas
+        prioridades:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 4
+          description: Vacío = todas
+    SlaDashboardResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [summary, matrix, priority_totals, category_totals, ranking]
+          properties:
+            summary:
+              $ref: '#/components/schemas/ComplianceMetrics'
+            matrix:
+              type: array
+              description: Combinaciones con al menos un ticket; prioridades en orden 1→4, categorías alfabéticas («Sin categoría» al final)
+              items:
+                $ref: '#/components/schemas/MatrixRow'
+            priority_totals:
+              type: array
+              description: Totales por prioridad (siempre se emiten), orden Crítica→Baja
+              items:
+                $ref: '#/components/schemas/TotalsEntry'
+            category_totals:
+              type: array
+              description: Totales por categoría (siempre se emiten), alfabético («Sin categoría» al final)
+              items:
+                $ref: '#/components/schemas/TotalsEntry'
+            ranking:
+              type: object
+              required: [technicians, unassigned, overdue_total]
+              properties:
+                technicians:
+                  type: array
+                  description: Técnicos con al menos un vencido, orden por volumen DESC, retraso medio DESC, nombre ASC, equipo ASC y technician_id ASC como desempate final estable
+                  items:
+                    $ref: '#/components/schemas/RankingEntry'
+                unassigned:
+                  nullable: true
+                  allOf:
+                    - $ref: '#/components/schemas/RankingEntry'
+                  description: Fila «Sin asignar» (technician_id null); null si no hay vencidos sin responsable
+                overdue_total:
+                  type: integer
+                  description: Suma del ranking incluida «Sin asignar»; coincide con overdue_count del summary
+        meta:
+          type: object
+          required: [generated_at, timezone, thresholds, filters, has_tickets]
+          properties:
+            generated_at:
+              type: string
+              format: date-time
+              description: Instante UTC de la instantánea (sufijo Z)
+            timezone:
+              type: string
+              enum: [Europe/Madrid]
+            thresholds:
+              $ref: '#/components/schemas/Thresholds'
+            filters:
+              $ref: '#/components/schemas/EffectiveFilters'
+            has_tickets:
+              type: boolean
+              description: false ⇒ estado vacío de periodo sin tickets
+    FilterCategoryOption:
+      type: object
+      required: [id, name, is_active]
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+          description: null = opción «Sin categoría»
+        name:
+          type: string
+        is_active:
+          type: boolean
+          nullable: true
+    FilterPriorityOption:
+      type: object
+      required: [level, name, is_active]
+      properties:
+        level:
+          type: integer
+          minimum: 1
+          maximum: 4
+        name:
+          type: string
+        is_active:
+          type: boolean
+    SlaDashboardOptions:
+      type: object
+      required: [desde, hasta, categories, priorities]
+      properties:
+        desde:
+          type: string
+          format: date
+        hasta:
+          type: string
+          format: date
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterCategoryOption'
+        priorities:
+          type: array
+          items:
+            $ref: '#/components/schemas/FilterPriorityOption'
