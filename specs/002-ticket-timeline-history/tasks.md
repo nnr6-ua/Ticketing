@@ -180,3 +180,33 @@ Con múltiples desarrolladores:
 - Tests no incluidos: la especificación no solicita tests y el usuario no pidió enfoque TDD.
 - T002: verificar que el contrato `contracts/ticket-timeline.query.openapi.yaml` apunta a `GET /tickets/{ticket_id}/workflow` (no a `/tickets/{ticket_id}`) antes de empezar la implementación.
 - Duplicados D1-D3 y redacción de "historial completo" (A1): pendientes en `spec.md` (no son tareas de implementación, se resuelven al refinar la especificación).
+
+---
+
+## Phase 7: Convergence
+
+- [X] T019 CRITICAL — Añadir pruebas ejecutables de US2 para comentarios públicos del técnico: el creador ve `autor`, texto y fecha, los internos siguen ocultos, y la UI los identifica como «Comentario» (Constitution IV, US2/AC3, RF-006; missing)
+- [X] T020 CRITICAL — Añadir pruebas de componente en `frontend/tests/components/TicketTimeline.spec.ts` para los controles de paginación de T008: emisión de `page-change`, estados `has_next`/`has_previous` y navegación sin recarga (Constitution IV, T008, US2/AC1; missing)
+- [X] T021 CRITICAL — Añadir pruebas de contrato de `GET /tickets/{ticket_id}/timeline` para 401, 404 `ticket_not_found` y 422 con parámetros `page`/`page_size` inválidos, verificando el formato `{"detail": {"code", "message"}}` (Constitution IV, US2/AC5; missing)
+- [X] T022 [US2] Habilitar entradas de comentario público del técnico (`is_internal=false`) y corregir `frontend/src/components/tickets/TicketTimeline.vue` para etiquetarlas como «Comentario» en lugar de «Interno», manteniendo ocultos los comentarios internos para el creador (US2/AC3, RF-006, RN-03; missing)
+- [X] T023 [US2] Alinear `contracts/ticket-timeline.query.openapi.yaml` con la implementación: documentar 404 en lugar de 403 para ticket ajeno, añadir 422, incluir `created` en el enum de `TimelineEntry` y reflejar `is_internal=false` para comentarios públicos (plan: contracts decision, US2/AC5, Constitution IV; contradicts)
+- [X] T024 [US2] Revisar y justificar o retirar la insignia «Histórica» y su lógica `historicalResolutionIds` en `frontend/src/components/tickets/TicketTimeline.vue`, por no estar solicitada en la spec, el plan ni las tareas de US2 (spec US2/RN-02, Constitution V; unrequested)
+
+---
+
+## Phase 8: Convergence
+
+- [X] T025 [US2] Habilitar la creación de comentarios públicos del técnico (`is_internal=false`) en la vía de escritura existente de `backend/app/services/ticket_workflow.py` y `backend/app/api/v1/tickets.py`, reutilizando la migración `backend/alembic/versions/0005_public_timeline_comments.py`, y añadir una prueba extremo a extremo en `backend/tests/integration/test_timeline_visibility.py` donde el creador ve el comentario con autor, texto y fecha, el interno sigue oculto y la UI lo etiqueta como «Comentario» en `frontend/src/components/tickets/TicketTimeline.vue` (US2/AC3, RF-006, RN-03, T022; partial)
+- [X] T026 [US2] Añadir una prueba backend en `backend/tests/integration/test_timeline_visibility.py` para un ticket sin entradas visibles: `GET /tickets/{ticket_id}/timeline` devuelve 200 con `items=[]`, `total_items=0`, `total_pages=0`, `has_next=false` y `has_previous=false`, y el frontend muestra el mensaje de estado vacío de `frontend/src/components/tickets/TicketTimeline.vue` (US2/AC4, RF-010, caso límite “ticket sin cambios de estado ni comentarios”; missing)
+- [X] T027 [US2] Añadir una prueba ejecutable de la migración `backend/alembic/versions/0005_public_timeline_comments.py` que verifique `upgrade()` y `downgrade()`: la restricción `ck_timeline_internal_comment` admite `is_internal=false` tras `upgrade()` y vuelve a excluirlo tras `downgrade()`, sin perder filas válidas (plan: decisión de modelo de datos, `specs/002-ticket-timeline-history/data-model.md:98`; missing)
+
+---
+
+## Phase 9: Convergence
+
+- [X] T028 CRITICAL — Sustituir la prueba simulada de `backend/tests/integration/test_timeline_visibility.py` (`FakeOp`) por una prueba ejecutable de `upgrade()`/`downgrade()` de `backend/alembic/versions/0005_public_timeline_comments.py` sobre PostgreSQL: insertar fila con `is_internal=false` tras `upgrade()`, verificar que `downgrade()` la rechaza y que no se pierden filas válidas (per T027, Constitution II, Constitution IV, `specs/002-ticket-timeline-history/data-model.md:98`; partial)
+- [X] T029 [US2] Garantizar que el usuario creador nunca reciba comentarios internos en `GET /tickets/{ticket_id}/timeline` aunque tenga rol `tecnico`/`supervisor`/`admin` o sea el asignado, reforzando el filtro en `backend/app/services/ticket_timeline.py` y añadiendo una prueba en `backend/tests/integration/test_timeline_visibility.py` con creador operativo (per US2/AC3, RN-03, SC-006, plan: Constitution III; contradicts)
+- [X] T030 [US2] Exponer un control de `page_size` (1-200) en `frontend/src/components/tickets/TicketTimeline.vue`, emitir el cambio hacia `frontend/src/components/tickets/TicketWorkflowPanel.vue` y usar el valor en `store.loadTimeline` en lugar del `50` fijo, con su prueba de componente (per T008, plan: decisión de paginación; partial)
+- [X] T031 [US2] Añadir una prueba de integración en `frontend/tests/components/TicketWorkflowPanel.spec.ts` que verifique que `page-change` de `TicketTimeline` actualiza `pagination`, vuelve a llamar a `getTimeline` con la página solicitada y no recarga la página (per T020, Constitution IV; partial)
+- [X] T032 [US2] Habilitar la selección de visibilidad pública en el formulario de comentario del técnico (`frontend/src/components/tickets/InternalCommentForm.vue`, `frontend/src/stores/ticketDetail.ts`, `frontend/src/types/ticketWorkflow.ts`), enviando `is_internal=false` a la vía de escritura existente, para que el creador vea el comentario etiquetado como «Comentario» con autor, texto y fecha; añadir prueba de componente (per US2/AC3, RF-006, T022, T025; partial)
+- [X] T033 [US2] Implementar y probar el indicador «sistema» para entradas sin autor registrado en `serialize_entry` de `backend/app/services/ticket_timeline.py` y en `frontend/src/components/tickets/TicketTimeline.vue`, sin exponer datos internos (per caso límite «Entrada de línea temporal sin autor registrado», RF-009; missing)

@@ -12,7 +12,7 @@ Esta historia es de solo lectura y no introduce nuevos modelos de datos. Reusa l
 - `TicketTimelineEntry` (`app/models/timeline.py`, tabla `ticket_timeline_entries`)
 - `User` (`app/models/user.py`, tabla `users`)
 
-No se añaden columnas, tablas ni enums. No se requiere migración de Alembic.
+No se añaden columnas, tablas ni enums. La migración `0005_public_timeline_comments` amplía la restricción de comentarios para admitir entradas públicas (`is_internal = false`), sin alterar las filas ya válidas.
 
 ## Entities
 
@@ -41,7 +41,7 @@ Entrada inmutable y append-only de la línea temporal. Campos relevantes:
 |-------|------|-------------|
 | id | UUID | Identificador único de la entrada |
 | ticket_id | UUID | Ticket al que pertenece la entrada |
-| event_type | TimelineEventType (enum) | `status_change`, `resolution`, `internal_comment` |
+| event_type | TimelineEventType (enum) | `created`, `status_change`, `resolution`, `internal_comment` (`created` lo escribe HU-01) |
 | from_status | TicketStatus | Estado anterior (solo `status_change`) |
 | to_status | TicketStatus | Estado nuevo (solo `status_change`) |
 | body | Text | Texto de resolución o comentario (nulo para `status_change`) |
@@ -76,7 +76,7 @@ Heredadas de HU-05, aplicadas en servidor:
 - `TicketTimelineEntry.body`: si no es nulo, entre 1 y 5.000 caracteres (`ck_timeline_body_length`).
 - `status_change`: `from_status` y `to_status` presentes, distintos, `body` nulo, `is_internal = false`.
 - `resolution`: `to_status = resuelto`, `body` presente, `is_internal = false`.
-- `internal_comment`: `from_status`/`to_status` nulos, `body` presente, `is_internal = true`.
+- `internal_comment`: `from_status`/`to_status` nulos y `body` presente; `is_internal = true` para notas internas (ocultas al creador) y `is_internal = false` para comentarios públicos del técnico, visibles al creador según RN-03. Migración `0005_public_timeline_comments`.
 - Unicidad de `(ticket_id, request_id, event_type)` (`uq_timeline_request_event`) para idempotencia.
 - Índices: `ix_timeline_ticket_created` (ticket_id, created_at), `ix_timeline_ticket_internal` (ticket_id, is_internal), `ix_timeline_author` (author_id).
 
@@ -95,5 +95,5 @@ Los estados válidos y sus transiciones son propiedad de HU-05 (`TicketStatus` e
 - No nuevas tablas.
 - No nuevas columnas.
 - No nuevos enums.
-- No migración de Alembic.
+- Única migración: `0005_public_timeline_comments` (restricción de comentarios ampliada; `upgrade()`/`downgrade()` verificables).
 - No cambios a `data-model.md` de HU-05 (esta historia es de consulta sobre el modelo existente).

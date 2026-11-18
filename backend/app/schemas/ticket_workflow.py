@@ -80,6 +80,7 @@ class StatusTransitionResponse(_Schema):
 class InternalCommentRequest(_Schema):
     body: str
     request_id: UUID
+    is_internal: bool = True
 
 
 class InternalCommentResponse(_Schema):

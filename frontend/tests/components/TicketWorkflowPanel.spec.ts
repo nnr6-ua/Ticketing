@@ -192,6 +192,47 @@ describe('TicketWorkflowPanel', () => {
     expect(wrapper.find('#internal-comment').exists()).toBe(true)
   })
 
+  it('carga la página siguiente sin recargar la vista', async () => {
+    getTimelineMock.mockResolvedValue({
+      ...makeTimeline([makeEntry()]),
+      pagination: {
+        page: 1,
+        page_size: 50,
+        total_items: 3,
+        total_pages: 3,
+        has_next: true,
+        has_previous: false,
+      },
+    })
+
+    const wrapper = mountPanel()
+    await settle()
+
+    getTimelineMock.mockResolvedValue({
+      ...makeTimeline([makeEntry({ id: 'e2' })]),
+      pagination: {
+        page: 2,
+        page_size: 50,
+        total_items: 3,
+        total_pages: 3,
+        has_next: true,
+        has_previous: true,
+      },
+    })
+
+    const nextButton = wrapper
+      .findAll('button')
+      .find((candidate) => candidate.text().includes('Siguiente'))
+    expect(nextButton).toBeDefined()
+    await nextButton!.trigger('click')
+    await settle()
+
+    expect(getTimelineMock).toHaveBeenLastCalledWith('t1', 2, 50)
+    expect(getWorkflowMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Página 2 de 3')
+    expect(wrapper.find('#ticket-timeline-heading').exists()).toBe(true)
+  })
+
   it('muestra la carga de la timeline y no el estado vacío mientras se resuelve', async () => {
     let resolveTimeline!: (value: TimelineResponse) => void
     getTimelineMock.mockReturnValue(
@@ -615,6 +656,38 @@ describe('TicketWorkflowPanel', () => {
     expect(wrapper.find('[role="status"]').text()).toContain(
       'El comentario interno se ha añadido.',
     )
+  })
+
+  it('permite añadir un comentario público visible para el creador', async () => {
+    const publicEntry = makeEntry({
+      id: 'p1',
+      type: 'internal_comment',
+      from_status: null,
+      to_status: null,
+      body: 'Comentario visible para el creador.',
+      is_internal: false,
+    })
+    getTimelineMock.mockResolvedValue(makeTimeline([publicEntry]))
+    addCommentMock.mockResolvedValue({ created: true, entry: publicEntry })
+
+    const wrapper = mountPanel()
+    await settle()
+
+    await wrapper.find('#comment-is-internal').setValue(false)
+    await wrapper.find('#internal-comment').setValue('Comentario visible para el creador.')
+    await wrapper.find('form').trigger('submit')
+    await settle()
+
+    expect(addCommentMock).toHaveBeenCalledWith('t1', {
+      body: 'Comentario visible para el creador.',
+      request_id: REQUEST_1,
+      is_internal: false,
+    })
+    expect(wrapper.text()).toContain('El comentario público se ha añadido.')
+    const rendered = wrapper.find('[data-entry-type="internal_comment"]')
+    expect(rendered.text()).toContain('Comentario visible para el creador.')
+    expect(rendered.text()).toContain('Comentario')
+    expect(rendered.text()).not.toContain('Interno')
   })
 
   it('conserva el comentario si el alta falla y lo limpia en el reintento correcto', async () => {

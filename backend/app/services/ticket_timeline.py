@@ -46,9 +46,13 @@ def viewer_capabilities(user: User, ticket: Ticket) -> ViewerCapabilities:
     """Capacidades calculadas en servidor a partir del rol y la asignación."""
 
     is_assignee = ticket.assignee_id is not None and user.id == ticket.assignee_id
-    can_view_internal = is_assignee or user.role in (
-        UserRole.supervisor,
-        UserRole.admin,
+    is_creator = user.id == ticket.creator_id
+    can_view_internal = not is_creator and (
+        is_assignee
+        or user.role in (
+            UserRole.supervisor,
+            UserRole.admin,
+        )
     )
     can_change_status = (
         is_assignee
@@ -75,6 +79,16 @@ def can_read_ticket(user: User, ticket: Ticket) -> bool:
 def serialize_entry(entry: TicketTimelineEntry) -> TimelineEntry:
     """Convierte una fila del modelo al DTO público."""
 
+    author = entry.author
+    author_ref = (
+        AuthorRef(id=author.id, name=author.name, role=author.role)
+        if author is not None
+        else AuthorRef(
+            id=entry.author_id or UUID(int=0),
+            name="Sistema",
+            role=UserRole.usuario,
+        )
+    )
     return TimelineEntry(
         id=entry.id,
         type=entry.event_type,
@@ -82,11 +96,7 @@ def serialize_entry(entry: TicketTimelineEntry) -> TimelineEntry:
         to_status=entry.to_status,
         body=entry.body,
         is_internal=entry.is_internal,
-        author=AuthorRef(
-            id=entry.author.id,
-            name=entry.author.name,
-            role=entry.author.role,
-        ),
+        author=author_ref,
         created_at=as_utc(entry.created_at) or entry.created_at,
     )
 

@@ -36,6 +36,7 @@ const requestId = ref('')
 const lastRequestSignature = ref('')
 const commentRequestId = ref('')
 const lastCommentSignature = ref('')
+const commentIsInternal = ref(true)
 const resolutionInput = ref<{ focus: () => void } | null>(null)
 const commentInput = ref<{ focus: () => void } | null>(null)
 
@@ -66,8 +67,15 @@ async function load(): Promise<void> {
   await store.loadTimeline(props.ticketId)
 }
 
+const pageSize = ref(50)
+
 async function onPageChange(page: number): Promise<void> {
-  await store.loadTimeline(props.ticketId, page, 50)
+  await store.loadTimeline(props.ticketId, page, pageSize.value)
+}
+
+async function onPageSizeChange(size: number): Promise<void> {
+  pageSize.value = size
+  await store.loadTimeline(props.ticketId, 1, size)
 }
 
 function ensureRequestId(): string {
@@ -80,7 +88,7 @@ function ensureRequestId(): string {
 }
 
 function ensureCommentRequestId(): string {
-  const signature = commentText.value.trim()
+  const signature = `${commentText.value.trim()}|${commentIsInternal.value}`
   if (!commentRequestId.value || signature !== lastCommentSignature.value) {
     commentRequestId.value = crypto.randomUUID()
     lastCommentSignature.value = signature
@@ -166,6 +174,7 @@ async function submitInternalComment(): Promise<void> {
   const response = await store.addComment(
     props.ticketId,
     ensureCommentRequestId(),
+    commentIsInternal.value,
   )
   if (response) {
     commentError.value = null
@@ -343,6 +352,8 @@ onMounted(() => {
               v-model="commentText"
               :disabled="submitting"
               :error="commentError"
+              :is-internal="commentIsInternal"
+              @visibility-change="commentIsInternal = $event"
               @submit="submitInternalComment"
             />
           </div>
@@ -355,6 +366,7 @@ onMounted(() => {
             :loading="timelineLoading && timeline.length === 0"
             :pagination="pagination"
             @page-change="onPageChange"
+            @page-size-change="onPageSizeChange"
           />
         </div>
       </div>

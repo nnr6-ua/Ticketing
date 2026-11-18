@@ -6,12 +6,14 @@ const props = withDefaults(
     modelValue: string
     disabled?: boolean
     error?: string | null
+    isInternal?: boolean
   }>(),
-  { disabled: false, error: null },
+  { disabled: false, error: null, isInternal: true },
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'visibility-change': [isInternal: boolean]
   submit: []
 }>()
 
@@ -23,6 +25,7 @@ const isValid = computed(
 )
 const isOverLimit = computed(() => trimmedLength.value > MAX_LENGTH)
 const canSubmit = computed(() => isValid.value && !props.disabled)
+const isPublic = computed(() => !props.isInternal)
 const textarea = ref<HTMLTextAreaElement | null>(null)
 
 defineExpose({
@@ -31,6 +34,10 @@ defineExpose({
 
 function onInput(event: Event): void {
   emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
+}
+
+function onVisibilityChange(event: Event): void {
+  emit('visibility-change', (event.target as HTMLInputElement).checked)
 }
 
 function onSubmit(): void {
@@ -44,10 +51,14 @@ function onSubmit(): void {
 <template>
   <form novalidate @submit.prevent="onSubmit">
     <label for="internal-comment" class="block text-sm font-medium text-slate-900">
-      Comentario interno
+      {{ isPublic ? 'Comentario público' : 'Comentario interno' }}
     </label>
     <p id="internal-comment-help" class="mt-1 text-sm text-slate-600">
-      Solo visible para el técnico asignado, supervisores y administradores.
+      {{
+        isPublic
+          ? 'Visible para el usuario creador del ticket.'
+          : 'Solo visible para el técnico asignado, supervisores y administradores.'
+      }}
     </p>
     <textarea
       id="internal-comment"
@@ -61,6 +72,19 @@ function onSubmit(): void {
       class="mt-2 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:bg-slate-100"
       @input="onInput"
     ></textarea>
+    <div class="mt-3 flex items-center gap-2">
+      <input
+        id="comment-is-internal"
+        type="checkbox"
+        :checked="props.isInternal"
+        :disabled="props.disabled"
+        class="h-4 w-4 rounded border-slate-300 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        @change="onVisibilityChange"
+      />
+      <label for="comment-is-internal" class="text-sm text-slate-700">
+        Interno (solo visible para el equipo)
+      </label>
+    </div>
     <div class="mt-1 flex items-center justify-between gap-3">
       <p
         id="internal-comment-counter"
@@ -86,7 +110,7 @@ function onSubmit(): void {
       :disabled="!canSubmit"
       class="mt-3 inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
     >
-      Añadir comentario interno
+      {{ isPublic ? 'Añadir comentario público' : 'Añadir comentario interno' }}
     </button>
   </form>
 </template>

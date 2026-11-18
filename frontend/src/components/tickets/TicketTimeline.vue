@@ -15,7 +15,19 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'page-change', page: number): void
+  (e: 'page-size-change', pageSize: number): void
 }>()
+
+const PAGE_SIZES = [10, 25, 50, 100, 200]
+
+const pageSizeOptions = computed(() => {
+  const sizes = [...PAGE_SIZES]
+  const current = props.pagination?.page_size
+  if (current && !sizes.includes(current)) {
+    sizes.push(current)
+  }
+  return sizes.sort((a, b) => a - b)
+})
 
 function previousPage(): void {
   if (props.pagination?.has_previous) {
@@ -26,6 +38,13 @@ function previousPage(): void {
 function nextPage(): void {
   if (props.pagination?.has_next) {
     emit('page-change', props.pagination.page + 1)
+  }
+}
+
+function changePageSize(event: Event): void {
+  const value = Number((event.target as HTMLSelectElement).value)
+  if (Number.isInteger(value) && value >= 1 && value <= 200) {
+    emit('page-size-change', value)
   }
 }
 
@@ -52,41 +71,16 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date)
 }
 
+function authorName(entry: TimelineEntry): string {
+  return entry.author?.name ?? 'Sistema'
+}
+
 // El backend ya filtra las entradas internas; se vuelve a aplicar la regla en
 // el cliente para no renderizar datos internos si llegasen por error.
 const visibleEntries = computed(() =>
   props.entries.filter((entry) => !entry.is_internal || props.canSeeInternal),
 )
 
-// Reapertura: `status_change` de `resuelto` a `en_progreso`. Las resoluciones
-// anteriores a la última reapertura se identifican como históricas sin alterar
-// el orden ni el texto recibidos.
-const historicalResolutionIds = computed(() => {
-  let lastReopenIndex = -1
-  props.entries.forEach((entry, index) => {
-    if (
-      entry.type === 'status_change' &&
-      entry.from_status === 'resuelto' &&
-      entry.to_status === 'en_progreso'
-    ) {
-      lastReopenIndex = index
-    }
-  })
-
-  if (lastReopenIndex < 0) {
-    return new Set<string>()
-  }
-
-  return new Set(
-    props.entries
-      .filter((entry, index) => index < lastReopenIndex && entry.type === 'resolution')
-      .map((entry) => entry.id),
-  )
-})
-
-function isHistoricalResolution(entryId: string): boolean {
-  return historicalResolutionIds.value.has(entryId)
-}
 </script>
 
 <template>
@@ -119,7 +113,7 @@ function isHistoricalResolution(entryId: string): boolean {
         :class="
           entry.type === 'resolution'
             ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : entry.type === 'internal_comment'
+            : entry.type === 'internal_comment' && entry.is_internal
               ? 'border-amber-200 bg-amber-50 text-amber-800'
               : 'border-slate-200 bg-white text-slate-800'
         "
@@ -134,7 +128,7 @@ function isHistoricalResolution(entryId: string): boolean {
                 Ticket creado
               </span>
               <p class="mt-2 text-sm">
-                {{ entry.author.name }} creó el ticket.
+                {{ authorName(entry) }} creó el ticket.
               </p>
             </template>
 
@@ -145,7 +139,7 @@ function isHistoricalResolution(entryId: string): boolean {
                 Cambio de estado
               </span>
               <p class="mt-2 text-sm">
-                {{ entry.author.name }} cambió el estado de
+                {{ authorName(entry) }} cambió el estado de
                 {{ statusLabel(entry.from_status) }} a
                 {{ statusLabel(entry.to_status) }}.
               </p>
@@ -157,23 +151,23 @@ function isHistoricalResolution(entryId: string): boolean {
               >
                 Resolución
               </span>
-              <span
-                v-if="isHistoricalResolution(entry.id)"
-                class="ml-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
-                data-historical-resolution="true"
-              >
-                Histórica
-              </span>
               <p class="mt-2 whitespace-pre-wrap break-words text-sm">
                 {{ entry.body }}
               </p>
             </template>
 
-            <template v-else>
+            <template v-else-if="entry.type === 'internal_comment'">
               <span
+                v-if="entry.is_internal"
                 class="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
               >
                 Interno
+              </span>
+              <span
+                v-else
+                class="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+              >
+                Comentario
               </span>
               <p class="mt-2 whitespace-pre-wrap break-words text-sm">
                 {{ entry.body }}
@@ -187,7 +181,7 @@ function isHistoricalResolution(entryId: string): boolean {
             {{ formatDate(entry.created_at) }}
           </time>
         </div>
-        <p class="mt-2 text-xs text-slate-600">{{ entry.author.name }}</p>
+        <p class="mt-2 text-xs text-slate-600">{{ authorName(entry) }}</p>
       </li>
     </ol>
 
@@ -203,9 +197,24 @@ function isHistoricalResolution(entryId: string): boolean {
       >
         Anterior
       </button>
-      <span class="text-sm text-slate-600">
-        Página {{ pagination.page }} de {{ pagination.total_pages }}
-      </span>
+      <div class="flex flex-wrap items-center gap-2">
+        <label for="timeline-page-size" class="text-sm text-slate-600">
+          Entradas por página
+        </label>
+        <select
+          id="timeline-page-size"
+          :value="pagination.page_size"
+          class="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          @change="changePageSize"
+        >
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">
+            {{ size }}
+          </option>
+        </select>
+        <span class="text-sm text-slate-600">
+          Página {{ pagination.page }} de {{ pagination.total_pages }}
+        </span>
+      </div>
       <button
         type="button"
         :disabled="!pagination.has_next"

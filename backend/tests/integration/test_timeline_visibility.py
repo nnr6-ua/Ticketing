@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
-from sqlalchemy import and_, select
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from sqlalchemy import and_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.db.session import engine
 
 from app.models import (
     Ticket,
@@ -15,8 +23,10 @@ from app.models import (
     TicketTimelineEntry,
     TimelineEventType,
     User,
+    UserRole,
 )
 from app.services.ticket_state_machine import allowed_transitions
+from app.services.ticket_timeline import serialize_entry
 
 API = "/api/v1/tickets"
 MIGRATION_CUTOFF = datetime(2026, 11, 2, tzinfo=timezone.utc)
@@ -145,6 +155,36 @@ def test_unassigned_technician_only_sees_public_entries(
     capabilities = workflow.json()
     assert capabilities["can_view_internal"] is False
     assert capabilities["can_comment_internally"] is False
+
+
+@pytest.mark.parametrize(
+    "key, can_change", [("tecnico_asignado", True), ("supervisor", False), ("admin", False)]
+)
+def test_creator_with_operative_role_only_sees_public_entries(
+    client, db, seeded_workflow, auth_headers, key, can_change
+) -> None:
+    """US2/AC3: ser creador limita la visibilidad aunque tenga rol operativo."""
+
+    ticket = seeded_workflow.tickets["en_progreso"]
+    _seed_entities(db, ticket, seeded_workflow)
+    creator = seeded_workflow.users[key]
+    ticket.creator_id = creator.id
+    db.commit()
+    headers = auth_headers(creator)
+
+    timeline = _timeline(client, ticket, headers)
+    workflow = _workflow(client, ticket, headers)
+
+    assert timeline.status_code == 200, timeline.text
+    assert _types(timeline.json()) == ["status_change", "resolution"]
+    assert all(item["is_internal"] is False for item in timeline.json()["items"])
+    assert all(item["body"] != "Nota solo para el equipo." for item in timeline.json()["items"])
+    assert timeline.json()["pagination"]["total_items"] == 2
+
+    assert workflow.status_code == 200, workflow.text
+    capabilities = workflow.json()
+    assert capabilities["can_view_internal"] is False
+    assert capabilities["can_change_status"] is can_change
 
 
 @pytest.mark.parametrize(
@@ -400,3 +440,252 @@ def test_timeline_entry_ticket_relationship(
     assert loaded is not None
     assert loaded.ticket.id == ticket.id
     assert loaded.ticket.number == ticket.number
+
+
+def test_creator_sees_public_comment_with_author_and_date(
+    client, db, seeded_workflow, auth_headers
+) -> None:
+    """US2/AC3: el creador ve comentarios públicos con autor y fecha, nunca internos."""
+
+    ticket = seeded_workflow.tickets["en_progreso"]
+    author = seeded_workflow.users["tecnico_asignado"]
+    created_at = seeded_workflow.now - timedelta(minutes=30)
+    public_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"hu02-public-comment-{ticket.id}")
+    internal_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"hu02-internal-comment-{ticket.id}")
+    db.add_all(
+        [
+            TicketTimelineEntry(
+                id=public_id,
+                ticket_id=ticket.id,
+                event_type=TimelineEventType.internal_comment,
+                from_status=None,
+                to_status=None,
+                body="Comentario público del técnico.",
+                is_internal=False,
+                author_id=author.id,
+                created_at=created_at,
+                event_order=0,
+                request_id=uuid.uuid5(uuid.NAMESPACE_DNS, f"hu02-public-req-{ticket.id}"),
+            ),
+            TicketTimelineEntry(
+                id=internal_id,
+                ticket_id=ticket.id,
+                event_type=TimelineEventType.internal_comment,
+                from_status=None,
+                to_status=None,
+                body="Nota solo para el equipo.",
+                is_internal=True,
+                author_id=author.id,
+                created_at=created_at + timedelta(minutes=1),
+                event_order=0,
+                request_id=uuid.uuid5(
+                    uuid.NAMESPACE_DNS, f"hu02-internal-req-{ticket.id}"
+                ),
+            ),
+        ]
+    )
+    db.commit()
+
+    response = _timeline(client, ticket, auth_headers(seeded_workflow.users["creador"]))
+
+    assert response.status_code == 200, response.text
+    items = response.json()["items"]
+    public = next(
+        item for item in items if item["body"] == "Comentario público del técnico."
+    )
+    assert public["type"] == "internal_comment"
+    assert public["is_internal"] is False
+    assert public["author"]["id"] == str(author.id)
+    assert public["author"]["name"] == author.name
+    assert public["author"]["role"] == author.role.value
+    assert (
+        datetime.fromisoformat(public["created_at"].replace("Z", "+00:00"))
+        == created_at
+    )
+    assert all(item["is_internal"] is False for item in items)
+    assert all(item["body"] != "Nota solo para el equipo." for item in items)
+
+
+def test_technician_creates_public_comment_visible_to_creator(
+    client, seeded_workflow, auth_headers
+) -> None:
+    """US2/AC3: la vía de escritura existente permite comentarios públicos."""
+
+    ticket = seeded_workflow.tickets["en_progreso"]
+    technician = seeded_workflow.users["tecnico_asignado"]
+    technician_headers = auth_headers(technician)
+
+    public_response = client.post(
+        _url(ticket, "internal-comments"),
+        headers=technician_headers,
+        json={
+            "body": "Comentario público creado desde la API.",
+            "request_id": str(uuid.uuid4()),
+            "is_internal": False,
+        },
+    )
+    internal_response = client.post(
+        _url(ticket, "internal-comments"),
+        headers=technician_headers,
+        json={
+            "body": "Nota solo para el equipo.",
+            "request_id": str(uuid.uuid4()),
+            "is_internal": True,
+        },
+    )
+
+    assert public_response.status_code == 201, public_response.text
+    assert internal_response.status_code == 201, internal_response.text
+    public = public_response.json()["entry"]
+    assert public["type"] == "internal_comment"
+    assert public["is_internal"] is False
+    assert public["body"] == "Comentario público creado desde la API."
+    assert public["author"]["id"] == str(technician.id)
+    assert public["author"]["name"] == technician.name
+    assert public["author"]["role"] == technician.role.value
+    assert datetime.fromisoformat(public["created_at"].replace("Z", "+00:00"))
+
+    timeline = _timeline(client, ticket, auth_headers(seeded_workflow.users["creador"]))
+
+    assert timeline.status_code == 200, timeline.text
+    items = timeline.json()["items"]
+    assert [item["id"] for item in items].count(public["id"]) == 1
+    assert all(item["is_internal"] is False for item in items)
+    assert all(item["body"] != "Nota solo para el equipo." for item in items)
+
+
+def test_creator_gets_empty_timeline_payload(client, seeded_workflow, auth_headers) -> None:
+    """US2/AC4: un ticket sin entradas devuelve historial vacío y paginación coherente."""
+
+    ticket = seeded_workflow.tickets["abierto"]
+
+    response = _timeline(client, ticket, auth_headers(seeded_workflow.users["creador"]))
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "items": [],
+        "pagination": {
+            "page": 1,
+            "page_size": 50,
+            "total_items": 0,
+            "total_pages": 0,
+            "has_next": False,
+            "has_previous": False,
+        },
+    }
+
+
+def test_entry_without_author_is_serialized_as_sistema() -> None:
+    """Caso límite: una entrada sin autor muestra «Sistema» sin exponer datos internos."""
+
+    entry = TicketTimelineEntry(
+        id=uuid.uuid4(),
+        ticket_id=uuid.uuid4(),
+        event_type=TimelineEventType.internal_comment,
+        from_status=None,
+        to_status=None,
+        body="Entrada sin autor.",
+        is_internal=False,
+        author_id=uuid.uuid4(),
+        created_at=datetime.now(timezone.utc),
+        event_order=0,
+        request_id=uuid.uuid4(),
+    )
+
+    serialized = serialize_entry(entry)
+
+    assert serialized.author.name == "Sistema"
+    assert serialized.author.role is UserRole.usuario
+
+
+@pytest.mark.postgres
+def test_public_timeline_comments_migration_is_reversible_on_postgres() -> None:
+    """0005 admite comentarios públicos y conserva las filas válidas (PostgreSQL)."""
+
+    database_url = os.environ.get("TEST_DATABASE_URL", "").strip()
+    if not database_url or database_url.startswith("sqlite"):
+        pytest.skip("requiere TEST_DATABASE_URL apuntando a PostgreSQL")
+
+    migration_path = (
+        Path(__file__).resolve().parents[2]
+        / "alembic"
+        / "versions"
+        / "0005_public_timeline_comments.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0005", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    schema = f"hu02_migration_{uuid.uuid4().hex[:12]}"
+    table = "ticket_timeline_entries"
+    legacy_id = str(uuid.uuid4())
+    public_id = str(uuid.uuid4())
+    second_public_id = str(uuid.uuid4())
+
+    def insert(connection, entry_id: str, is_internal: bool) -> None:
+        with connection.begin_nested():
+            connection.execute(
+                text(
+                    f'INSERT INTO "{schema}".{table} '
+                    "(id, event_type, from_status, to_status, body, is_internal) "
+                    "VALUES (:id, 'internal_comment', NULL, NULL, :body, :is_internal)"
+                ),
+                {
+                    "id": entry_id,
+                    "body": "Comentario de prueba.",
+                    "is_internal": is_internal,
+                },
+            )
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+            connection.execute(
+                text(
+                    f'CREATE TABLE "{schema}".{table} ('
+                    "id uuid PRIMARY KEY, event_type text NOT NULL, "
+                    "from_status text, to_status text, body text, "
+                    "is_internal boolean NOT NULL, "
+                    f"CONSTRAINT ck_timeline_internal_comment CHECK ("
+                    "(event_type <> 'internal_comment') OR "
+                    "(from_status IS NULL AND to_status IS NULL "
+                    "AND body IS NOT NULL AND is_internal = true)))"
+                )
+            )
+            insert(connection, legacy_id, True)
+            with pytest.raises(IntegrityError):
+                insert(connection, public_id, False)
+
+        def apply(operation) -> None:
+            with engine.begin() as connection:
+                connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+                context = MigrationContext.configure(connection)
+                with Operations.context(context):
+                    operation()
+
+        apply(migration.upgrade)
+        with engine.begin() as connection:
+            insert(connection, public_id, False)
+            visible_ids = {
+                str(row[0])
+                for row in connection.execute(
+                    text(f'SELECT id FROM "{schema}".{table}')
+                )
+            }
+        assert visible_ids == {legacy_id, public_id}
+
+        apply(migration.downgrade)
+        with engine.begin() as connection:
+            with pytest.raises(IntegrityError):
+                insert(connection, second_public_id, False)
+            remaining_ids = {
+                str(row[0])
+                for row in connection.execute(
+                    text(f'SELECT id FROM "{schema}".{table}')
+                )
+            }
+        assert remaining_ids == {legacy_id, public_id}
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))

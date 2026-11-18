@@ -85,7 +85,7 @@ describe('TicketTimeline', () => {
     expect(wrapper.find('b').exists()).toBe(false)
   })
 
-  it('identifica como históricas las resoluciones anteriores a una reapertura', () => {
+  it('muestra las resoluciones sin etiquetas no solicitadas tras una reapertura', () => {
     const wrapper = mount(TicketTimeline, {
       props: {
         canSeeInternal: false,
@@ -104,14 +104,6 @@ describe('TicketTimeline', () => {
             to_status: 'en_progreso',
             created_at: '2026-11-03T09:00:00Z',
           }),
-          entry({
-            id: 'r2',
-            type: 'resolution',
-            from_status: null,
-            to_status: 'resuelto',
-            body: 'Segunda solución.',
-            created_at: '2026-11-03T10:00:00Z',
-          }),
         ],
       },
     })
@@ -120,15 +112,34 @@ describe('TicketTimeline', () => {
     expect(items.map((item) => item.attributes('data-entry-type'))).toEqual([
       'resolution',
       'status_change',
-      'resolution',
     ])
-
-    const historical = wrapper.findAll('[data-historical-resolution="true"]')
-    expect(historical).toHaveLength(1)
-    expect(items[0]?.find('[data-historical-resolution="true"]').exists()).toBe(true)
-    expect(items[2]?.find('[data-historical-resolution="true"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-historical-resolution="true"]')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('Histórica')
     expect(wrapper.text()).toContain('Primera solución.')
-    expect(wrapper.text()).toContain('Segunda solución.')
+  })
+
+  it('identifica los comentarios públicos como comentarios con autor y fecha', () => {
+    const wrapper = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [
+          entry({
+            id: 'public',
+            type: 'internal_comment',
+            from_status: null,
+            to_status: null,
+            body: 'Comentario público del técnico.',
+            is_internal: false,
+          }),
+        ],
+      },
+    })
+
+    expect(wrapper.text()).toContain('Comentario')
+    expect(wrapper.text()).not.toContain('Interno')
+    expect(wrapper.text()).toContain('Comentario público del técnico.')
+    expect(wrapper.text()).toContain('Técnica Asignada')
+    expect(wrapper.find('time').text()).toContain('11:16')
   })
 
   it('oculta los comentarios internos cuando canSeeInternal es false', () => {
@@ -189,11 +200,109 @@ describe('TicketTimeline', () => {
     )
   })
 
+  it('muestra «Sistema» cuando una entrada no tiene autor registrado', () => {
+    const wrapper = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [entry({ author: undefined as never })],
+      },
+    })
+
+    expect(wrapper.text()).toContain('Sistema')
+  })
+
   it('no ofrece botones de edición ni borrado', () => {
     const wrapper = mount(TicketTimeline, {
       props: { canSeeInternal: true, entries: [entry({})] },
     })
 
     expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+
+  it('navega entre páginas emitiendo page-change', async () => {
+    const wrapper = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [entry({})],
+        pagination: {
+          page: 1,
+          page_size: 1,
+          total_items: 3,
+          total_pages: 3,
+          has_next: true,
+          has_previous: false,
+        },
+      },
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0]?.attributes('disabled')).toBeDefined()
+    expect(buttons[1]?.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('Página 1 de 3')
+
+    await buttons[1]?.trigger('click')
+    expect(wrapper.emitted('page-change')).toEqual([[2]])
+  })
+
+  it('permite cambiar el tamaño de página emitiendo page-size-change', async () => {
+    const wrapper = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [entry({})],
+        pagination: {
+          page: 1,
+          page_size: 50,
+          total_items: 3,
+          total_pages: 1,
+          has_next: false,
+          has_previous: false,
+        },
+      },
+    })
+
+    const select = wrapper.find('#timeline-page-size')
+    expect(select.exists()).toBe(true)
+    expect((select.element as HTMLSelectElement).value).toBe('50')
+
+    await select.setValue('25')
+    expect(wrapper.emitted('page-size-change')).toEqual([[25]])
+  })
+
+  it('permite volver a la página anterior y oculta los controles sin entradas', async () => {
+    const wrapper = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [entry({})],
+        pagination: {
+          page: 2,
+          page_size: 1,
+          total_items: 3,
+          total_pages: 3,
+          has_next: true,
+          has_previous: true,
+        },
+      },
+    })
+
+    const buttons = wrapper.findAll('button')
+    await buttons[0]?.trigger('click')
+    expect(wrapper.emitted('page-change')).toEqual([[1]])
+
+    const empty = mount(TicketTimeline, {
+      props: {
+        canSeeInternal: false,
+        entries: [],
+        pagination: {
+          page: 1,
+          page_size: 50,
+          total_items: 0,
+          total_pages: 0,
+          has_next: false,
+          has_previous: false,
+        },
+      },
+    })
+    expect(empty.findAll('button')).toHaveLength(0)
   })
 })
