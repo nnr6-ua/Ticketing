@@ -30,6 +30,11 @@ class Priority(Base):
     __table_args__ = (
         CheckConstraint("level BETWEEN 1 AND 4", name="ck_priorities_level"),
         Index(
+            "uq_priorities_name_normalized",
+            text("lower(trim(name))"),
+            unique=True,
+        ),
+        Index(
             "uq_priorities_level_active_non_system",
             "level",
             unique=True,

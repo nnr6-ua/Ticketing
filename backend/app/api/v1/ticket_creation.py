@@ -59,6 +59,7 @@ def _ticket_read(
         duplicate=duplicate,
         sla_priority_level=ticket.sla_priority_level,
         sla_hours_applied=ticket.sla_hours_applied,
+        sla_deadline=ticket.sla_deadline,
         sla_version=ticket.sla_version,
         sla_config_version_id=ticket.sla_config_version_id,
     )

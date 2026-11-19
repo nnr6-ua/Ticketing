@@ -5,22 +5,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { ApiClientError, setAccessToken } from '@/api/client'
 import { devLogin } from '@/api/devAuth'
 import { setStoredUserRole } from '@/auth/session'
-import { landingForRole, WORK_QUEUE_PATH } from '@/router/landing'
+import { landingForRole } from '@/router/landing'
 
 const route = useRoute()
 const router = useRouter()
 
 const DEV_USERS = [
-  { email: 'tecnico.a@example.com', label: 'Técnico A · 5 activos + finalizados' },
-  { email: 'tecnico.b@example.com', label: 'Técnico B · 2 activos' },
-  { email: 'tecnico.c@example.com', label: 'Técnico C · solo finalizados' },
-  { email: 'tecnico.d@example.com', label: 'Técnico D · cola vacía' },
-  { email: 'supervisor@example.com', label: 'Supervisor · 403 en la cola' },
-  { email: 'admin@example.com', label: 'Administración · configuración' },
-  { email: 'usuario@example.com', label: 'Solicitante · mis tickets' },
-]
+  { email: 'tecnico.a@example.com', role: 'tecnico', label: 'Técnico A · 5 activos + finalizados' },
+  { email: 'tecnico.b@example.com', role: 'tecnico', label: 'Técnico B · 2 activos' },
+  { email: 'tecnico.c@example.com', role: 'tecnico', label: 'Técnico C · solo finalizados' },
+  { email: 'tecnico.d@example.com', role: 'tecnico', label: 'Técnico D · cola vacía' },
+  { email: 'supervisor@example.com', role: 'supervisor', label: 'Supervisor · 403 en la cola' },
+  { email: 'admin@example.com', role: 'admin', label: 'Administración · configuración' },
+  { email: 'usuario@example.com', role: 'usuario', label: 'Solicitante · mis tickets' },
+] as const
 
-const email = ref(DEV_USERS[0].email)
+const email = ref<string>(DEV_USERS[0].email)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
@@ -32,7 +32,11 @@ function requestedRedirect(): string | null {
   return null
 }
 
-const redirectTarget = computed(() => requestedRedirect() ?? WORK_QUEUE_PATH)
+const redirectTarget = computed(() => {
+  if (requestedRedirect()) return requestedRedirect()
+  const selected = DEV_USERS.find((user) => user.email === email.value)
+  return landingForRole(selected?.role)
+})
 
 async function submit(): Promise<void> {
   if (loading.value) {

@@ -6,13 +6,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
 from app.models import (
     Attachment,
+    Category,
     ConfigurationVersion,
     Priority,
     SlaRule,
@@ -29,7 +30,7 @@ from app.services.attachments import (
     remove_files,
 )
 from app.services.duplicates import compute_content_hash, normalize_text
-from app.services.sla_resolution import resolve_sla
+from app.services.sla_resolution import ResolvedSla, resolve_sla
 from app.services.suggestions import Suggestion, suggest
 
 MAX_TITLE_LENGTH = 120
@@ -79,6 +80,18 @@ def _next_ticket_number(session: Session) -> str:
     return f"TK-{int(value):06d}"
 
 
+def _lock_current_version(session: Session) -> None:
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    statement = (
+        select(ConfigurationVersion.id)
+        .order_by(ConfigurationVersion.version.desc())
+        .limit(1)
+        .with_for_update(read=True, of=ConfigurationVersion)
+    )
+    session.execute(statement)
+
+
 def _resolve_priority(
     session: Session,
     priority_id: int | str | None,
@@ -99,6 +112,44 @@ def _resolve_priority(
             "La prioridad seleccionada no existe, no está activa o es de sistema.",
         )
     return priority
+
+
+def _resolve_sla_snapshot(
+    session: Session,
+    category: Category,
+    priority: Priority,
+) -> tuple[ResolvedSla, UUID, int]:
+    statement = (
+        select(ConfigurationVersion, SlaRule)
+        .select_from(ConfigurationVersion)
+        .outerjoin(
+            SlaRule,
+            and_(
+                SlaRule.category_id == category.id,
+                SlaRule.priority_id == priority.id,
+                SlaRule.valid_to_version.is_(None),
+            ),
+        )
+        .order_by(ConfigurationVersion.version.desc())
+        .limit(1)
+    )
+    if session.get_bind().dialect.name == "postgresql":
+        statement = statement.with_for_update(read=True, of=ConfigurationVersion)
+    row = session.execute(statement).first()
+    if row is None:
+        raise ApiError(
+            500,
+            "configuration_not_initialized",
+            "La configuración base no está inicializada.",
+        )
+    config_version, current_rule = row
+    resolution = resolve_sla(
+        category_id=category.id,
+        priority=priority,
+        current_rule=current_rule,
+        config_version=config_version,
+    )
+    return resolution, config_version.id, config_version.version
 
 
 def create_ticket(
@@ -122,38 +173,12 @@ def create_ticket(
             cleanup_staged(staged)
             return existing, True
 
+        _lock_current_version(session)
         suggestion = suggest(session, clean_title, clean_description)
         priority = _resolve_priority(session, priority_id, suggestion)
 
-        version_statement = (
-            select(ConfigurationVersion)
-            .order_by(ConfigurationVersion.version.desc())
-            .limit(1)
-        )
-        if session.get_bind().dialect.name == "postgresql":
-            version_statement = version_statement.with_for_update(read=True)
-        configuration_version = session.scalar(version_statement)
-        if configuration_version is None:
-            raise ApiError(
-                500,
-                "configuration_not_initialized",
-                "La configuración base no está inicializada.",
-            )
-
-        sla_rule = session.scalar(
-            select(SlaRule)
-            .where(
-                SlaRule.category_id == suggestion.category.id,
-                SlaRule.priority_id == priority.id,
-                SlaRule.valid_to_version.is_(None),
-            )
-            .limit(1)
-        )
-        resolution = resolve_sla(
-            rule_hours=sla_rule.hours if sla_rule is not None else None,
-            base_hours=priority.base_hours,
-            version=configuration_version.version,
-            priority_level=priority.level,
+        resolution, configuration_version_id, configuration_version = (
+            _resolve_sla_snapshot(session, suggestion.category, priority)
         )
         created_at = datetime.now(timezone.utc)
         ticket_number = _next_ticket_number(session)
@@ -171,8 +196,8 @@ def create_ticket(
             sla_deadline=created_at + timedelta(hours=float(resolution.hours)),
             sla_priority_level=resolution.priority_level,
             sla_hours_applied=resolution.hours,
-            sla_config_version_id=configuration_version.id,
-            sla_version=f"v{resolution.version}",
+            sla_config_version_id=configuration_version_id,
+            sla_version=f"v{configuration_version}",
         )
     except Exception:
         cleanup_staged(staged)

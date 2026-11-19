@@ -65,6 +65,7 @@ function buildUrl(path: string, query?: Record<string, string | number | undefin
 interface RequestOptions {
   signal?: AbortSignal
   query?: Record<string, string | number | undefined>
+  fallbackMessage?: string
 }
 
 async function parseError(
@@ -148,7 +149,7 @@ export async function apiGet<T>(path: string, options: RequestOptions = {}): Pro
   }
 
   if (!response.ok) {
-    throw await parseError(response)
+    throw await parseError(response, options.fallbackMessage)
   }
 
   return (await response.json()) as T

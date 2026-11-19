@@ -36,6 +36,30 @@ const form = reactive({
   replacement_default_id: '',
 })
 const localError = ref<string | null>(null)
+const dismissedServerError = ref<{ code: string; message: string } | null>(null)
+
+const activeServerError = computed(() =>
+  props.serverError && props.serverError !== dismissedServerError.value
+    ? props.serverError
+    : null,
+)
+const nameError = computed(() => {
+  if (localError.value === 'El nombre es obligatorio.') return localError.value
+  if (activeServerError.value?.code === 'duplicate_catalog_name') {
+    return activeServerError.value.message
+  }
+  return null
+})
+const generalError = computed(() =>
+  localError.value && localError.value !== 'El nombre es obligatorio.'
+    ? localError.value
+    : null,
+)
+const bannerError = computed(() =>
+  activeServerError.value?.code === 'duplicate_catalog_name'
+    ? null
+    : activeServerError.value,
+)
 
 const editing = computed(() => props.category !== null && props.category !== undefined)
 const candidates = computed(() =>
@@ -48,6 +72,10 @@ const needsReplacement = computed(
     editing.value &&
     props.category?.is_default === true &&
     (!form.is_active || !form.is_default),
+)
+const invalidName = computed(() => nameError.value !== null)
+const invalidReplacement = computed(() =>
+  Boolean(localError.value?.startsWith('Selecciona otra categoría')),
 )
 
 watch(
@@ -63,6 +91,7 @@ watch(
     form.is_default = category?.is_default ?? false
     form.replacement_default_id = ''
     localError.value = null
+    dismissedServerError.value = props.serverError ?? null
   },
   { immediate: true },
 )
@@ -79,6 +108,7 @@ function keywords(): string[] {
       return true
     })
 }
+const keywordChips = computed(() => keywords())
 
 function submit(): void {
   localError.value = null
@@ -137,11 +167,11 @@ function submit(): void {
             </button>
           </div>
           <p
-            v-if="serverError"
+            v-if="bannerError"
             class="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800"
             role="alert"
           >
-            {{ serverError.message }}
+            {{ bannerError.message }}
           </p>
 
           <form class="mt-4 space-y-4" @submit.prevent="submit">
@@ -155,9 +185,18 @@ function submit(): void {
                 type="text"
                 maxlength="100"
                 required
-                :aria-describedby="localError ? 'category-error' : undefined"
+                :aria-invalid="invalidName"
+                :aria-describedby="nameError ? 'category-name-error' : undefined"
                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
               />
+              <p
+                v-if="nameError"
+                id="category-name-error"
+                class="mt-1 text-sm text-rose-700"
+                role="alert"
+              >
+                {{ nameError }}
+              </p>
             </div>
             <div>
               <label for="category-description" class="block text-sm font-medium text-slate-800">
@@ -181,6 +220,21 @@ function submit(): void {
                 type="text"
                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
               />
+              <div
+                v-if="keywordChips.length"
+                class="mt-2 flex flex-wrap gap-1"
+                role="list"
+                aria-label="Palabras clave introducidas"
+              >
+                <span
+                  v-for="keyword in keywordChips"
+                  :key="keyword"
+                  role="listitem"
+                  class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                >
+                  {{ keyword }}
+                </span>
+              </div>
               <p class="mt-1 text-xs text-slate-500">Sepáralas con comas.</p>
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
@@ -217,8 +271,10 @@ function submit(): void {
               </label>
               <select
                 id="category-replacement"
-                v-model="form.replacement_default_id"
-                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  v-model="form.replacement_default_id"
+                  :aria-invalid="invalidReplacement"
+                  :aria-describedby="generalError ? 'category-error' : undefined"
+                  class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">Selecciona una categoría</option>
                 <option v-for="candidate in candidates" :key="candidate.id" :value="candidate.id">
@@ -228,12 +284,12 @@ function submit(): void {
             </div>
 
             <p
-              v-if="localError"
+              v-if="generalError"
               id="category-error"
               class="text-sm text-rose-700"
               role="alert"
             >
-              {{ localError }}
+              {{ generalError }}
             </p>
 
             <div class="flex justify-end gap-3 pt-2">

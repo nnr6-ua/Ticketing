@@ -38,6 +38,48 @@ const form = reactive({
   replacement_default_id: '',
 })
 const localError = ref<string | null>(null)
+const dismissedServerError = ref<{ code: string; message: string } | null>(null)
+
+const activeServerError = computed(() =>
+  props.serverError && props.serverError !== dismissedServerError.value
+    ? props.serverError
+    : null,
+)
+const nameError = computed(() => {
+  if (localError.value === 'El nombre es obligatorio.') return localError.value
+  if (activeServerError.value?.code === 'duplicate_catalog_name') {
+    return activeServerError.value.message
+  }
+  return null
+})
+const levelError = computed(() => {
+  if (localError.value === 'El nivel debe estar entre 1 y 4.') return localError.value
+  if (activeServerError.value?.code === 'duplicate_priority_level') {
+    return activeServerError.value.message
+  }
+  return null
+})
+const hoursError = computed(() =>
+  localError.value === 'El plazo base debe ser un número positivo de horas.'
+    ? localError.value
+    : null,
+)
+const generalError = computed(() =>
+  localError.value &&
+  ![
+    'El nombre es obligatorio.',
+    'El nivel debe estar entre 1 y 4.',
+    'El plazo base debe ser un número positivo de horas.',
+  ].includes(localError.value)
+    ? localError.value
+    : null,
+)
+const bannerError = computed(() => {
+  const code = activeServerError.value?.code
+  return code === 'duplicate_catalog_name' || code === 'duplicate_priority_level'
+    ? null
+    : activeServerError.value
+})
 
 const editing = computed(() => props.priority !== null && props.priority !== undefined)
 const candidates = computed(() =>
@@ -50,6 +92,12 @@ const needsReplacement = computed(
     editing.value &&
     props.priority?.is_default === true &&
     (!form.is_active || !form.is_default),
+)
+const invalidName = computed(() => nameError.value !== null)
+const invalidLevel = computed(() => levelError.value !== null)
+const invalidHours = computed(() => hoursError.value !== null)
+const invalidReplacement = computed(() =>
+  Boolean(localError.value?.startsWith('Selecciona otra prioridad')),
 )
 
 watch(
@@ -67,6 +115,7 @@ watch(
     form.is_default = priority?.is_default ?? false
     form.replacement_default_id = ''
     localError.value = null
+    dismissedServerError.value = props.serverError ?? null
   },
   { immediate: true },
 )
@@ -160,11 +209,11 @@ function submit(): void {
             </button>
           </div>
           <p
-            v-if="serverError"
+            v-if="bannerError"
             class="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800"
             role="alert"
           >
-            {{ serverError.message }}
+            {{ bannerError.message }}
           </p>
 
           <form class="mt-4 space-y-4" @submit.prevent="submit">
@@ -178,8 +227,18 @@ function submit(): void {
                 type="text"
                 maxlength="50"
                 required
+                :aria-invalid="invalidName"
+                :aria-describedby="nameError ? 'priority-name-error' : undefined"
                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
               />
+              <p
+                v-if="nameError"
+                id="priority-name-error"
+                class="mt-1 text-sm text-rose-700"
+                role="alert"
+              >
+                {{ nameError }}
+              </p>
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
               <div>
@@ -189,6 +248,8 @@ function submit(): void {
                 <select
                   id="priority-level"
                   v-model.number="form.level"
+                  :aria-invalid="invalidLevel"
+                  :aria-describedby="levelError ? 'priority-level-error' : undefined"
                   class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option :value="1">1 · Crítica</option>
@@ -196,6 +257,14 @@ function submit(): void {
                   <option :value="3">3 · Media</option>
                   <option :value="4">4 · Baja</option>
                 </select>
+                <p
+                  v-if="levelError"
+                  id="priority-level-error"
+                  class="mt-1 text-sm text-rose-700"
+                  role="alert"
+                >
+                  {{ levelError }}
+                </p>
               </div>
               <div>
                 <label for="priority-hours" class="block text-sm font-medium text-slate-800">
@@ -207,8 +276,18 @@ function submit(): void {
                   type="text"
                   inputmode="decimal"
                   required
+                  :aria-invalid="invalidHours"
+                  :aria-describedby="hoursError ? 'priority-hours-error' : undefined"
                   class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
                 />
+                <p
+                  v-if="hoursError"
+                  id="priority-hours-error"
+                  class="mt-1 text-sm text-rose-700"
+                  role="alert"
+                >
+                  {{ hoursError }}
+                </p>
               </div>
             </div>
             <div>
@@ -223,9 +302,11 @@ function submit(): void {
                   class="h-10 w-14 rounded border border-slate-300"
                 />
                 <input
+                  id="priority-color-hex"
                   v-model="form.color"
                   type="text"
                   pattern="^#[0-9A-Fa-f]{6}$"
+                  aria-label="Color hexadecimal"
                   class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
@@ -276,8 +357,11 @@ function submit(): void {
               </label>
               <select
                 id="priority-replacement"
-                v-model="form.replacement_default_id"
-                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  v-model="form.replacement_default_id"
+                  :aria-invalid="invalidReplacement"
+                  :aria-describedby="generalError ? 'priority-error' : undefined"
+                  class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+
               >
                 <option value="">Selecciona una prioridad</option>
                 <option v-for="candidate in candidates" :key="candidate.id" :value="candidate.id">
@@ -286,8 +370,13 @@ function submit(): void {
               </select>
             </div>
 
-            <p v-if="localError" class="text-sm text-rose-700" role="alert">
-              {{ localError }}
+            <p
+              v-if="generalError"
+              id="priority-error"
+              class="text-sm text-rose-700"
+              role="alert"
+            >
+              {{ generalError }}
             </p>
 
             <div class="flex justify-end gap-3 pt-2">

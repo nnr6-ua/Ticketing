@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/vue'
 
 import type { CategoryRef, PriorityRef } from '@/types/adminConfiguration'
@@ -22,6 +22,7 @@ const emit = defineEmits<{
 const value = ref('')
 const localError = ref<string | null>(null)
 const confirmingRetire = ref(false)
+const invalid = computed(() => Boolean(localError.value || props.error))
 
 watch(
   () => props.open,
@@ -79,6 +80,7 @@ function retire(): void {
               v-model="value"
               type="text"
               inputmode="decimal"
+              :aria-invalid="invalid"
               aria-describedby="sla-cell-help"
               class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
             />

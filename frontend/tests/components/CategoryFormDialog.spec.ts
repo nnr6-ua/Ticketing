@@ -36,6 +36,7 @@ describe('CategoryFormDialog', () => {
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('El nombre es obligatorio.')
+    expect(wrapper.get('#category-name').attributes('aria-invalid')).toBe('true')
 
     await wrapper.get('#category-name').setValue('  Hardware  ')
     await wrapper.get('#category-description').setValue('Equipos')
@@ -49,6 +50,19 @@ describe('CategoryFormDialog', () => {
       sort_order: 0,
       is_default: false,
     })
+  })
+
+  it('muestra las palabras clave introducidas como chips', async () => {
+    const wrapper = mount(CategoryFormDialog, {
+      props: { open: true, category: null, defaultCandidates: [] },
+    })
+
+    await wrapper.get('#category-keywords').setValue('equipo, monitor, equipo')
+
+    const chips = wrapper.findAll(
+      '[aria-label="Palabras clave introducidas"] span',
+    )
+    expect(chips.map((chip) => chip.text())).toEqual(['equipo', 'monitor'])
   })
 
   it('envía expected_revision al editar y exige reemplazo del default', async () => {
@@ -80,6 +94,30 @@ describe('CategoryFormDialog', () => {
       is_active: false,
       replacement_default_id: 'c2',
     })
+  })
+
+  it('muestra duplicate_catalog_name bajo el campo y lo limpia al reabrir', async () => {
+    const wrapper = mount(CategoryFormDialog, {
+      props: { open: true, category: null, defaultCandidates: [] },
+    })
+
+    await wrapper.setProps({
+      serverError: {
+        code: 'duplicate_catalog_name',
+        message: 'Ya existe una categoría con ese nombre.',
+      },
+    })
+
+    expect(wrapper.get('#category-name-error').text()).toContain('Ya existe')
+    expect(wrapper.get('#category-name').attributes('aria-describedby')).toBe(
+      'category-name-error',
+    )
+    expect(wrapper.get('#category-name').attributes('aria-invalid')).toBe('true')
+
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true, serverError: null })
+
+    expect(wrapper.find('#category-name-error').exists()).toBe(false)
   })
 
   it('muestra el conflicto y emite la recarga sin cerrar el diálogo', async () => {

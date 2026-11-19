@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Category,
+    ConfigAction,
     ConfigurationAuditEntry,
     Priority,
     SlaRule,
@@ -102,6 +103,93 @@ def test_default_can_be_moved_before_deactivation(
     assert response.json()["is_default"] is False
     db.refresh(replacement)
     assert replacement.is_default is True
+
+
+def test_setting_new_default_audits_previous_default(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    previous = _category(db, "Otros", is_default=True)
+    candidate = _category(db, "Red")
+
+    response = client.post(
+        f"/api/v1/admin/categories/{candidate.id}/updates",
+        json={"expected_revision": candidate.revision, "is_default": True},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+
+    audit = db.scalar(
+        select(ConfigurationAuditEntry).where(
+            ConfigurationAuditEntry.entity_id == previous.id,
+            ConfigurationAuditEntry.action == ConfigAction.update,
+        )
+    )
+    assert audit is not None
+    assert audit.previous_values is not None
+    assert audit.previous_values["is_default"] is True
+    assert audit.new_values is not None
+    assert audit.new_values["is_default"] is False
+
+
+def test_replacement_default_is_audited_as_promoted(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    current = _category(db, "Otros", is_default=True)
+    replacement = _category(db, "Red")
+
+    response = client.post(
+        f"/api/v1/admin/categories/{current.id}/updates",
+        json={
+            "expected_revision": current.revision,
+            "is_active": False,
+            "replacement_default_id": str(replacement.id),
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+
+    audit = db.scalar(
+        select(ConfigurationAuditEntry).where(
+            ConfigurationAuditEntry.entity_id == replacement.id,
+            ConfigurationAuditEntry.action == ConfigAction.set_default,
+        )
+    )
+    assert audit is not None
+    assert audit.previous_values is not None
+    assert audit.previous_values["is_default"] is False
+    assert audit.new_values is not None
+    assert audit.new_values["is_default"] is True
+
+
+def test_create_audit_has_no_previous_values_and_separate_default_promotion(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    response = client.post(
+        "/api/v1/admin/categories",
+        json={"name": "Red", "is_default": True},
+        headers=admin_headers,
+    )
+    assert response.status_code == 201
+    category_id = uuid.UUID(response.json()["id"])
+
+    entries = db.scalars(
+        select(ConfigurationAuditEntry).where(
+            ConfigurationAuditEntry.entity_id == category_id
+        )
+    ).all()
+    create = next(entry for entry in entries if entry.action == ConfigAction.create)
+    promotion = next(
+        entry for entry in entries if entry.action == ConfigAction.set_default
+    )
+
+    assert create.previous_values is None
+    assert create.new_values is not None
+    assert create.new_values["is_default"] is False
+    assert promotion.previous_values is not None
+    assert promotion.previous_values["is_default"] is False
+    assert promotion.new_values is not None
+    assert promotion.new_values["is_default"] is True
+    assert create.configuration_version_id == promotion.configuration_version_id
 
 
 def test_system_category_cannot_be_modified_or_deleted(
@@ -215,3 +303,36 @@ def test_category_with_tickets_reports_counts(
     item = next(row for row in response.json() if row["id"] == str(category.id))
     assert item["ticket_count"] == 1
     assert item["can_delete"] is False
+
+
+def test_category_referenced_by_ticket_cannot_be_deleted(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    category = _category(db, "Red")
+    priority = Priority(name="Alta", level=2, base_hours="8.00", is_active=True)
+    db.add(priority)
+    db.commit()
+    creator = _user(db)
+    db.add(
+        Ticket(
+            number="TK-009002",
+            title="Incidencia referenciada",
+            description="Descripción de la incidencia referenciada.",
+            status=TicketStatus.abierto,
+            creator_id=creator.id,
+            category_id=category.id,
+            priority_id=priority.id,
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/admin/categories/{category.id}/deletion",
+        json={"expected_revision": category.revision},
+        headers=admin_headers,
+    )
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["code"] == "catalog_in_use"
+    assert "Desactívala" in detail["message"]
+    assert db.get(Category, category.id) is not None

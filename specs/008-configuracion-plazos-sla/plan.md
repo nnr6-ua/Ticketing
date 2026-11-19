@@ -284,6 +284,8 @@ Reglas:
 
 Los pasos 2–5 ocurren en la misma transacción que el alta del ticket. La versión base `v1` la crea la migración `0006` y el fixture `tests/conftest.py`; si en tiempo de ejecución no existe ninguna versión, el servicio devuelve `500 configuration_not_initialized` y no crea una versión implícita, para evitar carreras entre creaciones concurrentes.
 
+Los pasos 2 y 3 se ejecutan en una única sentencia: `FOR SHARE OF configuration_versions` sobre la versión vigente y un `LEFT JOIN` a `sla_rules` por combinación. Un mismo snapshot MVCC cubre ambas lecturas, por lo que no puede mezclarse la versión N con una regla de la versión N+1 y no hace falta un lock global; véase `research.md R7`.
+
 #### 2.3. No retroactividad
 
 - `sla_deadline`, `sla_hours_applied`, `sla_priority_level` y `sla_config_version_id` no se recalculan nunca.
@@ -461,7 +463,7 @@ Filtros de `GET /config-history`: `from`, `to`, `entity_type`, `entity_id`, `act
 
 - El contrato de `GET /api/v1/priorities` para creación de tickets se mantiene: solo prioridades activas no-sistema.
 - `ticket_creation.py` sigue sugiriendo categoría y prioridad con `keywords`; la configuración administrativa permite mantener esos campos.
-- `TicketRead` incorpora de forma aditiva `sla_priority_level`, `sla_hours_applied`, `sla_version` y `sla_config_version_id`, de modo que la configuración aplicada es observable sin recalcular el SLA.
+- `TicketRead` incorpora de forma aditiva `sla_priority_level`, `sla_hours_applied`, `sla_deadline`, `sla_version` y `sla_config_version_id`, de modo que la configuración aplicada y el límite congelado son observables sin recalcular el SLA.
 - `work_queue.py` mantiene su contrato y su cálculo de SLA; solo cambia la fuente del nivel de urgencia a la columna congelada con `COALESCE`.
 - `TicketDetailPage` (HU-06), `TicketForm`, `PrioritySelect`, la línea temporal y los estilos base no se reescriben; la vista de detalle podrá mostrar los campos ya expuestos por `TicketRead`.
 - El formato de error `{"detail": {"code", "message"}}` y el cliente `api/client.ts` se reutilizan.
@@ -527,6 +529,7 @@ Filtros de `GET /config-history`: `from`, `to`, `entity_type`, `entity_id`, `act
 - `npm run test` y `npm run build` en verde (`vue-tsc` incluido).
 - `alembic upgrade head` y `alembic downgrade -1` verificados sobre PostgreSQL.
 - Rendimiento: p95 < 300 ms en lecturas e histórico y p95 < 400 ms en guardado de lote de hasta 20 celdas; alta de ticket con incremento < 10 ms.
+- El plan `EXPLAIN (ANALYZE, BUFFERS)` del histó paginado con `page_size=25` usa `ix_config_audit_occurred_at` para el orden descendente por `occurred_at`; se imprime en los resultados de `test_admin_configuration_performance.py`.
 - Revisión de accesibilidad: foco visible, etiquetas, tablas con `caption`, pestañas y diálogos, más `axe-core` sin violaciones críticas.
 - Revisión de seguridad: 403 para no-admin en `/admin/**`, catálogo operativo intacto para autenticados, sin datos de configuración en respuestas no autorizadas, sin secretos en logs.
 

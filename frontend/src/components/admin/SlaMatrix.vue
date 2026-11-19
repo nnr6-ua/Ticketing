@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import * as vueRouter from 'vue-router'
 
 import ConflictBanner from '@/components/admin/ConflictBanner.vue'
 import SlaCellEditor from '@/components/admin/SlaCellEditor.vue'
@@ -15,14 +16,17 @@ const props = defineProps<{
   matrix: SlaMatrixResponse | null
   saving?: boolean
   conflict?: string | null
+  cellErrors?: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   (event: 'save', changes: SlaChange[]): void
+  (event: 'retire', ruleId: string): void
   (event: 'reload'): void
 }>()
 
 const draft = ref<Record<string, string | null>>({})
+const baseline = ref<Record<string, string | null>>({})
 const editing = ref<{
   category: CategoryRef
   priority: PriorityRef
@@ -32,13 +36,36 @@ const editing = ref<{
 const categories = computed(() => props.matrix?.combinations.categories ?? [])
 const priorities = computed(() => props.matrix?.combinations.priorities ?? [])
 
+const inactiveRules = computed(() => {
+  const activeCategories = new Set(categories.value.map((category) => category.id))
+  const activePriorities = new Set(priorities.value.map((priority) => priority.id))
+  return (props.matrix?.items ?? []).filter(
+    (rule) =>
+      rule.category.is_active === false ||
+      rule.priority.is_active === false ||
+      !activeCategories.has(rule.category.id) ||
+      !activePriorities.has(rule.priority.id),
+  )
+})
+
 watch(
   () => props.matrix,
-  () => {
+  (matrix) => {
+    const nextBaseline: Record<string, string | null> = {}
+    for (const item of matrix?.items ?? []) {
+      nextBaseline[key(item.category.id, item.priority.id)] = item.hours
+    }
+    baseline.value = nextBaseline
     draft.value = {}
     editing.value = null
   },
+  { immediate: true },
 )
+
+const hoursFormatter = new Intl.NumberFormat('es-ES', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 function key(categoryId: string, priorityId: string): string {
   return `${categoryId}:${priorityId}`
@@ -60,11 +87,26 @@ function hoursFor(categoryId: string, priorityId: string): string | null {
   return ruleFor(categoryId, priorityId)?.hours ?? null
 }
 
+function errorFor(categoryId: string, priorityId: string): string | null {
+  return props.cellErrors?.[key(categoryId, priorityId)] ?? null
+}
+
+function isInactive(category: CategoryRef, priority: PriorityRef): boolean {
+  return category.is_active === false || priority.is_active === false
+}
+
+function inactiveLabel(category: CategoryRef, priority: PriorityRef): string {
+  if (category.is_active === false && priority.is_active === false) {
+    return 'Categoría y prioridad inactivas'
+  }
+  return category.is_active === false ? 'Categoría inactiva' : 'Prioridad inactiva'
+}
+
 function formatHours(value: string | null): string {
   if (value === null) return ''
   const number = Number(value)
   if (!Number.isFinite(number)) return `${value} h`
-  return `${Number.isInteger(number) ? number : number.toFixed(1).replace('.', ',')} h`
+  return `${hoursFormatter.format(number)} h`
 }
 
 function openEditor(category: CategoryRef, priority: PriorityRef): void {
@@ -89,7 +131,32 @@ function applyCell(value: { hours: string | null }): void {
   editing.value = null
 }
 
-const isDirty = computed(() => Object.keys(draft.value).length > 0)
+const isDirty = computed(() => {
+  const cells = new Set([...Object.keys(baseline.value), ...Object.keys(draft.value)])
+  return [...cells].some((cell) => {
+    const current = Object.prototype.hasOwnProperty.call(draft.value, cell)
+      ? draft.value[cell]
+      : (baseline.value[cell] ?? null)
+    return current !== (baseline.value[cell] ?? null)
+  })
+})
+
+const UNSAVED_CHANGES_MESSAGE =
+  'Tienes cambios sin guardar en la matriz SLA. ¿Salir de todos modos?'
+
+function confirmLeave(): boolean {
+  return !isDirty.value || window.confirm(UNSAVED_CHANGES_MESSAGE)
+}
+
+function warnBeforeUnload(event: BeforeUnloadEvent): void {
+  if (!isDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+vueRouter.onBeforeRouteLeave?.(() => confirmLeave())
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload))
+onUnmounted(() => window.removeEventListener('beforeunload', warnBeforeUnload))
 
 function discard(): void {
   draft.value = {}
@@ -182,30 +249,103 @@ function save(): void {
             >
               <button
                 type="button"
-                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-sky-400 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                :aria-label="`Plazo para ${category.name} × ${priority.name}`"
-                :aria-describedby="`cell-help-${category.id}-${priority.id}`"
-                :disabled="saving"
+                class="w-full rounded-lg border px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed"
+                :class="
+                  errorFor(category.id, priority.id)
+                    ? 'border-rose-400 bg-rose-50 text-slate-900'
+                    : isInactive(category, priority)
+                      ? 'border-slate-200 bg-slate-50 text-slate-400'
+                      : 'border-slate-200 text-slate-900 hover:border-sky-400 hover:bg-sky-50'
+                "
+                :aria-label="`Plazo para ${category.name} y ${priority.name}`"
+                :aria-describedby="
+                  errorFor(category.id, priority.id)
+                    ? `cell-help-${category.id}-${priority.id} cell-error-${category.id}-${priority.id}`
+                    : `cell-help-${category.id}-${priority.id}`
+                "
+                :disabled="saving || isInactive(category, priority)"
                 @click="openEditor(category, priority)"
               >
                 <span
                   v-if="hoursFor(category.id, priority.id)"
-                  class="font-medium text-slate-900"
+                  class="inline-flex items-center gap-2"
+                  :class="isInactive(category, priority) ? 'text-slate-400' : 'font-medium text-slate-900'"
                 >
+                  <span
+                    v-if="priority.color"
+                    class="h-2.5 w-2.5 rounded-full"
+                    :style="{ backgroundColor: priority.color }"
+                    aria-hidden="true"
+                  />
                   {{ formatHours(hoursFor(category.id, priority.id)) }}
                 </span>
-                <span v-else class="text-slate-500">
+                <span
+                  v-else
+                  :class="isInactive(category, priority) ? 'text-slate-400' : 'text-slate-500'"
+                >
                   Base: {{ formatHours(priority.base_hours) || '—' }}
+                </span>
+                <span
+                  v-if="isInactive(category, priority)"
+                  class="mt-1 block text-xs text-slate-400"
+                >
+                  {{ inactiveLabel(category, priority) }}
                 </span>
               </button>
               <span :id="`cell-help-${category.id}-${priority.id}`" class="sr-only">
-                Haz clic para editar el plazo de {{ category.name }} con prioridad
-                {{ priority.name }}.
+                <template v-if="isInactive(category, priority)">
+                  Esta combinación usa el plazo base y no es editable.
+                </template>
+                <template v-else>
+                  Haz clic para editar el plazo de {{ category.name }} con prioridad
+                  {{ priority.name }}.
+                </template>
+              </span>
+              <span
+                v-if="errorFor(category.id, priority.id)"
+                :id="`cell-error-${category.id}-${priority.id}`"
+                class="mt-1 block text-xs text-rose-700"
+                role="alert"
+              >
+                {{ errorFor(category.id, priority.id) }}
               </span>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div
+      v-if="inactiveRules.length > 0"
+      class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3"
+    >
+      <h3 class="text-sm font-semibold text-slate-900">
+        Reglas de combinaciones inactivas
+      </h3>
+      <p class="mt-1 text-xs text-slate-600">
+        Estas reglas siguen vigentes, pero no se pueden editar desde la matriz.
+      </p>
+      <ul class="mt-3 space-y-2">
+        <li
+          v-for="rule in inactiveRules"
+          :key="rule.id"
+          class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+        >
+          <span class="text-slate-700">
+            {{ rule.category.name }} × {{ rule.priority.name }}:
+            <strong class="font-semibold text-slate-900">{{ formatHours(rule.hours) }}</strong>
+          </span>
+          <button
+            type="button"
+            class="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            :aria-label="`Retirar regla de ${rule.category.name} y ${rule.priority.name}`"
+            :disabled="saving"
+            @click="emit('retire', rule.id)"
+          >
+            Retirar regla
+          </button>
+        </li>
+      </ul>
     </div>
 
     <div

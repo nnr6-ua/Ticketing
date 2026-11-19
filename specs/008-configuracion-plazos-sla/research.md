@@ -129,6 +129,8 @@ En la creación se calcula `created_at` una vez, se resuelve el plazo y se escri
 
 **Motivo**: impide que un ticket lea una regla de la versión N y una prioridad modificada por la versión N+1. El ticket obtiene una única versión coherente. En PostgreSQL el bloqueo compartido permite muchas creaciones simultáneas; las escrituras esperan. En SQLite las pruebas funcionales son secuenciales y el bloqueo se ignora.
 
+**Refinamiento implementado**: la creación de tickets lee la versión vigente y la regla aplicable en una única sentencia con `FOR SHARE OF configuration_versions` y un `LEFT JOIN` a `sla_rules`. PostgreSQL usa el mismo snapshot MVCC para toda la sentencia, por lo que versión y regla permanecen coherentes aunque una escritura confirme mientras la lectura espera el bloqueo. Así se conserva el paralelismo de R7 sin recurrir a un lock global.
+
 **Alternativas descartadas**:
 
 - Leer sin bloqueo: puede mezclar versiones en el instante de un cambio.

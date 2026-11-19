@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_admin
 from app.db.session import get_session
 from app.models import ConfigAction, ConfigEntityType, User
-from app.schemas.admin_configuration import (
+from app.schemas.configuration import (
     CategoryAdmin,
     CategoryCreateRequest,
     CategoryUpdateRequest,
@@ -154,7 +154,7 @@ def retire_sla_rule(
 
 
 @router.get("/config-history", response_model=ConfigHistoryResponse)
-def get_config_history(
+def list_config_history(
     from_: Annotated[datetime | None, Query(alias="from")] = None,
     to: datetime | None = None,
     entity_type: ConfigEntityType | None = None,
@@ -166,7 +166,7 @@ def get_config_history(
     session: Session = Depends(get_session),
     _: User = Depends(require_admin),
 ) -> ConfigHistoryResponse:
-    return configuration.config_history(
+    return configuration.list_config_history(
         session,
         from_date=from_,
         to_date=to,

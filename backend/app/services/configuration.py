@@ -5,14 +5,15 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from functools import wraps
+from typing import Any, Callable
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, lazyload
 
-from app.core.errors import ApiError
+from app.core.errors import CONFIGURATION_ERROR_MESSAGES, ApiError
 from app.models import (
     Category,
     ConfigAction,
@@ -24,7 +25,7 @@ from app.models import (
     Ticket,
     User,
 )
-from app.schemas.admin_configuration import (
+from app.schemas.configuration import (
     CategoryAdmin,
     ConfigurationVersionRef,
     ConfigHistoryEntry,
@@ -42,8 +43,28 @@ from app.schemas.admin_configuration import (
 HOURS_QUANT = Decimal("0.01")
 
 
+def _atomic(func: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(func)
+    def wrapped(db: Session, *args: Any, **kwargs: Any) -> Any:
+        try:
+            return func(db, *args, **kwargs)
+        except Exception:
+            db.rollback()
+            raise
+
+    return wrapped
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _normalize_name(value: str) -> str:
@@ -55,8 +76,8 @@ def _hours(value: Decimal | str) -> Decimal:
     if result <= 0:
         raise ApiError(
             422,
-            "validation_error",
-            "El plazo debe ser un número positivo de horas.",
+            "invalid_hours",
+            CONFIGURATION_ERROR_MESSAGES["invalid_hours"],
         )
     return result
 
@@ -91,7 +112,9 @@ def _current_version(
         .limit(1)
     )
     if for_update and db.get_bind().dialect.name == "postgresql":
-        statement = statement.with_for_update()
+        statement = statement.options(
+            lazyload(ConfigurationVersion.created_by)
+        ).with_for_update()
     return db.scalar(statement)
 
 
@@ -314,6 +337,7 @@ def _rule_admin(rule: SlaRule) -> SlaRuleAdmin:
         category={
             "id": rule.category.id,
             "name": rule.category.name,
+            "is_active": rule.category.is_active,
         },
         priority={
             "id": rule.priority.id,
@@ -321,6 +345,7 @@ def _rule_admin(rule: SlaRule) -> SlaRuleAdmin:
             "level": rule.priority.level,
             "color": rule.priority.color,
             "base_hours": rule.priority.base_hours,
+            "is_active": rule.priority.is_active,
         },
         hours=rule.hours,
         valid_from_version=rule.valid_from_version,
@@ -376,21 +401,108 @@ def _set_default(
     db: Session,
     model: type[Category] | type[Priority],
     target: Category | Priority,
-) -> None:
-    changed = False
+    *,
+    is_new: bool = False,
+) -> tuple[
+    list[tuple[Category | Priority, dict[str, Any]]],
+    tuple[Category | Priority, dict[str, Any]] | None,
+]:
+    demoted: list[tuple[Category | Priority, dict[str, Any]]] = []
     for entity in db.scalars(
         select(model).where(
             model.is_default.is_(True),
             model.id != target.id,
         )
     ).all():
+        previous = (
+            _category_snapshot(entity)
+            if isinstance(entity, Category)
+            else _priority_snapshot(entity)
+        )
         entity.is_default = False
         entity.revision += 1
-        changed = True
-    if changed:
+        demoted.append((entity, previous))
+    if demoted:
         db.flush()
-    target.is_default = True
-    db.flush()
+
+    promoted: tuple[Category | Priority, dict[str, Any]] | None = None
+    if not target.is_default:
+        previous = (
+            _category_snapshot(target)
+            if isinstance(target, Category)
+            else _priority_snapshot(target)
+        )
+        target.is_default = True
+        if not is_new:
+            target.revision += 1
+        promoted = (target, previous)
+
+    if demoted or promoted is not None:
+        db.flush()
+    return demoted, promoted
+
+
+def _audit_demoted_defaults(
+    db: Session,
+    version: ConfigurationVersion,
+    actor: User,
+    demoted: list[tuple[Category | Priority, dict[str, Any]]],
+) -> None:
+    for entity, previous in demoted:
+        if isinstance(entity, Category):
+            entity_type = ConfigEntityType.category
+            label = f"Categoría «{entity.name}»"
+            new = _category_snapshot(entity)
+        else:
+            entity_type = ConfigEntityType.priority
+            label = f"Prioridad «{entity.name}»"
+            new = _priority_snapshot(entity)
+        _audit(
+            db,
+            version,
+            actor,
+            entity_type,
+            entity.id,
+            ConfigAction.update,
+            f"{label} dejó de ser predeterminada.",
+            previous=previous,
+            new=new,
+        )
+
+
+def _audit_promoted_default(
+    db: Session,
+    version: ConfigurationVersion,
+    actor: User,
+    promoted: tuple[Category | Priority, dict[str, Any]] | None,
+    main_entity_id: UUID,
+    *,
+    include_main: bool = False,
+) -> None:
+    if promoted is None or (
+        promoted[0].id == main_entity_id and not include_main
+    ):
+        return
+    entity, previous = promoted
+    if isinstance(entity, Category):
+        entity_type = ConfigEntityType.category
+        label = f"Categoría «{entity.name}»"
+        new = _category_snapshot(entity)
+    else:
+        entity_type = ConfigEntityType.priority
+        label = f"Prioridad «{entity.name}»"
+        new = _priority_snapshot(entity)
+    _audit(
+        db,
+        version,
+        actor,
+        entity_type,
+        entity.id,
+        ConfigAction.set_default,
+        f"{label} pasó a ser predeterminada.",
+        previous=previous,
+        new=new,
+    )
 
 
 def _validate_replacement(
@@ -426,9 +538,11 @@ def list_categories(db: Session) -> list[CategoryAdmin]:
     return [_category_admin(db, category) for category in categories]
 
 
+@_atomic
 def create_category(
     db: Session, actor: User, payload
 ) -> CategoryAdmin:
+    _require_version(db, for_update=True)
     name = payload.name.strip()
     if _name_exists(db, Category, name):
         raise ApiError(
@@ -449,8 +563,11 @@ def create_category(
     )
     db.add(category)
     db.flush()
+    created_snapshot = _category_snapshot(category)
+    demoted: list[tuple[Category | Priority, dict[str, Any]]] = []
+    promoted: tuple[Category | Priority, dict[str, Any]] | None = None
     if payload.is_default or not has_default:
-        _set_default(db, Category, category)
+        demoted, promoted = _set_default(db, Category, category, is_new=True)
 
     version = _new_version(db, actor, f"Alta de categoría {category.name}")
     _audit(
@@ -461,16 +578,22 @@ def create_category(
         category.id,
         ConfigAction.create,
         f"Categoría «{category.name}» creada.",
-        new=_category_snapshot(category),
+        new=created_snapshot,
+    )
+    _audit_demoted_defaults(db, version, actor, demoted)
+    _audit_promoted_default(
+        db, version, actor, promoted, category.id, include_main=True
     )
     db.commit()
     db.refresh(category)
     return _category_admin(db, category)
 
 
+@_atomic
 def update_category(
     db: Session, actor: User, category_id: UUID, payload
 ) -> CategoryAdmin:
+    _require_version(db, for_update=True)
     category = _get_category(db, category_id)
     if category.is_system:
         raise ApiError(
@@ -516,6 +639,8 @@ def update_category(
         replacement = _validate_replacement(
             db, Category, category.id, payload.replacement_default_id
         )
+    demoted: list[tuple[Category | Priority, dict[str, Any]]] = []
+    promoted: tuple[Category | Priority, dict[str, Any]] | None = None
     if category.is_default and (
         payload.is_default is False or payload.is_active is False
     ):
@@ -527,15 +652,15 @@ def update_category(
             )
         category.is_default = False
         db.flush()
-        _set_default(db, Category, replacement)
+        demoted, promoted = _set_default(db, Category, replacement)
     elif payload.is_default is True:
         if not effective_active:
             raise ApiError(
                 422,
-                "validation_error",
-                "Una categoría inactiva no puede ser predeterminada.",
+                "inactive_default_catalog_item",
+                CONFIGURATION_ERROR_MESSAGES["inactive_default_catalog_item"],
             )
-        _set_default(db, Category, category)
+        demoted, promoted = _set_default(db, Category, category)
 
     category.name = name
     if "description" in payload.model_fields_set:
@@ -546,7 +671,8 @@ def update_category(
         category.sort_order = payload.sort_order
     if payload.is_active is not None:
         category.is_active = payload.is_active
-    category.revision += 1
+    if promoted is None or promoted[0].id != category.id:
+        category.revision += 1
 
     if previous["is_active"] and not category.is_active:
         action = ConfigAction.deactivate
@@ -573,14 +699,18 @@ def update_category(
         previous=previous,
         new=_category_snapshot(category),
     )
+    _audit_demoted_defaults(db, version, actor, demoted)
+    _audit_promoted_default(db, version, actor, promoted, category.id)
     db.commit()
     db.refresh(category)
     return _category_admin(db, category)
 
 
+@_atomic
 def delete_category(
     db: Session, actor: User, category_id: UUID, payload
 ) -> DeleteResponse:
+    _require_version(db, for_update=True)
     category = _get_category(db, category_id)
     if category.is_system:
         raise ApiError(
@@ -655,9 +785,11 @@ def _validate_priority_level(
         )
 
 
+@_atomic
 def create_priority(
     db: Session, actor: User, payload
 ) -> PriorityAdmin:
+    _require_version(db, for_update=True)
     name = payload.name.strip()
     if _name_exists(db, Priority, name):
         raise ApiError(
@@ -681,8 +813,11 @@ def create_priority(
     )
     db.add(priority)
     db.flush()
+    created_snapshot = _priority_snapshot(priority)
+    demoted: list[tuple[Category | Priority, dict[str, Any]]] = []
+    promoted: tuple[Category | Priority, dict[str, Any]] | None = None
     if payload.is_default or not has_default:
-        _set_default(db, Priority, priority)
+        demoted, promoted = _set_default(db, Priority, priority, is_new=True)
 
     version = _new_version(db, actor, f"Alta de prioridad {priority.name}")
     _audit(
@@ -693,16 +828,22 @@ def create_priority(
         priority.id,
         ConfigAction.create,
         f"Prioridad «{priority.name}» creada.",
-        new=_priority_snapshot(priority),
+        new=created_snapshot,
+    )
+    _audit_demoted_defaults(db, version, actor, demoted)
+    _audit_promoted_default(
+        db, version, actor, promoted, priority.id, include_main=True
     )
     db.commit()
     db.refresh(priority)
     return _priority_admin(db, priority)
 
 
+@_atomic
 def update_priority(
     db: Session, actor: User, priority_id: UUID, payload
 ) -> PriorityAdmin:
+    _require_version(db, for_update=True)
     priority = _get_priority(db, priority_id)
     if priority.is_system:
         raise ApiError(
@@ -755,6 +896,8 @@ def update_priority(
         replacement = _validate_replacement(
             db, Priority, priority.id, payload.replacement_default_id
         )
+    demoted: list[tuple[Category | Priority, dict[str, Any]]] = []
+    promoted: tuple[Category | Priority, dict[str, Any]] | None = None
     if priority.is_default and (
         payload.is_default is False or payload.is_active is False
     ):
@@ -766,15 +909,15 @@ def update_priority(
             )
         priority.is_default = False
         db.flush()
-        _set_default(db, Priority, replacement)
+        demoted, promoted = _set_default(db, Priority, replacement)
     elif payload.is_default is True:
         if not effective_active:
             raise ApiError(
                 422,
-                "validation_error",
-                "Una prioridad inactiva no puede ser predeterminada.",
+                "inactive_default_catalog_item",
+                CONFIGURATION_ERROR_MESSAGES["inactive_default_catalog_item"],
             )
-        _set_default(db, Priority, priority)
+        demoted, promoted = _set_default(db, Priority, priority)
 
     priority.name = name
     if payload.level is not None:
@@ -789,7 +932,8 @@ def update_priority(
         priority.sort_order = payload.sort_order
     if payload.is_active is not None:
         priority.is_active = payload.is_active
-    priority.revision += 1
+    if promoted is None or promoted[0].id != priority.id:
+        priority.revision += 1
 
     if previous["is_active"] and not priority.is_active:
         action = ConfigAction.deactivate
@@ -816,14 +960,18 @@ def update_priority(
         previous=previous,
         new=_priority_snapshot(priority),
     )
+    _audit_demoted_defaults(db, version, actor, demoted)
+    _audit_promoted_default(db, version, actor, promoted, priority.id)
     db.commit()
     db.refresh(priority)
     return _priority_admin(db, priority)
 
 
+@_atomic
 def delete_priority(
     db: Session, actor: User, priority_id: UUID, payload
 ) -> DeleteResponse:
+    _require_version(db, for_update=True)
     priority = _get_priority(db, priority_id)
     if priority.is_system:
         raise ApiError(
@@ -900,7 +1048,8 @@ def sla_matrix(db: Session) -> SlaMatrixResponse:
         items=[_rule_admin(rule) for rule in _current_rules(db)],
         combinations={
             "categories": [
-                {"id": item.id, "name": item.name} for item in categories
+                {"id": item.id, "name": item.name, "is_active": item.is_active}
+                for item in categories
             ],
             "priorities": [
                 {
@@ -909,6 +1058,7 @@ def sla_matrix(db: Session) -> SlaMatrixResponse:
                     "level": item.level,
                     "color": item.color,
                     "base_hours": item.base_hours,
+                    "is_active": item.is_active,
                 }
                 for item in priorities
             ],
@@ -917,6 +1067,20 @@ def sla_matrix(db: Session) -> SlaMatrixResponse:
 
 
 def _apply_batch(
+    db: Session,
+    actor: User,
+    changes: list,
+    *,
+    note: str,
+) -> ConfigurationVersion:
+    try:
+        return _apply_batch_impl(db, actor, changes, note=note)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _apply_batch_impl(
     db: Session,
     actor: User,
     changes: list,
@@ -932,6 +1096,8 @@ def _apply_batch(
     current = _require_version(db, for_update=True)
     next_version = current.version + 1
     seen_combinations: set[tuple[UUID, UUID]] = set()
+    previous_rules: dict[UUID, dict[str, Any]] = {}
+    retired_rules: dict[UUID, dict[str, Any]] = {}
     now = _now()
 
     for change in changes:
@@ -955,7 +1121,7 @@ def _apply_batch(
                     "El lote contiene cambios duplicados para la misma combinación.",
                 )
             seen_combinations.add(key)
-            previous = _rule_snapshot(rule)
+            retired_rules[rule.id] = _rule_snapshot(rule)
             rule.valid_to_version = next_version
             rule.retired_at = now
             rule.retired_by_id = actor.id
@@ -1008,6 +1174,7 @@ def _apply_batch(
             )
 
         if existing is not None:
+            previous_rules[existing.id] = _rule_snapshot(existing)
             existing.valid_to_version = next_version
             db.flush()
 
@@ -1063,6 +1230,7 @@ def _apply_batch(
             rule.id,
             ConfigAction.rule_upsert,
             f"Regla de {rule.category.name} × {rule.priority.name}: {rule.hours} h.",
+            previous=previous_rules.get(rule.supersedes_id),
             new=_rule_snapshot(rule),
         )
     for rule in db.scalars(
@@ -1079,7 +1247,8 @@ def _apply_batch(
             rule.id,
             ConfigAction.rule_retire,
             f"Regla de {rule.category.name} × {rule.priority.name} retirada.",
-            previous=_rule_snapshot(rule),
+            previous=retired_rules[rule.id],
+            new=_rule_snapshot(rule),
         )
     return version
 
@@ -1098,7 +1267,7 @@ def apply_sla_batch(
 def retire_sla_rule(
     db: Session, actor: User, rule_id: UUID, expected_rule_id: UUID
 ) -> SlaBatchResponse:
-    from app.schemas.admin_configuration import SlaRetireChange
+    from app.schemas.configuration import SlaRetireChange
 
     change = SlaRetireChange(
         operation="retire",
@@ -1115,7 +1284,7 @@ def retire_sla_rule(
     )
 
 
-def config_history(
+def list_config_history(
     db: Session,
     *,
     from_date: datetime | None = None,
@@ -1129,6 +1298,14 @@ def config_history(
 ) -> ConfigHistoryResponse:
     page = max(1, page)
     page_size = max(1, min(page_size, 100))
+    from_date = _as_utc(from_date)
+    to_date = _as_utc(to_date)
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise ApiError(
+            422,
+            "invalid_date_range",
+            CONFIGURATION_ERROR_MESSAGES["invalid_date_range"],
+        )
     filters = []
     if from_date is not None:
         filters.append(ConfigurationAuditEntry.occurred_at >= from_date)
@@ -1158,6 +1335,12 @@ def config_history(
     effective_page = min(page, total_pages) if total_pages else 1
     entries = db.scalars(
         select(ConfigurationAuditEntry)
+        .options(
+            joinedload(ConfigurationAuditEntry.configuration_version).joinedload(
+                ConfigurationVersion.created_by
+            ),
+            joinedload(ConfigurationAuditEntry.actor),
+        )
         .where(*filters)
         .order_by(
             ConfigurationAuditEntry.occurred_at.desc(),
@@ -1192,3 +1375,6 @@ def config_history(
             has_previous=effective_page > 1,
         ),
     )
+
+
+config_history = list_config_history

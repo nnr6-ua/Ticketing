@@ -14,6 +14,11 @@ class Category(Base):
     __tablename__ = "categories"
     __table_args__ = (
         Index(
+            "uq_categories_name_normalized",
+            text("lower(trim(name))"),
+            unique=True,
+        ),
+        Index(
             "uq_categories_default_active_non_system",
             "is_default",
             unique=True,

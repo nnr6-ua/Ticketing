@@ -434,6 +434,23 @@ components:
     ApiError:
       type: object
       required: [detail]
+      x-configuration-error-codes:
+        stale_configuration: 'La configuración ha cambiado. Recarga y vuelve a intentarlo.'
+        duplicate_catalog_name: 'Ya existe una entidad con ese nombre.'
+        duplicate_priority_level: 'Ya hay una prioridad activa con ese nivel.'
+        duplicate_sla_rule: 'Ya existe una regla vigente para esa combinación.'
+        last_active_catalog_item: 'No se puede desactivar la última entidad activa.'
+        default_replacement_required: 'Designa otra entidad predeterminada antes de desactivar la actual.'
+        catalog_in_use: 'La entidad tiene tickets o reglas asociadas. Desactívala en su lugar.'
+        default_catalog_item: 'Designa otra entidad predeterminada antes de eliminar esta.'
+        system_catalog_item: 'Las entidades de sistema no se pueden modificar.'
+        inactive_catalog_item: 'La categoría o la prioridad no está activa.'
+        inactive_default_catalog_item: 'Una entidad inactiva no puede ser predeterminada.'
+        invalid_hours: 'El plazo debe ser un número positivo de horas.'
+        invalid_date_range: 'La fecha inicial no puede ser posterior a la final.'
+        empty_batch: 'El lote no contiene cambios.'
+        configuration_not_initialized: 'La configuración base no está inicializada.'
+        configuration_not_configured: 'No hay un plazo SLA válido para la combinación seleccionada.'
       properties:
         detail:
           type: object
@@ -441,6 +458,28 @@ components:
           properties:
             code:
               type: string
+              enum:
+                - stale_configuration
+                - duplicate_catalog_name
+                - duplicate_priority_level
+                - duplicate_sla_rule
+                - last_active_catalog_item
+                - default_replacement_required
+                - catalog_in_use
+                - default_catalog_item
+                - system_catalog_item
+                - inactive_catalog_item
+                - inactive_default_catalog_item
+                - invalid_hours
+                - invalid_date_range
+                - empty_batch
+                - configuration_not_initialized
+                - configuration_not_configured
+                - not_authenticated
+                - forbidden
+                - not_found
+                - invalid_request
+                - internal_error
               example: stale_configuration
             message:
               type: string
@@ -479,17 +518,19 @@ components:
 
     CategoryRef:
       type: object
-      required: [id, name]
+      required: [id, name, is_active]
       properties:
         id:
           type: string
           format: uuid
         name:
           type: string
+        is_active:
+          type: boolean
 
     PriorityRef:
       type: object
-      required: [id, name, level]
+      required: [id, name, level, is_active]
       properties:
         id:
           type: string
@@ -507,6 +548,8 @@ components:
           type: string
           nullable: true
           example: '8.00'
+        is_active:
+          type: boolean
 
     CategoryAdmin:
       allOf:
@@ -741,7 +784,7 @@ components:
 
     DeleteResponse:
       type: object
-      required: [deleted, id]
+      required: [deleted, id, configuration_version]
       properties:
         deleted:
           type: boolean
@@ -761,6 +804,7 @@ components:
         - valid_from_version
         - configuration_version_id
         - created_at
+        - created_by
       properties:
         id:
           type: string
@@ -901,6 +945,8 @@ components:
         - action
         - actor
         - occurred_at
+        - previous_values
+        - new_values
         - summary
       properties:
         id:

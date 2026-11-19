@@ -16,9 +16,14 @@ import type {
 } from '@/types/adminConfiguration'
 
 const BASE = '/api/v1/admin'
+const GET_FALLBACK_MESSAGE =
+  'No se pudo cargar la configuración. Inténtalo de nuevo.'
 
 export function listCategories(signal?: AbortSignal) {
-  return apiGet<CategoryAdmin[]>(`${BASE}/categories`, { signal })
+  return apiGet<CategoryAdmin[]>(`${BASE}/categories`, {
+    signal,
+    fallbackMessage: GET_FALLBACK_MESSAGE,
+  })
 }
 
 export function createCategory(payload: CategoryCreateRequest) {
@@ -43,7 +48,10 @@ export function deleteCategory(id: string, payload: DeleteRequest) {
 }
 
 export function listPriorities(signal?: AbortSignal) {
-  return apiGet<PriorityAdmin[]>(`${BASE}/priorities`, { signal })
+  return apiGet<PriorityAdmin[]>(`${BASE}/priorities`, {
+    signal,
+    fallbackMessage: GET_FALLBACK_MESSAGE,
+  })
 }
 
 export function createPriority(payload: PriorityCreateRequest) {
@@ -68,7 +76,10 @@ export function deletePriority(id: string, payload: DeleteRequest) {
 }
 
 export function getSlaMatrix(signal?: AbortSignal) {
-  return apiGet<SlaMatrixResponse>(`${BASE}/sla-rules`, { signal })
+  return apiGet<SlaMatrixResponse>(`${BASE}/sla-rules`, {
+    signal,
+    fallbackMessage: GET_FALLBACK_MESSAGE,
+  })
 }
 
 export function saveSlaBatch(payload: SlaBatchRequest) {
@@ -91,6 +102,7 @@ export function getConfigHistory(
 ) {
   return apiGet<ConfigHistoryResponse>(`${BASE}/config-history`, {
     signal,
+    fallbackMessage: GET_FALLBACK_MESSAGE,
     query: {
       from: filters.from,
       to: filters.to,

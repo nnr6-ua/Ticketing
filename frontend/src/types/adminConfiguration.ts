@@ -26,6 +26,7 @@ export interface ConfigurationVersionRef {
 export interface CategoryRef {
   id: string
   name: string
+  is_active?: boolean
 }
 
 export interface PriorityRef {
@@ -34,12 +35,12 @@ export interface PriorityRef {
   level: number
   color: string | null
   base_hours: string | null
+  is_active?: boolean
 }
 
 export interface CategoryAdmin extends CategoryRef {
   description: string | null
   keywords: string[]
-  is_active: boolean
   is_default: boolean
   is_system: boolean
   sort_order: number
@@ -51,7 +52,6 @@ export interface CategoryAdmin extends CategoryRef {
 
 export interface PriorityAdmin extends PriorityRef {
   keywords: string[]
-  is_active: boolean
   is_default: boolean
   is_system: boolean
   sort_order: number
