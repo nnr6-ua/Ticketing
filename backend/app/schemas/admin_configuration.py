@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
+from app.core.errors import ApiError
 from app.models.enums import ConfigAction, ConfigEntityType
 
 HOURS = Annotated[
@@ -85,6 +86,7 @@ class CategoryRef(BaseModel):
 
     id: UUID
     name: str
+    is_active: bool
 
 
 class PriorityRef(BaseModel):
@@ -95,6 +97,7 @@ class PriorityRef(BaseModel):
     level: int = Field(ge=1, le=4)
     color: str | None = None
     base_hours: Decimal | None = None
+    is_active: bool
 
     @field_serializer("base_hours", when_used="json")
     def _serialize_base_hours(self, value: Decimal | None) -> str | None:
@@ -102,28 +105,26 @@ class PriorityRef(BaseModel):
 
 
 class CategoryAdmin(CategoryRef):
-    description: str | None = None
-    keywords: list[str] = Field(default_factory=list)
-    is_active: bool
+    description: str | None
+    keywords: list[str]
     is_default: bool
     is_system: bool
     sort_order: int
     revision: int
-    ticket_count: int = 0
-    rule_count: int = 0
-    can_delete: bool = False
+    ticket_count: int
+    rule_count: int
+    can_delete: bool
 
 
 class PriorityAdmin(PriorityRef):
-    keywords: list[str] = Field(default_factory=list)
-    is_active: bool
+    keywords: list[str]
     is_default: bool
     is_system: bool
     sort_order: int
     revision: int
-    ticket_count: int = 0
-    rule_count: int = 0
-    can_delete: bool = False
+    ticket_count: int
+    rule_count: int
+    can_delete: bool
 
 
 class CategoryCreateRequest(BaseModel):
@@ -263,7 +264,16 @@ class SlaRetireChange(BaseModel):
 
 
 class SlaBatchRequest(BaseModel):
-    changes: list[SlaUpsertChange | SlaRetireChange] = Field(max_length=20)
+    changes: list[SlaUpsertChange | SlaRetireChange] = Field(
+        min_length=1, max_length=20
+    )
+
+    @field_validator("changes", mode="before")
+    @classmethod
+    def _non_empty_changes(cls, value: Any) -> Any:
+        if isinstance(value, list) and not value:
+            raise ApiError(422, "empty_batch", "El lote no contiene cambios.")
+        return value
 
 
 class SlaBatchResponse(BaseModel):
@@ -283,8 +293,8 @@ class ConfigHistoryEntry(BaseModel):
     action: ConfigAction
     actor: UserRef
     occurred_at: datetime
-    previous_values: dict[str, Any] | None = None
-    new_values: dict[str, Any] | None = None
+    previous_values: dict[str, Any] | None
+    new_values: dict[str, Any] | None
     summary: str
 
     @field_serializer("occurred_at", when_used="json")

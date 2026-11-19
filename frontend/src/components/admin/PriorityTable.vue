@@ -14,11 +14,16 @@ const emit = defineEmits<{
   (event: 'delete', item: PriorityAdmin): void
 }>()
 
+const hoursFormatter = new Intl.NumberFormat('es-ES', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 function formatHours(value: string | null): string {
   if (value === null) return '—'
   const number = Number(value)
   if (!Number.isFinite(number)) return `${value} h`
-  return `${Number.isInteger(number) ? number : number.toFixed(1).replace('.', ',')} h`
+  return `${hoursFormatter.format(number)} h`
 }
 </script>
 
@@ -56,7 +61,12 @@ function formatHours(value: string | null): string {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="item in items" :key="item.id">
+          <tr v-if="loading">
+            <td colspan="9" class="px-4 py-6">
+              <div class="h-4 animate-pulse rounded bg-slate-100" />
+            </td>
+          </tr>
+          <tr v-for="item in items" v-else :key="item.id">
             <th scope="row" class="whitespace-nowrap px-4 py-3 text-left font-medium text-slate-900">
               {{ item.name }}
             </th>
@@ -92,7 +102,7 @@ function formatHours(value: string | null): string {
                 class="rounded-full px-2 py-0.5 text-xs font-medium"
                 :class="
                   item.is_active
-                    ? 'bg-emerald-100 text-emerald-800'
+                    ? 'bg-emerald-50 text-emerald-800'
                     : 'bg-slate-100 text-slate-600'
                 "
               >
@@ -100,13 +110,13 @@ function formatHours(value: string | null): string {
               </span>
               <span
                 v-if="item.is_system"
-                class="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800"
+                class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800"
               >
                 Sistema
               </span>
               <span
                 v-if="item.is_default"
-                class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800"
+                class="ml-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-800"
               >
                 Predeterminada
               </span>

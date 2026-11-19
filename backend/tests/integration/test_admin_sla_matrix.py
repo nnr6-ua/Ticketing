@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
     Category,
+    ConfigAction,
+    ConfigurationAuditEntry,
     ConfigurationVersion,
     Priority,
     SlaRule,
+    Ticket,
     User,
     UserRole,
 )
@@ -47,6 +53,15 @@ def test_rule_prevails_and_retirement_falls_back_to_base(
     client: TestClient, db: Session, admin_headers, auth
 ) -> None:
     red, _, alta, _, user = _catalog(db)
+    tech = User(
+        id=uuid.uuid4(),
+        name="Técnica",
+        email="tecnica.retiro@example.com",
+        role=UserRole.tecnico,
+        is_active=True,
+    )
+    db.add(tech)
+    db.commit()
 
     created = client.post(
         "/api/v1/admin/sla-rules/batch",
@@ -67,6 +82,19 @@ def test_rule_prevails_and_retirement_falls_back_to_base(
     )
     assert first.status_code == 201
     assert first.json()["sla_hours_applied"] == "2.50"
+    first_body = first.json()
+    first_id = uuid.UUID(first_body["id"])
+    ticket = db.get(Ticket, first_id)
+    assert ticket is not None
+    ticket.assignee_id = tech.id
+    db.commit()
+    before = next(
+        item
+        for item in client.get(
+            "/api/v1/me/work-queue", headers=auth(tech)
+        ).json()["items"]
+        if item["id"] == str(first_id)
+    )["sla"]
 
     retired = client.post(
         f"/api/v1/admin/sla-rules/{rule_id}/retirement",
@@ -75,6 +103,34 @@ def test_rule_prevails_and_retirement_falls_back_to_base(
     )
     assert retired.status_code == 200
     assert retired.json()["items"] == []
+
+    history = client.get(
+        "/api/v1/admin/config-history",
+        params={"entity_id": str(rule_id), "action": "rule_retire"},
+        headers=admin_headers,
+    )
+    assert history.status_code == 200
+    assert history.json()["pagination"]["total_items"] == 1
+    audit = history.json()["items"][0]
+    assert audit["previous_values"]["valid_to_version"] is None
+    assert audit["previous_values"]["retired_at"] is None
+    assert audit["new_values"]["valid_to_version"] == 3
+    assert audit["new_values"]["retired_at"] is not None
+
+    db.expire_all()
+    ticket = db.get(Ticket, first_id)
+    assert ticket is not None
+    assert ticket.sla_hours_applied == Decimal(first_body["sla_hours_applied"])
+    assert ticket.sla_deadline == datetime.fromisoformat(first_body["sla_deadline"])
+    assert str(ticket.sla_config_version_id) == first_body["sla_config_version_id"]
+    after = next(
+        item
+        for item in client.get(
+            "/api/v1/me/work-queue", headers=auth(tech)
+        ).json()["items"]
+        if item["id"] == str(first_id)
+    )["sla"]
+    assert after == before
 
     second = client.post(
         "/api/v1/tickets",
@@ -111,6 +167,50 @@ def test_batch_is_atomic_when_a_change_is_invalid(
     assert db.scalars(select(SlaRule)).all() == []
     versions = db.scalars(select(ConfigurationVersion)).all()
     assert [version.version for version in versions] == [1]
+
+
+def test_rule_survives_priority_deactivation_and_can_be_retired(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    red, _, alta, _, _ = _catalog(db)
+
+    created = client.post(
+        "/api/v1/admin/sla-rules/batch",
+        json={"changes": [_upsert(red, alta, "3.00")]},
+        headers=admin_headers,
+    )
+    assert created.status_code == 200
+    rule_id = created.json()["items"][0]["id"]
+
+    deactivated = client.post(
+        f"/api/v1/admin/priorities/{alta.id}/updates",
+        json={"expected_revision": 1, "is_active": False},
+        headers=admin_headers,
+    )
+    assert deactivated.status_code == 200
+
+    matrix = client.get("/api/v1/admin/sla-rules", headers=admin_headers)
+    assert matrix.status_code == 200
+    assert any(
+        item["id"] == rule_id and item["hours"] == "3.00"
+        for item in matrix.json()["items"]
+    )
+    active_priority_ids = {
+        item["id"] for item in matrix.json()["combinations"]["priorities"]
+    }
+    assert str(alta.id) not in active_priority_ids
+
+    retired = client.post(
+        f"/api/v1/admin/sla-rules/{rule_id}/retirement",
+        json={"expected_rule_id": rule_id},
+        headers=admin_headers,
+    )
+    assert retired.status_code == 200
+    assert retired.json()["items"] == []
+    assert retired.json()["configuration_version"]["version"] == 4
+
+    after = client.get("/api/v1/admin/sla-rules", headers=admin_headers)
+    assert after.json()["items"] == []
 
 
 def test_batch_rejects_duplicate_combinations_and_stale_ids(
@@ -175,6 +275,18 @@ def test_upsert_closes_previous_rule_and_records_metadata(
     assert new.supersedes_id == old.id
     assert new.valid_from_version == 3
 
+    audit = db.scalar(
+        select(ConfigurationAuditEntry).where(
+            ConfigurationAuditEntry.entity_id == new.id,
+            ConfigurationAuditEntry.action == ConfigAction.rule_upsert,
+        )
+    )
+    assert audit is not None
+    assert audit.previous_values is not None
+    assert audit.previous_values["hours"] == "2.00"
+    assert audit.new_values is not None
+    assert audit.new_values["hours"] == "3.00"
+
     retired = client.post(
         f"/api/v1/admin/sla-rules/{second_rule_id}/retirement",
         json={"expected_rule_id": second_rule_id},
@@ -185,6 +297,25 @@ def test_upsert_closes_previous_rule_and_records_metadata(
     assert new.valid_to_version == 4
     assert new.retired_at is not None
     assert new.retired_by_id == admin_user.id
+
+
+@pytest.mark.parametrize("hours", ["0", "0.00", "-1.00", "abc", "1.234"])
+def test_batch_rejects_invalid_rule_hours(
+    client: TestClient, db: Session, admin_headers, hours: str
+) -> None:
+    red, _, alta, _, _ = _catalog(db)
+
+    response = client.post(
+        "/api/v1/admin/sla-rules/batch",
+        json={"changes": [_upsert(red, alta, hours)]},
+        headers=admin_headers,
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_request"
+
+    assert db.scalars(select(SlaRule)).all() == []
+    versions = db.scalars(select(ConfigurationVersion)).all()
+    assert [version.version for version in versions] == [1]
 
 
 def test_batch_limit_and_empty_batch(client: TestClient, admin_headers) -> None:

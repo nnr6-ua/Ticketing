@@ -73,6 +73,9 @@ watch(
 
 onMounted(() => {
   void store.loadAll()
+  if (activeTab.value === 'history' && !store.history) {
+    void loadHistory(store.historyFilters)
+  }
 })
 
 function openCategoryCreate(): void {
@@ -186,6 +189,15 @@ async function saveMatrix(changes: SlaChange[]): Promise<void> {
   }
 }
 
+async function retireInactiveRule(ruleId: string): Promise<void> {
+  try {
+    await store.retireRule(ruleId)
+    matrixSavedVersion.value = store.matrix?.configuration_version.version ?? null
+  } catch {
+    // La matriz muestra el error o conflicto devuelto por la API.
+  }
+}
+
 async function loadHistory(filters: ConfigHistoryFilters): Promise<void> {
   try {
     await store.loadHistory(filters)
@@ -217,7 +229,7 @@ function retryHistory(): void {
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-          Configuración de plazos SLA
+          Configuración
         </h1>
         <p class="mt-1 text-sm text-slate-700">
           Gestiona categorías, prioridades y la matriz de plazos sin afectar a
@@ -226,7 +238,7 @@ function retryHistory(): void {
       </div>
       <button
         type="button"
-        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-60"
         :disabled="store.loading"
         @click="reloadAll"
       >
@@ -254,7 +266,7 @@ function retryHistory(): void {
 
       <p
         v-if="store.error && !store.conflict"
-        class="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800"
+        class="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
         role="alert"
       >
         {{ store.error.message }}
@@ -327,7 +339,9 @@ function retryHistory(): void {
           :matrix="store.matrix"
           :saving="store.saving"
           :conflict="store.conflict"
+          :cell-errors="store.matrixCellErrors"
           @save="saveMatrix"
+          @retire="retireInactiveRule"
           @reload="reloadAll"
         />
       </div>

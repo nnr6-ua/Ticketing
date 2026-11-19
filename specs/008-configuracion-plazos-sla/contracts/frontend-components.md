@@ -39,6 +39,7 @@ export interface ConfigurationVersionRef {
 export interface CategoryRef {
   id: string
   name: string
+  is_active?: boolean
 }
 
 export interface PriorityRef {
@@ -47,12 +48,12 @@ export interface PriorityRef {
   level: number
   color: string | null
   base_hours: string | null
+  is_active?: boolean
 }
 
 export interface CategoryAdmin extends CategoryRef {
   description: string | null
   keywords: string[]
-  is_active: boolean
   is_default: boolean
   is_system: boolean
   sort_order: number
@@ -64,7 +65,6 @@ export interface CategoryAdmin extends CategoryRef {
 
 export interface PriorityAdmin extends PriorityRef {
   keywords: string[]
-  is_active: boolean
   is_default: boolean
   is_system: boolean
   sort_order: number
@@ -207,6 +207,8 @@ export interface ConfigHistoryFilters {
   page_size?: number
 }
 ```
+
+`is_active?` es opcional en las refs por compatibilidad con respuestas anteriores; la API actual lo incluye siempre, también en `items[].category` y `items[].priority`, con `false` para marcar referencias inactivas.
 
 ---
 
@@ -382,7 +384,7 @@ Nombre, Nivel, Color, Plazo base, Palabras clave, Estado, Tickets, Reglas, Accio
 
 - El color se muestra como punto `h-2.5 w-2.5 rounded-full` con `style="{ backgroundColor: color }"`.
 - Nivel como insignia `bg-slate-100 text-slate-700`.
-- Plazo base como `8 h` (sin decimales si es entero) o `8,5 h`.
+- Plazo base como `8,00 h` o `8,50 h` (dos decimales es-ES).
 - Insignias de estado y sistema iguales que en categorías.
 
 ---
@@ -422,12 +424,14 @@ Mismo contrato que `CategoryFormDialog`, con `priority` y `PriorityCreateRequest
 | `matrix` | `SlaMatrixResponse \| null` | Sí | Matriz vigente |
 | `saving` | `boolean` | No | Bloquea acciones |
 | `conflict` | `string \| null` | No | Conflicto de versión |
+| `cellErrors` | `Record<string, string>` | No | Errores por celda con clave `${categoryId}:${priorityId}` |
 
 ### Eventos
 
 | Evento | Payload | Cuándo |
 |---|---|---|
 | `save` | `SlaChange[]` | «Guardar cambios» |
+| `retire` | `string` (rule id) | «Retirar regla» de combinación inactiva |
 | `reload` | — | «Recargar configuración» |
 
 ### Estado interno
@@ -435,16 +439,18 @@ Mismo contrato que `CategoryFormDialog`, con `priority` y `PriorityCreateRequest
 - `draft`: `Map<string, string | null>` con clave `${categoryId}:${priorityId}` y valor de horas o `null` para retirar.
 - `baseline`: copia de la matriz recibida para calcular cambios.
 - `isDirty`: `draft` difiere de `baseline`.
-- `cellError`: error local de una celda.
+- `cellErrors`: errores recibidos por prop, indexados por `${categoryId}:${priorityId}`.
+- `inactiveRules`: reglas vigentes cuyas referencias de categoría o prioridad tienen `is_active: false`.
 
 ### Renderizado
 
-- Tabla con categorías en filas y prioridades en columnas.
-- Cabecera de prioridad: nombre, nivel y plazo base (`Base: 8 h`).
-- Celda con regla: `6 h` y un punto de color de la prioridad.
-- Celda sin regla: `Base: 8 h` en `text-slate-500`.
-- Celda inactiva: fondo `bg-slate-50` y texto `text-slate-400`; no editable.
-- Cada celda es un `<button>` con `aria-label="Plazo para Red y Alta"` y `aria-describedby` con la ayuda.
+- Tabla con categorías en filas y prioridades en columnas; las referencias incluyen `is_active` en respuestas actuales (opcional en el tipo, `false` para inactivas).
+- Cabecera de prioridad: nombre, nivel y plazo base (`Base: 8,00 h`).
+- Celda con regla: `6,00 h` y un punto de color de la prioridad.
+- Celda sin regla: `Base: 8,00 h` en `text-slate-500`.
+- Celda inactiva: fondo `bg-slate-50`, texto `text-slate-400` y etiqueta «Categoría inactiva», «Prioridad inactiva» o ambas; no editable.
+- Cada celda es un `<button>` con `aria-label="Plazo para Red y Alta"` y `aria-describedby` con la ayuda y, si existe, el error.
+- Panel «Reglas de combinaciones inactivas» con botón «Retirar regla» por regla vigente no editable desde la tabla.
 - Barra inferior sticky con «Cambios sin guardar», «Descartar» y «Guardar cambios».
 
 ### Edición
@@ -461,7 +467,7 @@ Mismo contrato que `CategoryFormDialog`, con `priority` y `PriorityCreateRequest
 ### Conflictos y errores
 
 - `409 stale_configuration`: banner con «La matriz ha cambiado. Recarga antes de guardar.» y botón de recarga.
-- `422 inactive_catalog_item`: la celda se marca con borde `rose-400` y mensaje.
+- `422 inactive_catalog_item`: la celda se marca con borde `rose-400` y mensaje desde `cellErrors`.
 - Cualquier error deja el borrador intacto para no perder cambios.
 
 ### Accesibilidad
@@ -526,7 +532,7 @@ Mismo contrato que `CategoryFormDialog`, con `priority` y `PriorityCreateRequest
 - Desde / hasta (`input type="date"`).
 - Entidad (`category`, `priority`, `sla_rule`).
 - Acción (`create`, `update`, `deactivate`, `reactivate`, `delete`, `set_default`, `rule_upsert`, `rule_retire`).
-- Versión (`number`).
+- Versión (ID UUID de configuración, texto: `configuration_version_id`).
 - Botón «Limpiar filtros».
 
 ### Tabla

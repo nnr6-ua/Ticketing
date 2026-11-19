@@ -19,7 +19,7 @@ const DEV_USERS = [
   { email: 'usuario@example.com', label: 'Solicitante · mis tickets', role: 'usuario' },
 ]
 
-const email = ref(DEV_USERS[0].email)
+const email = ref<string>(DEV_USERS[0].email)
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 

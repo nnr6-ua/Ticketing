@@ -58,6 +58,7 @@ class TicketRead(BaseModel):
     duplicate: bool = False
     sla_priority_level: int | None = None
     sla_hours_applied: Decimal | None = None
+    sla_deadline: datetime | None = None
     sla_version: str | None = None
     sla_config_version_id: UUID | None = None
 

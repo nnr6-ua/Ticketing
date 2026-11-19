@@ -78,7 +78,7 @@ const emit = defineEmits<{
                 class="rounded-full px-2 py-0.5 text-xs font-medium"
                 :class="
                   item.is_active
-                    ? 'bg-emerald-100 text-emerald-800'
+                    ? 'bg-emerald-50 text-emerald-800'
                     : 'bg-slate-100 text-slate-600'
                 "
               >
@@ -86,13 +86,13 @@ const emit = defineEmits<{
               </span>
               <span
                 v-if="item.is_system"
-                class="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800"
+                class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800"
               >
                 Sistema
               </span>
               <span
                 v-if="item.is_default"
-                class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800"
+                class="ml-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-800"
               >
                 Predeterminada
               </span>

@@ -46,6 +46,11 @@ CONFIGURATION_ERROR_MESSAGES: dict[str, str] = {
     ),
     "system_catalog_item": "Las entidades de sistema no se pueden modificar.",
     "inactive_catalog_item": "La categoría o la prioridad no está activa.",
+    "inactive_default_catalog_item": (
+        "Una entidad inactiva no puede ser predeterminada."
+    ),
+    "invalid_hours": "El plazo debe ser un número positivo de horas.",
+    "invalid_date_range": "La fecha inicial no puede ser posterior a la final.",
     "empty_batch": "El lote no contiene cambios.",
     "configuration_not_initialized": (
         "La configuración base no está inicializada."

@@ -62,9 +62,21 @@ describe('ConfigHistoryTable', () => {
       page: 1,
     })
 
+    await wrapper.get('#history-to').setValue('2026-11-30')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({
+      to: '2026-11-30',
+      page: 1,
+    })
+
     await wrapper.get('#history-entity').setValue('priority')
     expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({
       entity_type: 'priority',
+      page: 1,
+    })
+
+    await wrapper.get('#history-action').setValue('rule_retire')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({
+      action: 'rule_retire',
       page: 1,
     })
 

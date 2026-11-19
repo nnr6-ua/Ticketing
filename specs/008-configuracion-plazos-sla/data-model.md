@@ -458,8 +458,8 @@ Todos los campos salvo `expected_revision` son opcionales. `replacement_default_
 ```json
 {
   "id": "uuid",
-  "category": { "id": "uuid", "name": "Red" },
-  "priority": { "id": "uuid", "name": "Alta", "level": 2 },
+  "category": { "id": "uuid", "name": "Red", "is_active": true },
+  "priority": { "id": "uuid", "name": "Alta", "level": 2, "is_active": true },
   "hours": "6.00",
   "valid_from_version": 7,
   "configuration_version_id": "uuid",
@@ -475,8 +475,8 @@ Todos los campos salvo `expected_revision` son opcionales. `replacement_default_
   "configuration_version": { "id": "uuid", "version": 7, "created_at": "..." },
   "items": [SlaRuleAdmin],
   "combinations": {
-    "categories": [{ "id": "uuid", "name": "Red" }],
-    "priorities": [{ "id": "uuid", "name": "Alta", "level": 2, "color": "#ea580c", "base_hours": "8.00" }]
+    "categories": [{ "id": "uuid", "name": "Red", "is_active": true }],
+    "priorities": [{ "id": "uuid", "name": "Alta", "level": 2, "color": "#ea580c", "base_hours": "8.00", "is_active": true }]
   }
 }
 ```

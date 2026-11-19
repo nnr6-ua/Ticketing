@@ -47,6 +47,14 @@ class Ticket(Base):
             "sla_deadline IS NULL OR sla_deadline > created_at",
             name="ck_tickets_sla_deadline_after_created",
         ),
+        CheckConstraint(
+            "sla_priority_level IS NULL OR sla_priority_level BETWEEN 1 AND 4",
+            name="ck_tickets_sla_priority_level",
+        ),
+        CheckConstraint(
+            "sla_hours_applied IS NULL OR sla_hours_applied > 0",
+            name="ck_tickets_sla_hours_positive",
+        ),
         Index(
             "ix_tickets_assignee_status_deadline",
             "assignee_id",

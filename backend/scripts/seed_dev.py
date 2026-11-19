@@ -28,14 +28,10 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import (
     Category,
-    ConfigAction,
-    ConfigEntityType,
-    ConfigurationAuditEntry,
     ConfigurationVersion,
     EscalationLevel,
     Notification,
     Priority,
-    SlaRule,
     Ticket,
     TicketStatus,
     TicketTimelineEntry,
@@ -46,6 +42,18 @@ from app.models.enums import NotificationType, TimelineEventType
 from app.services.ticket_numbers import sync_ticket_number_sequence
 
 NAMESPACE = uuid.UUID("6f1f4c2e-9d5a-4c7b-8a3d-2b1c0d9e8f70")
+
+SEED_SUMMARY_LINES = (
+    "Seed completado:",
+    "  Administración: admin@example.com (rol admin)",
+    "  Técnico A: 5 activos + 1 resuelto + 1 cerrado",
+    "  Técnico B: 2 activos",
+    "  Técnico C: 1 resuelto (solo finalizados)",
+    "  Técnico D: sin tickets",
+    "  Solicitante: 3 tickets propios + 3 notificaciones (2 sin leer)",
+    "  Supervisor: rol no autorizado (403)",
+    "  Configuración: versión 1 base, cero reglas SLA, sin histórico de configuración y tickets legacy sin sla_config_version_id",
+)
 
 
 def sid(key: str) -> uuid.UUID:
@@ -167,6 +175,15 @@ def upsert_ticket(
     ticket.closed_at = finalized_at
     ticket.updated_at = finalized_at or created_at
     ticket.sla_version = "v1"
+    ticket.sla_priority_level = priority.level
+    ticket.sla_hours_applied = (
+        Decimal(str((sla_deadline - created_at).total_seconds() / 3600)).quantize(
+            Decimal("0.01")
+        )
+        if sla_deadline is not None
+        else None
+    )
+    ticket.sla_config_version_id = None
     return ticket
 
 
@@ -226,113 +243,19 @@ def upsert_notification(
     return notification
 
 
-def seed_configuration(
-    session: Session,
-    actor: User,
-    categories: list[Category],
-    priorities: list[Priority],
-    now: datetime,
-) -> None:
-    if session.scalar(select(ConfigurationVersion).limit(1)) is not None:
-        return
-
-    base = ConfigurationVersion(
-        id=sid("configuration-version-1"),
-        version=1,
-        created_at=now,
-        created_by_id=actor.id,
-        note="Configuración base de demostración (HU-08).",
+def seed_configuration(session: Session, now: datetime) -> None:
+    base = session.scalar(
+        select(ConfigurationVersion).where(ConfigurationVersion.version == 1).limit(1)
     )
-    session.add(base)
-
-    factors = {
-        "Red": Decimal("1.50"),
-        "Hardware": Decimal("1.00"),
-        "Software": Decimal("1.25"),
-        "Otros": Decimal("1.00"),
-    }
-    rules: dict[tuple[str, str], SlaRule] = {}
-    for category in categories:
-        for priority in priorities:
-            hours = (
-                Decimal(str(priority.base_hours))
-                * factors.get(category.name, Decimal("1.00"))
-            ).quantize(Decimal("0.01"))
-            rule = SlaRule(
-                id=sid(f"sla-rule-v1-{category.name}-{priority.name}"),
-                category_id=category.id,
-                priority_id=priority.id,
-                hours=hours,
-                configuration_version_id=base.id,
-                created_by_id=actor.id,
-                created_at=now,
-                valid_from_version=1,
-            )
-            session.add(rule)
-            rules[(category.name, priority.name)] = rule
-            session.add(
-                ConfigurationAuditEntry(
-                    id=sid(f"audit-v1-{category.name}-{priority.name}"),
-                    configuration_version_id=base.id,
-                    entity_type=ConfigEntityType.sla_rule,
-                    entity_id=rule.id,
-                    action=ConfigAction.rule_upsert,
-                    actor_id=actor.id,
-                    occurred_at=now,
-                    summary=(
-                        f"Regla SLA inicial: {category.name} / "
-                        f"{priority.name} ({hours:.2f} h)."
-                    ),
-                    new_values={
-                        "category": category.name,
-                        "priority": priority.name,
-                        "hours": f"{hours:.2f}",
-                    },
-                )
-            )
-
-    changed_at = now + timedelta(minutes=1)
-    updated = ConfigurationVersion(
-        id=sid("configuration-version-2"),
-        version=2,
-        created_at=changed_at,
-        created_by_id=actor.id,
-        note="Ajuste de demostración: plazo de Red / Crítica.",
-    )
-    session.add(updated)
-
-    previous_rule = rules[("Red", "Crítica")]
-    previous_rule.valid_to_version = 2
-    new_hours = previous_rule.hours + Decimal("2.00")
-    new_rule = SlaRule(
-        id=sid("sla-rule-v2-red-critica"),
-        category_id=previous_rule.category_id,
-        priority_id=previous_rule.priority_id,
-        hours=new_hours,
-        configuration_version_id=updated.id,
-        created_by_id=actor.id,
-        created_at=changed_at,
-        valid_from_version=2,
-        supersedes_id=previous_rule.id,
-    )
-    session.add(new_rule)
-    session.add(
-        ConfigurationAuditEntry(
-            id=sid("audit-v2-red-critica"),
-            configuration_version_id=updated.id,
-            entity_type=ConfigEntityType.sla_rule,
-            entity_id=new_rule.id,
-            action=ConfigAction.rule_upsert,
-            actor_id=actor.id,
-            occurred_at=changed_at,
-            summary=(
-                "Ajuste de plazo SLA: Red / Crítica de "
-                f"{previous_rule.hours:.2f} h a {new_hours:.2f} h."
-            ),
-            previous_values={"hours": f"{previous_rule.hours:.2f}"},
-            new_values={"hours": f"{new_hours:.2f}"},
+    if base is None:
+        base = ConfigurationVersion(
+            id=sid("configuration-version-1"),
+            version=1,
+            created_at=now,
+            created_by_id=None,
+            note="Línea base de configuración.",
         )
-    )
+        session.add(base)
 
 
 def main() -> None:
@@ -492,6 +415,8 @@ def main() -> None:
             description="Categoría de sistema para tickets sin catálogo activo.",
             is_system=True,
         )
+
+        seed_configuration(session, now)
 
         # Técnico A: 5 activos + 1 resuelto en plazo + 1 cerrado incumplido.
         upsert_ticket(
@@ -723,25 +648,13 @@ def main() -> None:
 
         # Técnico D no tiene tickets (cola vacía).
 
-        seed_configuration(
-            session,
-            admin,
-            [red, hardware, software, otros],
-            [critica, alta, media, baja],
-            now,
-        )
+        seed_configuration(session, now)
         sync_ticket_number_sequence(session)
 
         session.commit()
 
-    print("Seed completado:")
-    print("  Técnico A: 5 activos + 1 resuelto + 1 cerrado")
-    print("  Técnico B: 2 activos")
-    print("  Técnico C: 1 resuelto (solo finalizados)")
-    print("  Técnico D: sin tickets")
-    print("  Solicitante: 3 tickets propios + 3 notificaciones (2 sin leer)")
-    print("  Supervisor: rol no autorizado (403)")
-    print("  Configuración: versión 2 con 16 reglas SLA vigentes e historial")
+    for line in SEED_SUMMARY_LINES:
+        print(line)
 
 
 if __name__ == "__main__":

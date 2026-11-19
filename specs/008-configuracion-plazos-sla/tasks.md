@@ -152,7 +152,7 @@ description: "Task list for HU-08: configuración de categorías, prioridades y 
 ### Tests for User Story 4
 
 - [X] T051 [P] [US4] Escribir `backend/tests/integration/test_sla_non_retroactivity.py` usando tickets con snapshot (no los legados de T015) para ticket abierto y cerrado con límite/outcome inmutables, ticket nuevo con nueva versión visible en `TicketRead`, categoría/prioridad desactivada visible en el histórico, posición de cola estable al cambiar el nivel y contraste explícito con un ticket legado sin `sla_config_version_id`.
-- [ ] T052 [P] [US4] Escribir `backend/tests/integration/test_admin_concurrency.py` con PostgreSQL (`TEST_DATABASE_URL`) para `expected_revision`/`expected_rule_id` obsoletos, dos administradores sobre la misma regla, reintento idempotente de un lote ya aplicado y creación de ticket concurrente con cambio de versión, verificando `409 stale_configuration` y ausencia de escrituras parciales o duplicadas.
+- [X] T052 [P] [US4] Escribir `backend/tests/integration/test_admin_concurrency.py` con PostgreSQL (`TEST_DATABASE_URL`) para `expected_revision`/`expected_rule_id` obsoletos, dos administradores sobre la misma regla, reintento idempotente de un lote ya aplicado y creación de ticket concurrente con cambio de versión, verificando `409 stale_configuration` y ausencia de escrituras parciales o duplicadas.
 
 ### Implementation for User Story 4
 
@@ -194,11 +194,11 @@ description: "Task list for HU-08: configuración de categorías, prioridades y 
 - [X] T063 [P] Escribir `backend/tests/contract/test_admin_configuration_contract.py` para verificar campos, formas, códigos y rutas de `specs/008-configuracion-plazos-sla/contracts/admin-configuration.openapi.yaml`, incluyendo `403` para no-admin.
 - [X] T064 Ejecutar `python -m pytest` en `backend/`, corregir fallos y confirmar que la suite pasa con SQLite.
 - [X] T065 Ejecutar `npm run test` y `npm run build` en `frontend/`, corregir fallos de Vitest, TypeScript y `vue-tsc`.
-- [ ] T066 Ejecutar `alembic upgrade head` y `alembic downgrade -1` sobre `backend/alembic/versions/0006_sla_configuration.py` en PostgreSQL 16, verificar baseline, backfill, índices parciales y que `downgrade()` no toca datos históricos de tickets.
+- [X] T066 Ejecutar `alembic upgrade head` y `alembic downgrade -1` sobre `backend/alembic/versions/0006_sla_configuration.py` en PostgreSQL 16, verificar baseline, backfill, índices parciales y que `downgrade()` no toca datos históricos de tickets.
 - [X] T067 Revisar accesibilidad en `frontend/src/views/AdminConfigurationPage.vue` y `frontend/src/components/admin/`: foco visible, etiquetas, `caption` en tablas, pestañas y diálogos con teclado.
 - [X] T068 Revisar seguridad en `backend/app/api/v1/admin_configuration.py` y `backend/app/services/configuration.py`: 403 para no-admin, sin datos de configuración en respuestas no autorizadas, sin secretos ni cuerpos completos en logs.
-- [ ] T069 Ejecutar la validación de `specs/008-configuracion-plazos-sla/quickstart.md` contra el entorno local y corregir cualquier divergencia de comportamiento o contrato.
-- [ ] T070 [P] Escribir `backend/tests/integration/test_admin_configuration_performance.py` para medir p95 de `GET /admin/categories`, `GET /admin/sla-rules`, `GET /admin/config-history`, `POST /admin/sla-rules/batch` con 20 celdas y alta de ticket; ejecutarlo en PostgreSQL con `TEST_DATABASE_URL` y marcar el umbral de la constitución.
+- [X] T069 Ejecutar la validación de `specs/008-configuracion-plazos-sla/quickstart.md` contra el entorno local y corregir cualquier divergencia de comportamiento o contrato.
+- [X] T070 [P] Escribir `backend/tests/integration/test_admin_configuration_performance.py` para medir p95 de `GET /admin/categories`, `GET /admin/sla-rules`, `GET /admin/config-history`, `POST /admin/sla-rules/batch` con 20 celdas y alta de ticket; ejecutarlo en PostgreSQL con `TEST_DATABASE_URL` y marcar el umbral de la constitución.
 - [X] T071 [P] Escribir `frontend/tests/views/AdminConfigurationPage.spec.ts` con `axe-core` para la página administrativa y sus pestañas, verificando que no hay violaciones críticas de accesibilidad.
 
 ---
@@ -343,3 +343,137 @@ El MVP funcional de HU-08 requiere US1–US4 porque la matriz y la no retroactiv
 - No se añaden dependencias nuevas; reutilizar `apiGet`/`apiPost`, Headless UI, Heroicons, Tailwind y los patrones de `WorkQueuePage`.
 - Los decimales viajan como cadena y las fechas como ISO 8601 UTC; la UI muestra `Europe/Madrid`.
 - Evitar tareas vagas y conflictos de edición simultánea sobre los archivos compartidos.
+
+---
+
+## Phase 9: Convergence
+
+- [X] T072 CRITICAL: completar `backend/tests/integration/test_admin_concurrency.py` con creación de ticket concurrente frente a un cambio de versión, `expected_rule_id` obsoleto, una segunda identidad de administrador y verificación de ausencia de reglas, versiones y auditorías duplicadas per Constitution IV / T052 / plan §3.3 (partial)
+- [X] T073 CRITICAL: ejecutar y registrar `alembic upgrade head` y `alembic downgrade -1` sobre `backend/alembic/versions/0006_sla_configuration.py` en PostgreSQL 16, verificando baseline, backfill, índices parciales y que el downgrade no altera datos históricos de tickets per Constitution II / T066 (missing)
+- [X] T074 Ampliar `backend/tests/integration/test_sla_non_retroactivity.py` con ticket cerrado, invariancia de `SlaOutcome`, orden de cola antes/después, visibilidad de categoría/prioridad desactivada en detalle e histórico y contraste con un ticket legado `v1` per US4/AC1 / US4/AC4 / US4/AC5 / US4/AC6 / US4/AC7 / SC-001 / SC-008 / SC-009 / T051 (partial)
+- [X] T075 Envolver `_apply_batch` en `try/except Exception: db.rollback(); raise` en `backend/app/services/configuration.py` para garantizar atomicidad explícita sin depender del cierre de sesión per FR-024 / US3/AC7 / plan §3.1 (partial)
+- [X] T076 Capturar `previous_values` de la regla sustituida en las entradas de auditoría `rule_upsert` de `backend/app/services/configuration.py` per FR-022 / US5/AC1 / plan §5 (partial)
+- [X] T077 Adquirir el bloqueo `SELECT ... FOR UPDATE` de la versión vigente antes de validar y escribir en `create_*`, `update_*` y `delete_*`, respetando el orden obligatorio de la transacción per plan R7 / plan §3.1 / FR-025 (contradicts)
+- [X] T078 Añadir índices únicos funcionales sobre `lower(trim(name))` de categorías y prioridades en los modelos y en `0006_sla_configuration.py` para impedir duplicados por concurrencia per FR-004 / plan R6 / data-model §7.1-7.2 (partial)
+- [X] T079 Corregir `backend/tests/integration/test_admin_configuration_performance.py` para medir el incremento <10 ms del alta de ticket frente a una línea base, medir el histórico con 25 elementos y aplicar los umbrales del plan per T070 / plan §9.3 (contradicts)
+- [X] T080 Añadir pruebas de idempotencia de comandos repetidos —desactivar/eliminar categorías y prioridades, retirar y reintentar un lote— verificando que no duplican auditoría ni versiones per T017 / T031 / T040 / plan §9.1 (missing)
+- [X] T081 Completar casos de aceptación de catálogos y matriz: borrado de categoría referenciada por ticket, nombre duplicado normalizado en prioridades y rechazo por API de horas de regla no positivas per US1/AC4 / FR-004 / US3/AC6 / T017 / T031 / T040 (partial)
+- [X] T082 Reflejar en `frontend/src/stores/adminConfiguration.ts` el borrador de matriz, `baseline`, `isDirty`, la versión vigente y los mensajes, reconciliando la divergencia con el contrato de componentes per T048 / plan §6.6 (partial)
+- [X] T083 Ejecutar y registrar la validación de `specs/008-configuracion-plazos-sla/quickstart.md` contra el entorno local y corregir cualquier divergencia de comportamiento o contrato per T069 / plan §9.3 (missing)
+- [X] T084 Deshabilitar y estilizar las celdas inactivas en `frontend/src/components/admin/SlaMatrix.vue` añadiendo `is_active` a los tipos, y pedir confirmación al salir con cambios sin guardar per plan §6.4 / FR-021 / contracts/frontend-components.md (partial)
+- [X] T085 Validar `from <= to` en `config_history` y resolver los joins a versión y actor con `joinedload` para evitar N+1 per plan §5 / T055 (partial)
+- [X] T086 Añadir los checks `ck_tickets_sla_priority_level` y `ck_tickets_sla_hours_positive` a `backend/app/models/ticket.py` para igualar el esquema migrado en las bases SQLite de prueba per T007 / plan §1.2 (partial)
+- [X] T087 Cambiar el `aria-label` de las celdas en `frontend/src/components/admin/SlaMatrix.vue` a «Plazo para <categoría> y <prioridad>» y actualizar `frontend/tests/components/SlaMatrix.spec.ts` per plan §6.4 / contracts/frontend-components.md (contradicts)
+- [X] T088 Ampliar `backend/tests/contract/test_admin_configuration_contract.py` para verificar enums, patrones, formatos y códigos de error estables del OpenAPI per T063 / plan §9.1 (partial)
+- [X] T089 Alinear `backend/alembic/versions/0006_sla_configuration.py` con `data-model.md`: crear los enums con `create_type=False` y ampliar el backfill de `sla_priority_level` a todos los tickets existentes per data-model §6.4 / data-model §9.2 (partial)
+- [X] T090 Añadir `min_length=1` a `changes` en `SlaBatchRequest` para rechazar lotes vacíos también en la capa de esquema per T011 / US3/AC7 (partial)
+- [X] T091 Alinear paleta y cabecera con el plan: tarjeta de error `border-red-200 bg-red-50`, título «Configuración», botón primario `bg-sky-600` e insignias emerald/amber/sky en `AdminConfigurationPage.vue` y las tablas per plan §6.2 / plan §6.3 (contradicts)
+
+---
+
+## Phase 10: Convergence
+
+- [X] T092 CRITICAL: crear explícitamente los enums `config_entity_type` y `config_action` en `upgrade()` de `backend/alembic/versions/0006_sla_configuration.py` con `postgresql.ENUM(...).create(bind, checkfirst=True)` antes de `op.create_table("configuration_audit_entries", ...)`, manteniendo `create_type=False` en las columnas y el `drop()` existente en `downgrade()`, para que `alembic upgrade head` no falle en PostgreSQL 16 con `UndefinedObject` per data-model §9.2 / Constitution II / T089 (contradicts)
+- [X] T093 CRITICAL: ejecutar y registrar en PostgreSQL 16 `alembic downgrade base && alembic upgrade head`, `alembic downgrade -1` y `alembic upgrade head`, verificando baseline `version = 1`, backfill completo de `sla_priority_level`, índices parciales, creación/desaparición de enums y que los tickets históricos no se alteran per Constitution II / T066 / T073 / plan §9.3 (missing)
+- [X] T094 CRITICAL: ejecutar `backend/tests/integration/test_admin_concurrency.py` con `TEST_DATABASE_URL` real y registrar resultados de `expected_revision`/`expected_rule_id` obsoletos, dos administradores, reintento idempotente y creación de ticket concurrente, confirmando `409 stale_configuration` y ausencia de escrituras duplicadas per FR-025 / SC-010 / Constitution IV / T052 / T072 / plan §3.3 (missing)
+- [X] T095 CRITICAL: ejecutar `backend/tests/integration/test_admin_configuration_performance.py` con `TEST_DATABASE_URL` real y registrar p95 de catálogos, matriz, histórico, lote y alta de ticket, además del `EXPLAIN ANALYZE` del histórico, verificando los umbrales del plan per Constitution IV / T070 / T079 / plan §9.3 (missing)
+- [X] T096 HIGH: ejecutar y registrar la validación completa de `specs/008-configuracion-plazos-sla/quickstart.md` contra el entorno local, corrigiendo cualquier divergencia de comportamiento o contrato detectada per T069 / T083 / plan §9.3 (missing)
+
+---
+
+## Phase 11: Convergence
+
+- [X] T097 CRITICAL: optimizar `backend/app/services/ticket_creation.py` (`_resolve_sla_snapshot`) y/o `backend/tests/integration/test_admin_configuration_performance.py` para que el incremento p95 del alta de ticket sea < 10 ms con `TEST_DATABASE_URL` real, manteniendo la coherencia versión/regla, y ejecutar y registrar además el `EXPLAIN ANALYZE` del histórico; la medición intercalada actual registró 11.88 ms y falla `assert ticket_overhead_ms < TICKET_THRESHOLD_MS` en `backend/tests/integration/test_admin_configuration_performance.py:226` per Constitution IV / plan §9.3 / T070 / T079 / T095 (contradicts)
+- [X] T098 CRITICAL: completar y registrar la verificación PostgreSQL 16 de T093 ejecutando también `alembic downgrade base && alembic upgrade head`, además del ciclo `downgrade -1`/`upgrade head` ya probado, y marcar T066/T073/T093 en `tasks.md` per Constitution II / T066 / T073 / plan §9.3 (partial)
+- [X] T099 CRITICAL: registrar el resultado de `TEST_DATABASE_URL='postgresql+psycopg://ticketing:ticketing@localhost:5432/ticketing_test' python3 -m pytest tests/integration/test_admin_concurrency.py -q` (`5 passed`) y marcar T052/T072/T094 en `tasks.md`, conservando la corrección de coherencia versión/regla per FR-025 / SC-010 / Constitution IV / T052 / T072 / plan §3.3 (partial)
+- [X] T100 HIGH: ejecutar y registrar la validación completa de `specs/008-configuracion-plazos-sla/quickstart.md` contra el entorno local, corrigiendo cualquier divergencia de comportamiento o contrato detectada y marcando T069/T083/T096 per T069 / T083 / plan §9.3 (missing)
+
+---
+
+## Phase 12: Convergence
+
+- [X] T101 CRITICAL: reconciliar el lock advisory global introducido en `backend/app/services/configuration.py` (`CONFIGURATION_LOCK_KEY`, `acquire_configuration_lock`) y en `backend/app/services/ticket_creation.py` (`_resolve_sla_snapshot`) con `research.md R7` y `plan §3.1`, que exigen `FOR UPDATE`/`FOR SHARE` y descartan explícitamente un lock global; sustituirlo por una alternativa conforme o documentar y justificar la decisión revisada en `research.md`/`plan.md`, conservando concurrencia `5 passed` e incremento p95 < 10 ms per research.md R7 / Constitution V (contradicts)
+
+---
+
+## Phase 13: Convergence
+
+- [X] T102 HIGH: alinear `backend/scripts/seed_dev.py` con `specs/008-configuracion-plazos-sla/quickstart.md` §2 y §5.5: dejar solo la versión base `v1`, sin `configuration-version-2`, reglas creadas por el seed ni `sla_config_version_id=v1` en tickets legacy, para que la verificación inicial y el alta de `Red × Alta` con `expected_rule_id: null` devuelvan el resultado esperado per quickstart §2 / quickstart §5.5 (contradicts)
+- [X] T103 HIGH: corregir `previous_values` de las entradas `rule_upsert` en `_apply_batch_impl` de `backend/app/services/configuration.py`, usando `previous_rules[rule.supersedes_id]` en lugar de `previous_rules.get(rule.id)`, y añadir una aserción en `backend/tests/integration/test_admin_sla_matrix.py` per FR-022 / US5/AC1 / plan §5 / T076 (partial)
+- [X] T104 MEDIUM: emitir una entrada de auditoría para la categoría o prioridad default demovida por `_set_default` en `backend/app/services/configuration.py`, con revision, valores previos/nuevos y la misma versión de configuración que la entidad destino per FR-022 / SC-005 / plan §5 (partial)
+- [X] T105 MEDIUM: alinear `backend/app/services/sla_resolution.py` con `plan §2.1`: exponer `ResolvedSla` con `source: Literal["rule", "priority_base"]`, `rule_id`, `config_version_id` y la firma con entidades, actualizando `_resolve_sla_snapshot` y `tests/unit/test_sla_resolution.py` per plan §2.1 / Constitution V (partial)
+- [X] T106 MEDIUM: mostrar los plazos con dos decimales es-ES en `frontend/src/components/admin/PriorityTable.vue` y `frontend/src/components/admin/SlaMatrix.vue`, conservando la precisión de minutos de valores como `7.25` o `8.05`, y ampliar las pruebas per spec Casos límite / plan §6.4 / contracts/frontend-components.md §8 (partial)
+- [X] T107 MEDIUM: añadir `:aria-invalid` a los controles validados en `CategoryFormDialog.vue`, `PriorityFormDialog.vue` y `SlaCellEditor.vue`, reflejando `localError` y los errores del backend per plan R12 (partial)
+- [X] T108 MEDIUM: asociar una etiqueta accesible al campo texto del color en `frontend/src/components/admin/PriorityFormDialog.vue` mediante `id`/`label` o `aria-label`, y cubrirlo en pruebas per plan §6.3 / T024 (partial)
+
+---
+
+## Phase 14: Convergence
+
+- [X] T109 HIGH: corregir la auditoría `rule_retire` en `_apply_batch_impl` de `backend/app/services/configuration.py`, reutilizando el snapshot previo capturado antes de mutar `valid_to_version`/`retired_at`/`retired_by_id` como `previous_values`, emitiendo `new_values` con el cierre, y añadiendo aserciones en `backend/tests/integration/test_admin_sla_matrix.py` o `test_configuration_history.py` per FR-022 / US5/AC1 / SC-005 / plan §5 / Constitution V (partial)
+- [X] T110 HIGH: hacer que `frontend/src/components/admin/SlaMatrix.vue` renderice también las reglas vigentes cuyas combinaciones están inactivas, exponiendo una acción «Retirar regla» que llame a `retireSlaRule(rule.id, rule.id)` desde `frontend/src/views/AdminConfigurationPage.vue`/`frontend/src/stores/adminConfiguration.ts`, recargue la matriz y anuncie la nueva versión, sin incluir combinaciones inactivas en la cuadrícula activa per FR-020 / US3/AC4 / plan §4.4 / T043 / T045 (missing)
+- [X] T111 HIGH: añadir `sla_deadline: datetime | None` a `TicketRead` en `backend/app/schemas/ticket_creation.py`, poblarlo en `backend/app/api/v1/ticket_creation.py` y verificar en `backend/tests/integration/test_sla_non_retroactivity.py` que el límite congelado es observable e inmutable, reconciliando la lista de campos de `plan.md` §7.1 con FR-017 / US4/AC3 / T044 (missing)
+- [X] T112 MEDIUM: añadir una prueba en `backend/tests/integration/test_sla_non_retroactivity.py` que cree tickets abiertos y cerrados sin regla de matriz, actualice `priority.base_hours` con `expected_revision`, verifique que sus `sla_hours_applied`, `sla_deadline`, `sla_version` y resultado SLA no cambian, y que un ticket nuevo usa el nuevo plazo base y la nueva versión per US2/AC2 / caso límite `spec.md:137` / T051 / Constitution IV (missing)
+- [X] T113 MEDIUM: añadir al suite `backend/tests/integration/test_admin_configuration_performance.py` una captura PostgreSQL-only de `EXPLAIN (ANALYZE, BUFFERS)` para la consulta exacta de `list_config_history` con `page_size=25`, verificando el uso del índice de `occurred_at` y registrando el plan en los resultados per T095 / T097 / plan §9.3 (missing)
+- [X] T114 MEDIUM: auditar también la entidad promovida a default en `_set_default` de `backend/app/services/configuration.py`, capturando su snapshot previo, incrementando su `revision` y emitiendo una entrada `set_default`/`update` en la misma versión, con una prueba que verifique `previous_values.is_default=false` y `new_values.is_default=true` per FR-022 / SC-005 / T104 / plan §5 (missing)
+- [X] T115 LOW: añadir un caso en `frontend/tests/components/LoginPage.spec.ts` que seleccione `admin@example.com`, compruebe la opción de administrador y verifique `router.replace('/admin/configuracion')`, además de `landingForRole('admin')` y el guard `requiresAdmin` per plan §6.1 / T004 / T028 / Constitution IV (missing)
+- [X] T116 LOW: corregir el mensaje final de `backend/scripts/seed_dev.py` para que describa únicamente la versión base `v1`, cero reglas SLA, sin histórico de configuración y tickets legacy sin `sla_config_version_id`, añadiendo una verificación que evite la regresión del texto per T102 (contradicts)
+- [X] T117 LOW: ampliar `backend/tests/integration/test_admin_sla_matrix.py` para volver a leer el primer ticket tras la retirada de la regla y reafirmar sus `sla_hours_applied`, `sla_deadline`, `sla_config_version_id` y resultado SLA, además de la comprobación existente del ticket nuevo per US3/AC4 / caso límite `spec.md:139` / T040 / Constitution IV (partial)
+
+---
+
+## Phase 15: Convergence
+
+- [X] T118 CRITICAL: reordenar `create_ticket` en `backend/app/services/ticket_creation.py` para adquirir el `FOR SHARE` de la versión vigente antes de `suggest()`/`_resolve_priority()` —o releer categoría y prioridad dentro del mismo snapshot bloqueado— de modo que regla, prioridad y versión pertenezcan a una sola versión coherente, conservando la lectura única de versión/regla y añadiendo una prueba PostgreSQL de cambio concurrente de prioridad per research.md R7 / data-model §7 / plan §3.3 / FR-017 / FR-018 / SC-003 / Constitution IV (contradicts)
+- [X] T119 MEDIUM: corregir las altas de categoría y prioridad en `backend/app/services/configuration.py` (`create_category`, `create_priority`) para que la auditoría `ConfigAction.create` conserve `previous_values = NULL`, manteniendo la promoción a default en una entrada `set_default` separada con `previous_values.is_default=false` y `new_values.is_default=true`, y añadir aserciones en `backend/tests/integration/test_admin_categories.py` y `test_admin_priorities.py` per FR-022 / SC-005 / data-model §5.1 / T114 (contradicts)
+- [X] T120 MEDIUM: propagar el código `inactive_catalog_item` de `saveSlaBatch`/`retireSlaRule` desde `frontend/src/stores/adminConfiguration.ts` y `frontend/src/views/AdminConfigurationPage.vue` hasta `frontend/src/components/admin/SlaMatrix.vue`, poblando `cellError` por combinación, marcando la celda con borde `rose-400` y mensaje, y conservando el borrador per FR-027 / plan §4.4 / contracts/frontend-components.md §8 / T045 (partial)
+- [X] T121 MEDIUM: mostrar los errores de campo del backend bajo el control correspondiente en `frontend/src/components/admin/CategoryFormDialog.vue` (`duplicate_catalog_name`) y `frontend/src/components/admin/PriorityFormDialog.vue` (`duplicate_catalog_name`/`duplicate_priority_level`), con `id`, `role="alert"` y `aria-describedby`, limpiándolos al reabrir y ampliando las pruebas per quickstart §6 filas 4 y 9 / contracts/frontend-components.md §§5-6 y 13 / T107 (partial)
+- [X] T122 LOW: renderizar el punto de color de la prioridad en las celdas con regla de `frontend/src/components/admin/SlaMatrix.vue` usando `priority.color`, con una aserción en `frontend/tests/components/SlaMatrix.spec.ts` per contracts/frontend-components.md §8 / plan §6.4 (partial)
+- [X] T123 LOW: alinear los nombres públicos con `data-model.md` §8 y T011/T055: definir o re-exportar explícitamente los DTOs en `backend/app/schemas/configuration.py` y exponer y usar `list_config_history` en `backend/app/services/configuration.py` y `backend/app/api/v1/admin_configuration.py`, actualizando pruebas si procede (partial)
+- [X] T124 LOW: evitar que las cargas `GET` de administración hereden el fallback `No se pudo cargar la cola de trabajo.` de `apiGet` en `frontend/src/api/client.ts`, pasando un mensaje neutro desde `frontend/src/services/adminConfiguration.ts` o envolviendo el error en el store, y cubriéndolo con una prueba per FR-027 / contracts/frontend-components.md §13 / Constitution IV (partial)
+
+---
+
+## Phase 16: Convergence
+
+- [X] T125 HIGH: corregir `backend/tests/integration/test_admin_configuration_performance.py` para contar las entradas `set_default` añadidas por T119 en `_catalog` (27 auditorías, no 25), volver a ejecutar la suite con `TEST_DATABASE_URL` PostgreSQL y verificar p95 de lecturas/lote/alta (<300/<400/<10 ms) y el `EXPLAIN ANALYZE` del histórico per plan §9.3 / Constitution IV / T070 / T079 / T095 / T097 (contradicts)
+- [X] T126 MEDIUM: normalizar a UTC los parámetros `from`/`to` de `GET /admin/config-history` antes de compararlos y filtrar, de modo que extremos naive y aware no produzcan `TypeError`/500, y añadir una prueba con formatos mixtos per plan §5 / FR-027 / US5/AC3 / T085 (partial)
+- [X] T127 MEDIUM: renderizar la fila de esqueleto `animate-pulse` en `frontend/src/components/admin/PriorityTable.vue` cuando `loading` sea verdadero, siguiendo el patrón de `CategoryTable.vue`, y cubrirlo en `PriorityTable.spec.ts` per contracts/frontend-components.md §6 / plan §6.2 (partial)
+- [X] T128 MEDIUM: añadir una prueba ejecutable de la navegación por teclado de `frontend/src/components/admin/AdminTabs.vue` con `ArrowRight`, `ArrowLeft`, `Home` y `End`, verificando foco y `aria-selected` per plan §6.2 / plan §9.3 / T026 / T067 / Constitution IV (partial)
+- [X] T129 MEDIUM: actualizar `specs/008-configuracion-plazos-sla/contracts/frontend-components.md` §§1 y 8 para documentar `is_active?` en las refs, la prop `cellErrors`, el evento `retire` y el panel de reglas inactivas, reconciliando tipos, DTOs y pruebas para que el estado inactivo sea observable en respuestas reales per FR-021 / FR-027 / T084 / T110 / T120 / plan §6.4 (partial)
+- [X] T130 LOW: alinear los conjuntos `required` de `admin-configuration.openapi.yaml` con los DTOs Python y los tipos TypeScript para `SlaRuleAdmin.created_by`, `DeleteResponse.configuration_version`, `ConfigHistoryEntry.previous_values` y `new_values`, reforzando `test_admin_configuration_contract.py` con comparación de igualdad per data-model §8 / T063 / T088 (partial)
+- [X] T131 LOW: documentar en `specs/008-configuracion-plazos-sla/contracts/admin-configuration.openapi.yaml` el catálogo completo de códigos estables de configuración y ampliar la prueba de contrato para verificarlo contra `CONFIGURATION_ERROR_MESSAGES` per FR-027 / T002 / T088 (partial)
+- [X] T132 LOW: actualizar `SEED_SUMMARY_LINES` en `backend/scripts/seed_dev.py` para informar de la creación del usuario administrador y añadir una verificación que evite la regresión del mensaje per quickstart §2 / T004 / T116 (contradicts)
+
+---
+
+## Phase 17: Convergence
+
+- [X] T133 MEDIUM: sustituir los cuatro códigos `validation_error` de `backend/app/services/configuration.py` (l. 66, 645, 899 y 1287) por códigos estables incluidos en `CONFIGURATION_ERROR_MESSAGES` y en el enum `ApiError.code` de `specs/008-configuracion-plazos-sla/contracts/admin-configuration.openapi.yaml`, actualizando las pruebas que los esperan per FR-027 / plan §8 / T131 (contradicts)
+- [X] T134 MEDIUM: ampliar `backend/tests/integration/test_admin_authorization.py` y `backend/tests/contract/test_admin_configuration_contract.py` para verificar `401`/`403` y la ausencia de datos de configuración en todas las rutas `/api/v1/admin/**` y para cada rol no administrador per FR-001 / FR-002 / plan §9.1 / T018 / Constitution III (partial)
+- [X] T135 MEDIUM: añadir en `backend/tests/integration/test_admin_sla_matrix.py` una prueba que cree una regla, desactive su categoría o prioridad, verifique que la regla sigue presente en `GET /admin/sla-rules` y pueda retirarse per FR-020 / plan §4.4 / T110 (missing)
+- [X] T136 LOW: envolver `create_category`, `update_category`, `delete_category`, `create_priority`, `update_priority` y `delete_priority` en `backend/app/services/configuration.py` con `try/except Exception: db.rollback(); raise`, igual que `_apply_batch`, para garantizar atomicidad explícita per FR-024 / plan §3.1 / T075 (partial)
+- [X] T137 LOW: crear la línea base `v1` en `seed_configuration()` de `backend/scripts/seed_dev.py` con `created_by_id=None`, igual que la migración `0006`, y ajustar la verificación del resumen per data-model §3.1 / data-model §8.1 / T102 (contradicts)
+- [X] T138 LOW: derivar `redirectTarget` en `frontend/src/views/LoginPage.vue` desde `landingForRole` del usuario seleccionado para que el texto anuncie `/admin/configuracion` al administrador sin `?redirect` per plan §6.1 / T115 (contradicts)
+- [X] T139 LOW: añadir en `frontend/tests/components/PriorityFormDialog.spec.ts` el caso que marca una prioridad como predeterminada, la desactiva y exige/selecciona `replacement_default_id`, verificando el payload enviado per T039 / plan §9.2 (missing)
+- [X] T140 LOW: añadir casos de montaje en `frontend/tests/views/AdminConfigurationPage.spec.ts` para los estados de carga, error, conflicto y «Solo administración», comprobando esqueletos, `role="alert"` y textos per T027 / T071 / plan §9.2 (missing)
+- [X] T141 LOW: cubrir los filtros `to` y `action` en `frontend/tests/components/ConfigHistoryTable.spec.ts`, verificando los eventos emitidos per T061 / plan §6.5 (partial)
+
+---
+
+## Phase 18: Convergence
+
+- [X] T142 MEDIUM: cargar el histórico al montar `frontend/src/views/AdminConfigurationPage.vue` cuando `activeTab` se inicializa desde `?tab=history`, invocando `store.loadHistory(store.historyFilters)` en `onMounted` o con un watcher `immediate`, y cubrir el enlace directo en `frontend/tests/views/AdminConfigurationPage.spec.ts` per contracts/frontend-components.md §2 / plan §6.5 / US5/AC4 (missing)
+- [X] T143 MEDIUM: documentar `is_active?` en `CategoryRef` y `PriorityRef` de `specs/008-configuracion-plazos-sla/contracts/frontend-components.md` §§1 y 8, reconciliando `frontend/src/types/adminConfiguration.ts`, los DTOs y las pruebas para que el estado inactivo sea observable en respuestas reales per tasks.md T129 / FR-021 / FR-027 / plan §6.4 (partial)
+- [X] T144 MEDIUM: conservar el banner de conflicto hasta que la recarga termine con éxito modificando `reloadAll()` en `frontend/src/stores/adminConfiguration.ts` para no limpiar `conflict` antes de `loadAll()` o para restaurarlo si falla, con prueba en `frontend/tests/stores/adminConfiguration.spec.ts` per contracts/frontend-components.md §11 / FR-025 / plan §3.2 (contradicts)
+- [X] T145 LOW: renderizar las palabras clave introducidas como chips junto al input separado por comas en `frontend/src/components/admin/CategoryFormDialog.vue`, con cobertura en `frontend/tests/components/CategoryFormDialog.spec.ts` per contracts/frontend-components.md §5 / plan §6.3 (partial)
+
+---
+
+## Phase 19: Convergence
+
+- [X] T146 MEDIUM: derivar `inactiveRules` en `frontend/src/components/admin/SlaMatrix.vue` de `rule.category.is_active === false || rule.priority.is_active === false` con fallback por ausencia en `combinations`, y añadir en `frontend/tests/components/SlaMatrix.spec.ts` un caso con refs inactivas presentes en `combinations` y regla vigente que verifique el panel «Reglas de combinaciones inactivas» y el evento `retire` per FR-020 / US3/AC4 / plan §6.4 / contracts/frontend-components.md §8 / T110 (partial)
+- [X] T147 LOW: alinear los conjuntos `required` de `CategoryAdmin` y `PriorityAdmin` entre `specs/008-configuracion-plazos-sla/contracts/admin-configuration.openapi.yaml`, `backend/app/schemas/admin_configuration.py` y `frontend/src/types/adminConfiguration.ts`, ampliando `backend/tests/contract/test_admin_configuration_contract.py` con comparación de igualdad también para esos esquemas per T130 / data-model §8 / Constitution IV (partial)
+- [X] T148 LOW: añadir `"is_active": true` a los ejemplos de `SlaRuleAdmin` y `SlaMatrixResponse` en `specs/008-configuracion-plazos-sla/data-model.md` §§8.7-8.8 para reflejar las refs reales per T143 / FR-021 / FR-027 (partial)
+- [X] T149 LOW: corregir `frontend-components.md` §10 para describir el filtro «Versión» como ID UUID de configuración (`configuration_version_id`, texto) en lugar de `number`, reconciliando §1, `frontend/src/types/adminConfiguration.ts` y `ConfigHistoryTable.vue` per T058 / plan §6.5 (contradicts)
+- [X] T150 LOW: actualizar los ejemplos de plazos en `frontend-components.md` §§6 y 8 a dos decimales es-ES (`8,00 h`, `8,50 h`, `6,00 h`, `Base: 8,00 h`) para igualar el formato implementado y probado per T106 / plan §6.4 (contradicts)

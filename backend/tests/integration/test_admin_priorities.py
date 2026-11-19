@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Priority
+from app.models import ConfigAction, ConfigurationAuditEntry, Priority
 
 
 def _create(
@@ -125,17 +128,71 @@ def test_default_replacement_and_last_active_priority(
     )
     assert moved.status_code == 200
 
-    db.refresh(db.get(Priority, __import__("uuid").UUID(replacement.json()["id"])))
+    replacement_row = db.get(
+        Priority, __import__("uuid").UUID(replacement.json()["id"])
+    )
+    db.refresh(replacement_row)
     last = client.post(
         f"/api/v1/admin/priorities/{replacement.json()['id']}/updates",
         json={
-            "expected_revision": replacement.json()["revision"],
+            "expected_revision": replacement_row.revision,
             "is_active": False,
         },
         headers=admin_headers,
     )
     assert last.status_code == 409
     assert last.json()["detail"]["code"] == "last_active_catalog_item"
+
+
+def test_duplicate_priority_names_are_case_and_whitespace_insensitive(
+    client: TestClient, admin_headers
+) -> None:
+    first = _create(client, admin_headers, name="Crítica", level=1)
+    assert first.status_code == 201
+
+    duplicate = _create(client, admin_headers, name="  críTICA  ", level=2)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "duplicate_catalog_name"
+
+    other = _create(client, admin_headers, name="Alta", level=2)
+    assert other.status_code == 201
+    renamed = client.post(
+        f"/api/v1/admin/priorities/{other.json()['id']}/updates",
+        json={
+            "expected_revision": other.json()["revision"],
+            "name": " CRÍTICA ",
+        },
+        headers=admin_headers,
+    )
+    assert renamed.status_code == 409
+    assert renamed.json()["detail"]["code"] == "duplicate_catalog_name"
+
+
+def test_create_audit_has_no_previous_values_and_separate_default_promotion(
+    client: TestClient, db: Session, admin_headers
+) -> None:
+    response = _create(client, admin_headers, name="Crítica", level=1)
+    assert response.status_code == 201
+    priority_id = UUID(response.json()["id"])
+
+    entries = db.scalars(
+        select(ConfigurationAuditEntry).where(
+            ConfigurationAuditEntry.entity_id == priority_id
+        )
+    ).all()
+    create = next(entry for entry in entries if entry.action == ConfigAction.create)
+    promotion = next(
+        entry for entry in entries if entry.action == ConfigAction.set_default
+    )
+
+    assert create.previous_values is None
+    assert create.new_values is not None
+    assert create.new_values["is_default"] is False
+    assert promotion.previous_values is not None
+    assert promotion.previous_values["is_default"] is False
+    assert promotion.new_values is not None
+    assert promotion.new_values["is_default"] is True
+    assert create.configuration_version_id == promotion.configuration_version_id
 
 
 def test_system_priority_cannot_be_updated_or_deleted(

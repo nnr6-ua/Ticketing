@@ -36,7 +36,7 @@ def test_history_is_append_only_and_keeps_actor_and_values(
     assert updated.status_code == 200
 
     body = _history(client, admin_headers)
-    assert body["pagination"]["total_items"] == 2
+    assert body["pagination"]["total_items"] == 3
     first = body["items"][0]
     assert first["entity_id"] == category_id
     assert first["actor"]["id"] == str(admin_user.id)
@@ -83,7 +83,7 @@ def test_history_filters_and_orders_descending(
         entity_type="category",
         entity_id=category_id,
     )
-    assert by_entity["pagination"]["total_items"] == 2
+    assert by_entity["pagination"]["total_items"] == 3
 
     by_action = _history(
         client,
@@ -118,8 +118,8 @@ def test_history_date_filters_and_pagination(
     page = _history(client, admin_headers, page=2, page_size=1)
     assert page["pagination"]["page"] == 2
     assert page["pagination"]["page_size"] == 1
-    assert page["pagination"]["total_items"] == 3
-    assert page["pagination"]["total_pages"] == 3
+    assert page["pagination"]["total_items"] == 4
+    assert page["pagination"]["total_pages"] == 4
     assert page["pagination"]["has_next"] is True
     assert page["pagination"]["has_previous"] is True
 
@@ -131,10 +131,41 @@ def test_history_date_filters_and_pagination(
         admin_headers,
         **{"from": from_date, "to": to_date},
     )
-    assert filtered["pagination"]["total_items"] == 3
+    assert filtered["pagination"]["total_items"] == 4
 
     future = (now + timedelta(days=1)).isoformat()
     empty = _history(client, admin_headers, **{"from": future})
     assert empty["pagination"]["total_items"] == 0
     assert empty["pagination"]["total_pages"] == 0
     assert empty["items"] == []
+
+
+def test_history_date_filters_normalize_mixed_timezones(
+    client: TestClient, admin_headers
+) -> None:
+    created = client.post(
+        "/api/v1/admin/categories",
+        json={"name": "Mixta"},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201
+
+    now = datetime.now(timezone.utc)
+    naive_from = (now - timedelta(hours=1)).replace(tzinfo=None).isoformat()
+    aware_to = (now + timedelta(hours=1)).isoformat()
+    mixed = _history(
+        client,
+        admin_headers,
+        **{"from": naive_from, "to": aware_to},
+    )
+    assert mixed["pagination"]["total_items"] >= 1
+
+    naive_after = (now + timedelta(days=1)).replace(tzinfo=None).isoformat()
+    aware_before = (now - timedelta(days=1)).isoformat()
+    invalid = client.get(
+        "/api/v1/admin/config-history",
+        params={"from": naive_after, "to": aware_before},
+        headers=admin_headers,
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"]["code"] == "invalid_date_range"

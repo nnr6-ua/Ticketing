@@ -4,35 +4,46 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Literal
+from uuid import UUID
 
 from app.core.errors import ApiError
+from app.models import ConfigurationVersion, Priority, SlaRule
 
 
 @dataclass(frozen=True)
-class SlaResolution:
+class ResolvedSla:
     hours: Decimal
-    source: str
-    version: int
     priority_level: int
+    source: Literal["rule", "priority_base"]
+    rule_id: UUID | None
+    config_version_id: UUID
 
 
 def resolve_sla(
     *,
-    rule_hours: Decimal | None,
-    base_hours: Decimal | None,
-    version: int,
-    priority_level: int,
-) -> SlaResolution:
-    hours = rule_hours if rule_hours is not None else base_hours
+    category_id: UUID,
+    priority: Priority,
+    current_rule: SlaRule | None,
+    config_version: ConfigurationVersion,
+) -> ResolvedSla:
+    if current_rule is not None and current_rule.category_id != category_id:
+        raise ApiError(
+            500,
+            "configuration_not_configured",
+            "La regla SLA no corresponde a la categoría seleccionada.",
+        )
+    hours = current_rule.hours if current_rule is not None else priority.base_hours
     if hours is None or hours <= 0:
         raise ApiError(
             500,
             "configuration_not_configured",
             "No hay un plazo SLA válido para la combinación seleccionada.",
         )
-    return SlaResolution(
+    return ResolvedSla(
         hours=Decimal(hours).quantize(Decimal("0.01")),
-        source="rule" if rule_hours is not None else "base",
-        version=version,
-        priority_level=priority_level,
+        priority_level=priority.level,
+        source="rule" if current_rule is not None else "priority_base",
+        rule_id=current_rule.id if current_rule is not None else None,
+        config_version_id=config_version.id,
     )

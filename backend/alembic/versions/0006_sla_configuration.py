@@ -13,6 +13,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0006_sla_configuration"
 down_revision: Union[str, None] = "0005_ticket_information"
@@ -20,6 +21,28 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 BASELINE_ID = uuid.UUID("0f5a7f8e-4ef7-4e0d-9a1e-9f6e2e3d4c10")
+
+# Los tipos se crean explícitamente en `upgrade()`; `create_type=False` evita
+# que `create_table` vuelva a emitir `CREATE TYPE` y falle con DuplicateObject.
+config_entity_type = postgresql.ENUM(
+    "category",
+    "priority",
+    "sla_rule",
+    name="config_entity_type",
+    create_type=False,
+)
+config_action = postgresql.ENUM(
+    "create",
+    "update",
+    "deactivate",
+    "reactivate",
+    "delete",
+    "set_default",
+    "rule_upsert",
+    "rule_retire",
+    name="config_action",
+    create_type=False,
+)
 
 
 def _ensure_unique_data() -> None:
@@ -60,6 +83,9 @@ def _ensure_unique_data() -> None:
 
 def upgrade() -> None:
     _ensure_unique_data()
+    bind = op.get_bind()
+    config_entity_type.create(bind, checkfirst=True)
+    config_action.create(bind, checkfirst=True)
     op.create_table(
         "configuration_versions",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -156,32 +182,9 @@ def upgrade() -> None:
         "configuration_audit_entries",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("configuration_version_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "entity_type",
-            sa.Enum(
-                "category",
-                "priority",
-                "sla_rule",
-                name="config_entity_type",
-            ),
-            nullable=False,
-        ),
+        sa.Column("entity_type", config_entity_type, nullable=False),
         sa.Column("entity_id", sa.Uuid(), nullable=False),
-        sa.Column(
-            "action",
-            sa.Enum(
-                "create",
-                "update",
-                "deactivate",
-                "reactivate",
-                "delete",
-                "set_default",
-                "rule_upsert",
-                "rule_retire",
-                name="config_action",
-            ),
-            nullable=False,
-        ),
+        sa.Column("action", config_action, nullable=False),
         sa.Column("actor_id", sa.Uuid(), nullable=False),
         sa.Column(
             "occurred_at",
@@ -228,6 +231,18 @@ def upgrade() -> None:
         sa.Column(
             "revision", sa.Integer(), nullable=False, server_default=sa.text("1")
         ),
+    )
+    op.create_index(
+        "uq_categories_name_normalized",
+        "categories",
+        [sa.text("lower(trim(name))")],
+        unique=True,
+    )
+    op.create_index(
+        "uq_priorities_name_normalized",
+        "priorities",
+        [sa.text("lower(trim(name))")],
+        unique=True,
     )
     op.create_index(
         "uq_priorities_level_active_non_system",
@@ -318,7 +333,7 @@ def upgrade() -> None:
     op.execute(
         "UPDATE tickets SET sla_priority_level = "
         "(SELECT level FROM priorities WHERE priorities.id = tickets.priority_id) "
-        "WHERE sla_deadline IS NOT NULL AND sla_priority_level IS NULL"
+        "WHERE sla_priority_level IS NULL"
     )
     if op.get_bind().dialect.name == "postgresql":
         op.execute(
@@ -349,6 +364,8 @@ def downgrade() -> None:
     op.drop_column("tickets", "sla_hours_applied")
     op.drop_column("tickets", "sla_priority_level")
 
+    op.drop_index("uq_priorities_name_normalized", table_name="priorities")
+    op.drop_index("uq_categories_name_normalized", table_name="categories")
     op.drop_index(
         "uq_priorities_default_active_non_system", table_name="priorities"
     )
@@ -371,5 +388,5 @@ def downgrade() -> None:
 
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
-        sa.Enum(name="config_action").drop(bind, checkfirst=True)
-        sa.Enum(name="config_entity_type").drop(bind, checkfirst=True)
+        config_action.drop(bind, checkfirst=True)
+        config_entity_type.drop(bind, checkfirst=True)
