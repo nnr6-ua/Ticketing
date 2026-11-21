@@ -281,5 +281,5 @@ Como usuario creador, quiero que al responder el ticket vuelva al equipo técnic
 | La respuesta y la petición quedan registradas en la línea temporal | HU03-RN-03, HU03-RN-06 | HU03-RF-004, HU03-RF-011, HU03-RF-015 |
 | El aviso desaparece al responder y el ticket vuelve al equipo técnico | HU03-RN-02, HU03-RN-04 | HU03-RF-013, HU03-RF-014 |
 | El usuario no puede responder tickets ajenos ni en estados no válidos | HU03-RN-03, HU03-RN-05 | HU03-RF-008, HU03-RF-017, HU03-RF-018 |
-| El usuario no responde en 48 horas | El sistema muestra un único recordatorio contextual | HU03-RN-02 | HU03-RF-006, HU03-RF-022 |
+| El usuario no responde en 48 horas | El sistema muestra un único recordatorio contextual | HU03-RN-02, HU03-RF-022 | HU03-RF-006 |
 | Los comentarios internos siguen ocultos y lo anterior no se rompe | HU03-RN-05, HU03-RN-08 | HU03-RF-019, HU03-RF-020, HU03-RF-021 |

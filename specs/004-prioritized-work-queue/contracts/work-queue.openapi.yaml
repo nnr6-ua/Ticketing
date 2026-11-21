@@ -8,8 +8,9 @@ info:
   description: |
     Contrato de la HU-04 «Ver cola de trabajo priorizada» del sistema de mesa de ayuda.
 
-    El endpoint devuelve exclusivamente los tickets cuyo responsable actual es el
-    técnico autenticado. La identidad se obtiene del token JWT enviado en
+    El endpoint devuelve los tickets cuyo responsable actual es el técnico
+    autenticado y, como cola colectiva del equipo técnico, los tickets sin
+    responsable en estado `en_progreso` devueltos por HU-03. La identidad se obtiene del token JWT enviado en
     `Authorization: Bearer <token>`: no existe ningún parámetro de técnico. La
     respuesta incluye el orden por urgencia, los filtros aplicados, el recuento de
     tickets activos y finalizados, las opciones de filtro disponibles y los datos de

@@ -91,7 +91,7 @@ Como técnico asignado, quiero añadir notas internas al ticket en cualquier est
 
 ### HU05-RN-01 — Estados del ticket
 
-Los estados disponibles son los definidos en HU05-RF-02.1 del sistema:
+Los estados disponibles son los definidos en HU00-RF-02.1 del sistema:
 
 - **Abierto**: el ticket ha sido registrado y todavía no se ha empezado a trabajar en él.
 - **En progreso**: el equipo técnico está trabajando activamente en el ticket.
@@ -174,9 +174,9 @@ Los estados disponibles son los definidos en HU05-RF-02.1 del sistema:
 - **HU05-RF-002**: El sistema DEBE ofrecer únicamente los estados de destino permitidos para el estado actual según HU05-RN-02.
 - **HU05-RF-003**: El sistema DEBE rechazar cualquier transición no permitida, mantener el estado original y no generar ninguna entrada en la línea temporal.
 - **HU05-RF-004**: El sistema DEBE impedir cualquier cambio de estado cuando el ticket esté «Cerrado».
-- **HU03-RF-005**: HU-03 es la propietaria de la transición automática de «Pendiente de usuario» a «En progreso» cuando el usuario creador responde. HU-05 solo debe garantizar que esa transición es válida en HU05-RN-02 y que, cuando HU-03 la ejecute, quede registrada en la línea temporal con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información no forman parte de esta historia.
+- **HU03-RF-010**: HU-03 es la propietaria de la transición automática de «Pendiente de usuario» a «En progreso» cuando el usuario creador responde. HU-05 solo debe garantizar que esa transición es válida en HU05-RN-02 y que, cuando HU-03 la ejecute, quede registrada en la línea temporal con autor y fecha. La detección de la respuesta y el contenido de la solicitud de información no forman parte de esta historia.
 
-  **Contrato de integración con HU-03 (HU03-RF-005)**: HU-03 ejecuta la transición mediante la función interna `apply_user_response_transition` de `ticket_workflow.py`, dentro de su propia transacción. La función exige `actor_id == ticket.creator_id`, estado `pendiente_usuario`, `request_id` estable del evento de respuesta y `expected_updated_at`; registra `status_change` con autor creador y no se expone como endpoint público. HU-03 confirma la respuesta y la transición de forma atómica.
+  **Contrato de integración con HU-03 (HU03-RF-010)**: HU-03 ejecuta la transición mediante la función interna `apply_user_response_transition` de `ticket_workflow.py`, dentro de su propia transacción. La función exige `actor_id == ticket.creator_id`, estado `pendiente_usuario`, `request_id` estable del evento de respuesta y `expected_updated_at`; registra `status_change` con autor creador y no se expone como endpoint público. HU-03 confirma la respuesta y la transición de forma atómica.
 - **HU05-RF-006**: El sistema DEBE impedir que un ticket pase directamente de «Abierto» a «Resuelto» o «Cerrado», y de «Pendiente de usuario» a «Resuelto» o «Cerrado».
 - **HU05-RF-007**: El sistema DEBE permitir la reapertura de «Resuelto» a «En progreso» y registrar el cambio con su autor y fecha.
 

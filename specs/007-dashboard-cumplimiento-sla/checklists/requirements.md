@@ -13,8 +13,8 @@
 
 ## Completitud de Requisitos
 
-- [ ] No quedan marcadores [NEEDS CLARIFICATION]
-- [ ] Los requisitos son verificables y no ambiguos
+- [x] No quedan marcadores [NEEDS CLARIFICATION]
+- [x] Los requisitos son verificables y no ambiguos
 - [x] Los criterios de éxito son medibles
 - [x] Los criterios de éxito son independientes de la tecnología
 - [x] Todos los escenarios de aceptación están definidos
@@ -32,11 +32,11 @@
 ## Notas
 
 - Validación realizada el 2026-11-14 sobre `specs/007-dashboard-cumplimiento-sla/spec.md`.
-- Quedan **3 marcadores [NEEDS CLARIFICATION]**, exactamente el máximo permitido, para decisiones de negocio que afectan de forma transversal a las métricas:
-  1. **Q1 — Hito de atención**: primera respuesta técnica efectiva, paso a «En progreso» o primera finalización. Determina el porcentaje de cumplimiento y el tiempo medio de respuesta. Se aplica provisionalmente la primera finalización, coherente con HU04-RN-13.
-  2. **Q2 — Umbrales del semáforo**: valores de porcentaje que separan verde, ámbar y rojo. Se aplican provisionalmente verde ≥ 90 %, ámbar 70–89,9 % y rojo < 70 %.
-  3. **Q3 — Atribución del vencido**: responsable actual, responsable en el momento del incumplimiento o regla mixta. Se aplica provisionalmente la regla mixta descrita en HU07-RN-09.
-- Las dos casillas incompletas se deben exclusivamente a estas tres definiciones pendientes de confirmación; el resto de la especificación es verificable con los valores provisionales documentados y aplicados. Deben confirmarse con `/speckit.clarify` para cerrar la checklist.
+- Las decisiones Q1–Q3 se confirmaron con `/speckit.clarify` en la sesión de 2026-11-14 y quedan registradas en `spec.md` (sección `## Clarifications`):
+  1. **Q1 — Hito de atención**: primera finalización (primer paso a «Resuelto» o «Cerrado»), coherente con HU04-RN-13.
+  2. **Q2 — Umbrales del semáforo**: verde ≥ 90 %, ámbar 70 %–< 90 %, rojo < 70 %; el valor exacto del umbral pertenece a la banda superior.
+  3. **Q3 — Atribución del vencido**: regla mixta descrita en HU07-RN-09, con fila «Sin asignar» cuando no hay responsable.
+- No quedan marcadores `[NEEDS CLARIFICATION]` ni decisiones provisionales: las respuestas son definitivas y están aplicadas en los requisitos, el plan y el contrato.
 - Verificación de conservación: los módulos HU-04, HU-05 y HU-06 no se reproducen en esta especificación; se consultan en sus documentos de origen (`specs/004-prioritized-work-queue/spec.md`, `specs/005-cambio-estado-resolucion/spec.md` y `specs/006-reasignar-escalar-ticket/spec.md`), que son la única fuente de verdad.
 - La HU-07 es de solo lectura y no altera la matriz de estados, los permisos, la línea temporal «append-only», la idempotencia ni las reglas de asignación de las historias anteriores.
 - La especificación evita detalles de implementación (endpoints, tablas, frameworks o estructuras de datos) y se centra en reglas de negocio, entidades y criterios verificables.

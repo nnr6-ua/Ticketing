@@ -20,9 +20,9 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 - El usuario puede escribir una descripción libre de la incidencia
 - El usuario puede adjuntar uno o varios archivos de imagen (capturas de pantalla)
 - Al enviar, el sistema genera y muestra un número de ticket único
-- El sistema sugiere automáticamente una categoría basada en el texto de la descripción
+- El sistema sugiere automáticamente una categoría basada en el texto de la descripción; la categoría sugerida queda fija y no es editable por el usuario (decisión confirmada en HU-01)
 - El sistema sugiere automáticamente una prioridad inicial basada en el texto de la descripción
-- El usuario puede aceptar o modificar las sugerencias antes de confirmar
+- El usuario puede modificar la prioridad sugerida antes de confirmar; si no hay sugerencia se aplican los valores por defecto activos
 
 ### HU-02: Consultar estado e historial del ticket
 **Como** usuario, **quiero** consultar el estado actual de mi ticket y ver su historial completo con línea temporal, **para que** sepa en qué fase está sin tener que preguntar.
@@ -38,7 +38,7 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 
 **Criterios de aceptación:**
 - El técnico puede marcar un ticket como "Pendiente de usuario" solicitando información específica
-- El usuario recibe notificación de que se requiere su respuesta
+- El usuario recibe una notificación en la aplicación (campana) de que se requiere su respuesta; el correo electrónico queda fuera de alcance en v1
 - El usuario responde desde la vista del ticket
 - Al responder, el estado cambia automáticamente a "En progreso" (o equivalente)
 - La respuesta queda registrada en la línea temporal
@@ -47,7 +47,7 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 **Como** técnico, **quiero** ver mis tickets asignados ordenados por urgencia y proximidad al incumplimiento del plazo, **para que** atienda primero lo más crítico.
 
 **Criterios de aceptación:**
-- El técnico ve solo los tickets que tiene asignados
+- El técnico ve los tickets que tiene asignados y, como cola colectiva del equipo técnico, los tickets sin responsable que hayan vuelto a «En progreso» tras una respuesta del usuario; nunca ve tickets asignados a otros técnicos
 - La lista muestra: número de ticket, título/resumen, categoría, prioridad, tiempo restante hasta límite SLA
 - El orden por defecto prioriza: mayor prioridad primero, y dentro de misma prioridad, menor tiempo restante primero
 - Se destaca visualmente (color, icono) los tickets próximos a incumplir su plazo
@@ -68,7 +68,7 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 **Criterios de aceptación:**
 - El técnico puede seleccionar otro técnico de la lista del equipo para reasignar
 - El técnico puede escalar a un nivel superior (ej: "Nivel 2", "Especialista")
-- Al reasignar/escalar, el nuevo responsable recibe notificación inmediata
+- Al reasignar/escalar, el nuevo responsable recibe notificación inmediata en la aplicación (campana)
 - El cambio de responsable queda registrado en la línea temporal con autor y motivo
 - El ticket pasa a la cola de trabajo del nuevo responsable
 
@@ -77,10 +77,10 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 
 **Criterios de aceptación:**
 - Vista de dashboard con métricas por prioridad (Crítica, Alta, Media, Baja) y por categoría
-- Para cada combinación: % de tickets atendidos dentro de plazo, tiempo medio de respuesta, tickets vencidos
-- Lista de técnicos con tickets vencidos acumulados, ordenados por volumen
+- Para cada combinación: % de tickets finalizados dentro de plazo (primera finalización), tiempo medio hasta la primera finalización y tickets vencidos
+- Lista de técnicos con tickets vencidos acumulados, ordenados por volumen y con desempate estable
 - Filtros por rango de fechas, categoría, prioridad
-- Indicadores visuales (semáforo: verde/ámbar/rojo) por umbrales de cumplimiento
+- Indicadores visuales (semáforo: verde ≥ 90 %, ámbar 70 %–< 90 %, rojo < 70 %); los umbrales son una decisión de negocio fija y no se configuran desde la interfaz
 
 ### HU-08: Configuración de categorías, prioridades y plazos (SLA)
 **Como** administrador, **quiero** configurar las categorías, prioridades y sus plazos de atención asociados, **para que** el sistema refleje las reglas de la organización y los cambios no afecten retroactivamente a tickets ya cerrados.
@@ -98,7 +98,7 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 ### HU00-RF-01: Gestión de tickets
 - HU00-RF-01.1: Crear ticket con descripción, adjuntos, categoría y prioridad
 - HU00-RF-01.2: Generar número de ticket único secuencial
-- HU00-RF-01.3: Sugerir categoría y prioridad automáticamente (basado en palabras clave de la descripción)
+- HU00-RF-01.3: Sugerir categoría y prioridad automáticamente (basado en palabras clave de la descripción); la categoría sugerida es fija y la prioridad es editable (HU-01)
 - HU00-RF-01.4: Listar tickets con filtros (estado, prioridad, categoría, asignado, fechas)
 - HU00-RF-01.5: Ver detalle de ticket con línea temporal completa
 
@@ -112,11 +112,11 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 - HU00-RF-03.1: Asignar ticket a técnico (manual o automático por categoría)
 - HU00-RF-03.2: Reasignar a otro técnico del mismo nivel
 - HU00-RF-03.3: Escalar a nivel superior
-- HU00-RF-03.4: Notificación inmediata al nuevo responsable (en app y email)
+- HU00-RF-03.4: Notificación inmediata al nuevo responsable en la aplicación (campana); el correo electrónico está fuera de alcance en v1
 - HU00-RF-03.5: Registro en línea temporal de cada cambio de responsable
 
 ### HU00-RF-04: Cola de trabajo del técnico
-- HU00-RF-04.1: Vista personalizada con tickets asignados al técnico logueado
+- HU00-RF-04.1: Vista personalizada con los tickets asignados al técnico logueado; incluye como cola colectiva los tickets sin responsable devueltos a «En progreso» por HU-03, y excluye los tickets asignados a otros técnicos (HU-04/HU-03)
 - HU00-RF-04.2: Ordenación por prioridad (desc) + tiempo restante SLA (asc)
 - HU00-RF-04.3: Indicador visual de urgencia (próximo a vencer, vencido)
 - HU00-RF-04.4: Filtros por estado y prioridad
@@ -128,10 +128,10 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 
 ### HU00-RF-06: Dashboard de supervisión
 - HU00-RF-06.1: Métricas agregadas por prioridad y categoría
-- HU00-RF-06.2: % cumplimiento SLA, tiempo medio respuesta, tickets vencidos
+- HU00-RF-06.2: % cumplimiento SLA calculado sobre la primera finalización, tiempo medio hasta esa finalización y tickets vencidos
 - HU00-RF-06.3: Ranking de técnicos con tickets vencidos
 - HU00-RF-06.4: Filtros temporales y por dimensión (categoría, prioridad, técnico)
-- HU00-RF-06.5: Semáforo visual por umbrales configurables
+- HU00-RF-06.5: Semáforo visual con umbrales fijos de negocio (verde ≥ 90 %, ámbar 70 %–< 90 %, rojo < 70 %), no configurables desde la interfaz
 
 ### HU00-RF-07: Administración de catálogos y SLA
 - HU00-RF-07.1: CRUD Categorías
@@ -142,8 +142,7 @@ Sistema web para la gestión de incidencias mediante tickets que permite a emple
 
 ### HU00-RF-08: Notificaciones
 - HU00-RF-08.1: Notificación en app (campana) para eventos clave
-- HU00-RF-08.2: Email opcional para eventos críticos (asignación, escalado, SLA próximo a vencer)
-- HU00-RF-08.3: Preferencias de notificación por usuario
+- HU00-RF-08.2: El correo electrónico y las preferencias de notificación quedan fuera de alcance en v1; cualquier implementación futura requiere revisar HU-03 y HU-06 y configurar SMTP por variables de entorno
 
 ## Requisitos No Funcionales
 
@@ -196,9 +195,9 @@ Los comandos concretos y las variables disponibles se documentan en el [`README.
 
 1. Autenticación/autorización ya existe o se integra con proveedor externo (no parte de este spec)
 2. El sistema de sugerencia automática usa coincidencia de palabras clave simples (v1), no ML
-3. Notificaciones email requieren configuración SMTP externa
+3. Las notificaciones de v1 son exclusivamente internas (campana); no se requiere servidor SMTP y no se envían correos
 4. Un usuario tiene un solo rol principal
-5. Los plazos SLA se cuentan en horas laborables (configurable en v2)
+5. Los plazos SLA se cuentan en horas naturales continuas (24/7) desde la creación del ticket, sin calendario laboral ni festivos (decisión HU-08)
 6. Adjuntos se almacenan en almacenamiento de objetos (S3-compatible) o filesystem local
 7. No hay portal de cliente externo; solo empleados de la organización
 
@@ -207,8 +206,8 @@ Los comandos concretos y las variables disponibles se documentan en el [`README.
 | Métrica | Objetivo |
 |---------|----------|
 | Tiempo medio creación ticket | < 60 segundos |
-| % tickets con categoría/prioridad sugerida aceptada sin cambios | > 70% |
-| Tiempo medio primera respuesta (SLA Crítica) | < 1 hora |
+| % tickets con la categoría sugerida y la prioridad propuesta conservadas al crear | > 70% |
+| Tiempo medio hasta la primera finalización (SLA Crítica) | Dentro del plazo SLA configurado para la combinación categoría × prioridad |
 | % tickets resueltos dentro de SLA | > 90% |
 | Tickets reabiertos tras cierre | < 5% |
 | Satisfacción usuario (encuesta post-cierre) | > 4/5 |
@@ -226,11 +225,11 @@ Los comandos concretos y las variables disponibles se documentan en el [`README.
 - Multiorganización / multi-tenant
 - Horarios laborales y festivos en cálculo SLA
 - Reportes programados por email
+- Notificaciones por correo electrónico y preferencias de notificación (solo campana en v1)
 - API pública para integraciones
 
 ## Dependencias
 
 - Sistema de autenticación (SSO/OAuth2/LDAP)
-- Servidor de correo SMTP para notificaciones email
-- Almacenamiento de archivos (S3, Azure Blob, o filesystem)
+- Almacenamiento de archivos (filesystem local en el despliegue de referencia)
 - Base de datos relacional (PostgreSQL/MySQL)

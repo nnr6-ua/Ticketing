@@ -49,13 +49,13 @@ La solución es una aplicación web con frontend Vue 3 + Tailwind CSS + Headless
 
 Constitución aplicable: [`.specify/memory/constitution.md`](../../.specify/memory/constitution.md) (v1.0.0, ratificada). [`CONSTITUTION.md`](../../CONSTITUTION.md) en la raíz es solo un resumen informativo.
 
-| Principio | Cumplimiento | Evidencia |
+| Principio canónico | Cumplimiento | Evidencia |
 |-----------|--------------|-----------|
-| 1. Simplicidad ante todo | PASA | Monorepo con dos aplicaciones, SQLAlchemy síncrono, sin colas, sin caché, sin estado global en frontend y sin servicios adicionales. |
-| 2. Idioma y mercado | PASA | Copia, validaciones y errores en es-ES; fechas formateadas en es-ES; no se usa moneda. |
-| 3. Cero alcance fantasma | PASA | Solo creación de tickets. Los endpoints de prioridades y sugerencias existen únicamente para completar el formulario. No hay seguimiento, administración, notificaciones ni autenticación propia. |
-| 4. Verificable por persona no técnica | PASA | `quickstart.md` describe escenarios manuales ligados a los criterios de aceptación y éxito. |
-| 5. Datos del usuario con respeto | PASA | Solo se almacenan nombre y email del empleado creador. Configuración por `.env`; sin secretos en código. |
+| I. Arquitectura por capas y stack fijado | PASA | FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL y Vue 3 + TypeScript + Vite + Pinia + Tailwind; `api → services → models/db`; no se introduce ninguna tecnología nueva. |
+| II. Modelo de datos estable y migraciones aditivas | PASA | La creación reutiliza el modelo `Ticket` y añade columnas/índices de forma aditiva con Alembic; la línea temporal es `append-only` y el número de ticket es secuencial e inmutable. |
+| III. Seguridad y mínimo privilegio | PASA | El creador se toma del JWT; no se acepta `creator_id` manipulable; los adjuntos se validan por tipo y tamaño; sin secretos en código. |
+| IV. Contratos primero y pruebas verificables | PASA | `contracts/openapi.yaml` precede a la implementación; `quickstart.md` y las pruebas de contrato/integración cubren duplicados, adjuntos todo-o-nada, límites y códigos de error. |
+| V. Simplicidad, trazabilidad y experiencia en español | PASA | Un único flujo de creación, sin abstracciones especulativas; copia y errores en es-ES; la creación queda registrada como primer evento de la línea temporal. |
 
 **Resultado**: sin violaciones. No se requiere justificación en Complexity Tracking.
 
@@ -167,13 +167,13 @@ docker-compose.yml             # PostgreSQL 16 para desarrollo local
 
 *Re-evaluación tras completar `research.md`, `data-model.md`, `contracts/openapi.yaml` y `quickstart.md`.*
 
-| Principio | Resultado | Nota |
+| Principio canónico | Resultado | Nota |
 |-----------|-----------|------|
-| 1. Simplicidad ante todo | PASA | El diseño final mantiene dos aplicaciones, una base de datos y una carpeta local. No aparecen colas, caché, servicios externos ni estado global. |
-| 2. Idioma y mercado | PASA | Contrato, datos de siembra, mensajes de error y quickstart están en es-ES. |
-| 3. Cero alcance fantasma | PASA | El contrato solo expone prioridades, sugerencias y creación. No hay endpoints de consulta, administración, notificaciones ni autenticación. |
-| 4. Verificable por persona no técnica | PASA | `quickstart.md` incluye diez escenarios manuales con resultados esperados y trazabilidad a requisitos. |
-| 5. Datos del usuario con respeto | PASA | Solo nombre y email del empleado; configuración por entorno; `.env.example` sin secretos. |
+| I. Arquitectura por capas y stack fijado | PASA | El diseño final mantiene el stack fijado, dos aplicaciones, una base de datos y almacenamiento local de adjuntos; sin colas, caché ni servicios externos. |
+| II. Modelo de datos estable y migraciones aditivas | PASA | El contrato y `data-model.md` solo introducen campos aditivos y una migración reversible; no se renombra ni elimina nada. |
+| III. Seguridad y mínimo privilegio | PASA | Identidad del JWT, validación estricta de MIME/tamaño y rutas de adjuntos derivadas del número de ticket; sin secretos versionados. |
+| IV. Contratos primero y pruebas verificables | PASA | `contracts/openapi.yaml`, `quickstart.md` y las pruebas ejecutables cubren los diez escenarios manuales y los códigos de error. |
+| V. Simplicidad, trazabilidad y experiencia en español | PASA | Contrato, datos de siembra, mensajes y quickstart en es-ES; la creación genera su entrada inicial en la línea temporal. |
 
 **Resultado post-diseño**: sin violaciones.
 

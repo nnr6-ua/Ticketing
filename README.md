@@ -1,13 +1,23 @@
 # Mesa de ayuda
 
-Mesa de ayuda interna con autenticación JWT. Reúne dos funcionalidades:
+Mesa de ayuda interna con autenticación JWT. Cubre las ocho historias de usuario:
 
-- **Creación de tickets** (HU-01): título, descripción y adjuntos opcionales, con
-  sugerencia automática de categoría/prioridad, detección de duplicados y
-  número de referencia `TK-000001`.
-- **Cola de trabajo priorizada y flujo del ticket** (HU-04/HU-05): vista de los
-  tickets asignados al técnico ordenados por urgencia y SLA, cambio de estado,
-  resolución y comentarios internos con línea temporal.
+- **HU-01**: creación de tickets con adjuntos, sugerencia de categoría/prioridad,
+  detección de duplicados y número `TK-000001`.
+- **HU-02**: estado e historial inmutable con línea temporal y comentarios públicos.
+- **HU-03**: petición de información del técnico y respuesta del creador, con
+  aviso en aplicación y vuelta a la cola colectiva.
+- **HU-04**: cola priorizada por urgencia y SLA, filtros, paginación e indicadores.
+- **HU-05**: transiciones de estado, resolución obligatoria y comentarios internos.
+- **HU-06**: reasignación y escalado con notificación al nuevo responsable.
+- **HU-07**: dashboard de cumplimiento SLA, matriz, totales y ranking.
+- **HU-08**: configuración administrativa de categorías, prioridades, matriz SLA
+  e histórico de versiones sin retroactividad.
+
+Especificaciones: [`specs/`](specs/), reparto por alumno en
+[`docs/agrupamiento.md`](docs/agrupamiento.md) y memoria del proyecto en
+[`docs/memoria.md`](docs/memoria.md). Demo en vídeo y reproductor:
+`http://localhost:8080/demo/`.
 
 ## Stack
 
@@ -82,7 +92,7 @@ Configuración principal (ver `.env.example`):
 ## Pruebas
 
 ```bash
-cd backend && python -m pytest
+cd backend && python3 -m pytest
 cd frontend && npm test
 ```
 

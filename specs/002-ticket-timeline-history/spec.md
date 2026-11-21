@@ -165,7 +165,7 @@ Como usuario creador, quiero saber quién realizó cada cambio o comentario y cu
 
 - HU-01: creación de tickets y asignación inicial (provee el ticket y su usuario creador).
 - HU-05: cambio de estado, resolución y comentarios internos (provee las entradas de la línea temporal que esta historia consulta).
-- HU02-RF-02: definición del flujo de estados del sistema.
+- HU00-RF-02: definición del flujo de estados del sistema.
 - Sistema de autenticación y autorización por roles.
 - Mecanismo de registro cronológico de la línea temporal del ticket.
 

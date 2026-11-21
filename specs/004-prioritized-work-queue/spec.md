@@ -26,15 +26,15 @@ La vista permite además acotar el listado por estado y por prioridad, mantenien
 
 ### Historia de Usuario 1 - Ver mi cola de trabajo priorizada (Prioridad: P1)
 
-Como técnico, quiero abrir mi cola de trabajo y ver únicamente mis tickets asignados ordenados por urgencia, para saber cuál debo atender primero sin revisar el resto del sistema.
+Como técnico, quiero abrir mi cola de trabajo y ver mis tickets asignados, junto con los tickets sin responsable devueltos a la cola colectiva del equipo técnico, ordenados por urgencia, para saber cuál debo atender primero sin revisar el resto del sistema.
 
 **Por qué esta prioridad**: Es el núcleo de la funcionalidad y el mínimo entregable con valor: sin el listado propio y correctamente ordenado, el técnico no puede planificar su trabajo.
 
-**Prueba independiente**: Se puede probar con un técnico que tenga al menos tres tickets asignados y otro técnico con tickets propios. Al abrir la cola, el técnico ve solo sus tickets, con los cinco datos requeridos en cada fila y en el orden esperado.
+**Prueba independiente**: Se puede probar con un técnico que tenga al menos tres tickets asignados, otro técnico con tickets propios y un ticket sin responsable en «En progreso». Al abrir la cola, el técnico ve sus tickets y el ticket colectivo, con los cinco datos requeridos en cada fila y en el orden esperado, y no ve los tickets asignados al otro técnico.
 
 **Escenarios de aceptación**:
 
-1. **Dado** un técnico con tickets asignados a él y tickets asignados a otros técnicos, **cuando** abre su cola de trabajo, **entonces** ve únicamente los tickets cuyo responsable actual es él y no ve ningún ticket ajeno.
+1. **Dado** un técnico con tickets asignados a él, tickets asignados a otros técnicos y un ticket sin responsable en «En progreso», **cuando** abre su cola de trabajo, **entonces** ve los tickets cuyo responsable actual es él y el ticket colectivo sin responsable, y no ve ningún ticket asignado a otro técnico.
 2. **Dado** un técnico con tickets de prioridades Crítica, Alta, Media y Baja, **cuando** se muestra la cola, **entonces** los tickets aparecen agrupados de mayor a menor prioridad (Crítica, Alta, Media, Baja).
 3. **Dado** dos tickets de la misma prioridad con distinto tiempo restante hasta su límite SLA, **cuando** se muestra la cola, **entonces** aparece primero el que tiene menor tiempo restante.
 4. **Dado** cualquier ticket listado, **cuando** el técnico lo observa en la cola, **entonces** la fila muestra el número de ticket, el título o resumen, la categoría, la prioridad y el tiempo restante hasta el límite SLA.
@@ -127,8 +127,8 @@ Como técnico, quiero recibir mensajes claros cuando no tengo tickets asignados 
 
 **Alcance y visibilidad**
 
-- **HU04-RF-001**: El sistema DEBE mostrar en la cola únicamente los tickets cuyo responsable actual sea el técnico autenticado.
-- **HU04-RF-002**: El sistema DEBE impedir que un técnico vea tickets de otros técnicos a través de filtros, enlaces directos o cualquier otro medio de acceso a la vista.
+- **HU04-RF-001**: El sistema DEBE mostrar en la cola los tickets cuyo responsable actual sea el técnico autenticado y, como cola colectiva del equipo técnico, los tickets sin responsable en estado «En progreso» devueltos por HU-03 tras una respuesta del usuario.
+- **HU04-RF-002**: El sistema DEBE impedir que un técnico vea tickets asignados a otros técnicos a través de filtros, enlaces directos o cualquier otro medio de acceso a la vista.
 - **HU04-RF-003**: El sistema DEBE excluir de la cola por defecto los tickets en estados finales (Resuelto y Cerrado), manteniéndolos accesibles mediante el filtro de estado.
 - **HU04-RF-004**: El sistema DEBE incluir por defecto los tickets en estados activos (Abierto, En progreso y Pendiente de usuario).
 - **HU04-RF-005**: El sistema DEBE actualizar la cola automáticamente en un plazo máximo de 60 segundos y al recuperar el foco de la vista, sin requerir recarga manual.
@@ -181,7 +181,7 @@ Como técnico, quiero recibir mensajes claros cuando no tengo tickets asignados 
 
 ### Reglas de Negocio
 
-- **HU04-RN-01 (Propiedad del ticket)**: un ticket aparece en la cola de un único técnico: su responsable actual. La asignación es la única fuente de verdad para la visibilidad; ningún filtro, orden o enlace puede ampliarla.
+- **HU04-RN-01 (Propiedad del ticket)**: un ticket asignado aparece en la cola de un único técnico: su responsable actual. La asignación es la fuente de verdad para la visibilidad; ningún filtro, orden o enlace puede ampliarla. La única excepción es la cola colectiva de HU-03: un ticket sin responsable en «En progreso» es visible para todos los técnicos hasta que uno lo toma.
 - **HU04-RN-02 (Composición por defecto)**: la cola por defecto contiene los estados Abierto, En progreso y Pendiente de usuario. Resuelto y Cerrado solo se muestran si el técnico los selecciona explícitamente en el filtro de estado.
 - **HU04-RN-03 (Límite SLA fijo)**: cada ticket conserva el límite SLA vigente en el momento de su creación. Los cambios posteriores en la configuración de categorías, prioridades o plazos no alteran tickets ya creados.
 - **HU04-RN-04 (Cálculo del tiempo restante)**: el tiempo restante es la diferencia entre el límite SLA y el instante actual, calculada en UTC sobre instantes absolutos y presentada en la zona horaria Europe/Madrid. Para la visualización se redondea a la baja al minuto, para no dar una falsa sensación de holgura. La clasificación de riesgo (HU04-RF-008, HU04-RF-019 y HU04-RN-09) se evalúa con el valor exacto en segundos: por ello, un ticket que muestra «15 min» puede seguir en «Dentro de plazo» hasta que queden 15:00 o menos.
@@ -225,12 +225,14 @@ Estos requisitos son transversales al proyecto y no alteran el comportamiento fu
 
 ### Resultados Medibles
 
-- **HU04-SC-001**: El 100 % de las filas de la cola corresponde a tickets asignados al técnico autenticado, verificado con dos técnicos y sus colas cruzadas, con cero tickets ajenos visibles.
+- **HU04-SC-001**: El 100 % de las filas de la cola corresponde a tickets asignados al técnico autenticado o al conjunto colectivo de tickets sin responsable en «En progreso», verificado con dos técnicos y sus colas cruzadas, con cero tickets asignados a otros técnicos visibles.
 - **HU04-SC-002**: Un técnico puede identificar el ticket más urgente de su cola en menos de 10 segundos desde que la vista termina de cargar.
 - **HU04-SC-003**: El 100 % de los tickets activos con SLA incumplido muestra el destacado rojo, el icono y la etiqueta "Vencido hace [tiempo]" en la cola.
 - **HU04-SC-004**: El 100 % de los tickets próximos a vencer según el umbral definido muestra el destacado ámbar, el icono y la etiqueta correspondiente.
 - **HU04-SC-005**: El 95 % de las aperturas de la cola muestra la lista completa en menos de 2 segundos para técnicos con hasta 100 tickets asignados.
 - **HU04-SC-006**: Un técnico encuentra un ticket concreto usando los filtros de estado y prioridad en menos de 15 segundos en una cola de 50 tickets.
+- **HU04-SC-007**: El 100 % de los tickets sin responsable devueltos a «En progreso» por HU-03 aparece en la cola de todos los técnicos y ningún ticket asignado a otro técnico aparece en ella.
+- **HU04-SC-008**: El 100 % de las reasignaciones de HU-06 se refleja en la cola del responsable anterior y del nuevo responsable en el siguiente refresco (≤ 60 segundos).
 - **HU04-SC-009**: El 100 % de los casos de cola sin tickets asignados y de error de carga muestra el mensaje diferenciado correcto, sin falsos estados vacíos.
 - **HU04-SC-010**: El 100 % de los tickets vencidos sigue visible y accesible en la cola hasta su resolución, cierre o reasignación, sin ocultaciones automáticas.
 - **HU04-SC-011**: El 100 % de los tickets finalizados consultados mediante el filtro de estado muestra su resultado histórico de SLA sin cuenta atrás en vivo ni destacado de riesgo activo.

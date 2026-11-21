@@ -1,4 +1,4 @@
-"""Aplicación FastAPI de la mesa de ayuda (HU-04)."""
+"""Aplicación FastAPI de la mesa de ayuda (HU-01 a HU-08)."""
 
 from __future__ import annotations
 
@@ -16,11 +16,12 @@ logging.basicConfig(level=logging.INFO)
 settings = get_settings()
 
 app = FastAPI(
-    title="Mesa de ayuda · Cola de trabajo priorizada",
+    title="Mesa de ayuda · Sistema de tickets",
     version="1.0.0",
     description=(
-        "Vista personal de solo lectura con los tickets asignados al técnico "
-        "autenticado, ordenados por urgencia."
+        "API del sistema de mesa de ayuda: creación y seguimiento de tickets, "
+        "cola priorizada, flujo de estados, reasignación y escalado, dashboard "
+        "de cumplimiento SLA y configuración administrativa."
     ),
 )
 

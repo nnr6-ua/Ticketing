@@ -63,15 +63,29 @@ Esta historia no crea, edita, reasigna ni cambia estados de tickets: consume el 
 
 > La constitución aplicable está ratificada en `.specify/memory/constitution.md` (v1.0.0). `CONSTITUTION.md` en la raíz es solo un resumen informativo; ante conflicto prevalece la constitución ratificada. Se aplican sus cinco principios rectores.
 
-| Principio | Cumplimiento | Evidencia en el diseño |
+| Principio canónico | Cumplimiento | Evidencia en el diseño |
 |-----------|--------------|------------------------|
-| **1. Simplicidad ante todo** | ✅ Pasa | Un endpoint, una vista, un store, sin caché, sin WebSockets, sin ordenación configurable ni columnas personalizables. La paginación por offset es suficiente para ≤ 100 tickets. El umbral de SLA se deriva de fechas ya almacenadas. |
-| **2. Idioma y mercado** | ✅ Pasa | Toda la interfaz, etiquetas, estados vacíos y errores en español de España. Fechas y horas con `Intl` y `Europe/Madrid`. No hay importes monetarios en esta historia. |
-| **3. Cero alcance fantasma** | ✅ Pasa | Solo se implementa lo exigido por `spec.md`: consulta, orden, filtros, destacado, estados vacíos, error, paginación y refresco. No se añaden reasignación, cambio de estado, notificaciones ni edición. `finalized_at` e índices son soporte mínimo de requisitos existentes (HU04-RF-034, HU04-RF-035, HU04-SC-005), no funcionalidad nueva. |
-| **4. Verificable por persona no técnica** | ✅ Pasa | [quickstart.md](./quickstart.md) describe escenarios manuales observables (cola propia, orden, colores, filtros, vacíos, error) sin leer código. |
-| **5. Datos del usuario con respeto** | ✅ Pasa | La consulta se limita al usuario autenticado; no se expone ni se acepta el identificador de otro técnico. La respuesta incluye solo los campos necesarios para la fila. Sin secretos en código; configuración por entorno. |
+| **I. Arquitectura por capas y stack fijado** | ✅ Pasa | Un endpoint, una vista, un store y servicios ya existentes; sin WebSockets, colas ni tecnologías nuevas. El orden y el SLA se calculan en `services`, nunca en el componente. |
+| **II. Modelo de datos estable y migraciones aditivas** | ✅ Pasa | `finalized_at` y los índices son aditivos y compatibles hacia atrás, con `upgrade()`/`downgrade()`; la línea temporal no se modifica. |
+| **III. Seguridad y mínimo privilegio** | ✅ Pasa | La consulta se limita al técnico autenticado, con la única excepción documentada de la cola colectiva de tickets sin responsable en `en_progreso` (HU-03); no se acepta `technician_id` del cliente. |
+| **IV. Contratos primero y pruebas verificables** | ✅ Pasa | `contracts/work-queue.openapi.yaml`, pruebas de contrato, integración y componentes, y escenarios ejecutables en `quickstart.md` antes de cerrar la historia. |
+| **V. Simplicidad, trazabilidad y experiencia en español** | ✅ Pasa | Paginación suficiente para ≤ 100 tickets, interfaz y errores en es-ES, fechas en `Europe/Madrid`, colores acompañados de icono y texto, y foco accesible. |
 
 **Resultado del gate**: sin violaciones. No se requiere sección de complejidad justificada.
+
+## Post-Design Constitution Check
+
+*Re-evaluación tras completar `research.md`, `data-model.md`, `contracts/work-queue.openapi.yaml` y `quickstart.md`.*
+
+| Principio canónico | Resultado | Nota |
+|-----------|-----------|------|
+| I. Arquitectura por capas y stack fijado | PASA | El diseño final mantiene un único endpoint y reutiliza servicios, esquemas, store y componentes existentes. |
+| II. Modelo de datos estable y migraciones aditivas | PASA | La migración añade `finalized_at` e índices; no hay renombrados ni borrados. |
+| III. Seguridad y mínimo privilegio | PASA | El contrato y las pruebas negativas impiden ver tickets asignados a otros técnicos; la cola colectiva queda acotada a `assignee_id IS NULL` y `en_progreso`. |
+| IV. Contratos primero y pruebas verificables | PASA | El OpenAPI se valida con `backend/tests/contract/test_work_queue_contract.py`; los escenarios de `quickstart.md` están trazados a FR/SC. |
+| V. Simplicidad, trazabilidad y experiencia en español | PASA | Sin funcionalidad fuera de alcance; estados, errores y fechas en es-ES; indicadores con color, icono y texto. |
+
+**Resultado post-diseño**: sin violaciones.
 
 ## Estructura del Proyecto
 
@@ -670,7 +684,7 @@ El entrypoint del backend ejecuta `alembic upgrade head` con hasta `MIGRATION_MA
 | Tickets ya finalizados sin `finalized_at` | Backfill en migración desde `closed_at`/`updated_at`; restricción NOT NULL para estados finales; si no hay dato fiable, se usa `updated_at` y se documenta. |
 | Respuestas fuera de orden por polling | `AbortController` y `requestId`; solo se aplica la respuesta de la última petición. |
 | Clases Tailwind purgadas | Mapas estáticos de clases completas; prohibido interpolar nombres de clase. |
-| Fuga de tickets ajenos | `assignee_id = current_user.id` en la consulta base; pruebas negativas con parámetros inyectados. |
+| Fuga de tickets ajenos | Consulta base restringida a `assignee_id = current_user.id` o a tickets sin responsable en `en_progreso` (cola colectiva de HU-03); pruebas negativas con tickets asignados a otro técnico y parámetros inyectados. |
 | Cola grande y paginación inestable | Orden total con desempate por `number`; índices compuestos; prueba de páginas sin solapes. |
 | PostgreSQL tarda en aceptar conexiones al arrancar | `depends_on: condition: service_healthy` y entrypoint con reintentos acotados de `alembic upgrade head`. |
 | Secretos acabaron en la imagen | `.dockerignore` excluye `.env*` salvo `.env.example`; Compose inyecta valores en tiempo de ejecución y el README no contiene secretos. |

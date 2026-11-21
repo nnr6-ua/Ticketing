@@ -476,6 +476,7 @@ verificación es HU07-SC-012.
 | HU07-SC-007 | Indicadores visuales que incluyen texto e icono además del color | 100 % |
 | HU07-SC-008 | Accesos no autorizados o exposiciones de datos individuales | 0 casos |
 | HU07-SC-009 | Tickets sin SLA contabilizados como vencidos o incluidos en el cumplimiento | 0 casos |
+| HU07-SC-010, HU07-SC-011 | Identificadores históricamente reservados; no definen criterios adicionales | No aplica |
 | HU07-SC-012 | Estados de periodo sin datos, filtros sin resultados y error de carga correctamente diferenciados | 100 % |
 | HU07-SC-013 | Datos actualizados o aviso de desactualización dentro del plazo definido | 100 % en 60 segundos o menos |
 | HU07-SC-014 | Conciliación entre celdas, totales y ranking, incluida la fila «Sin asignar» | 100 % |
@@ -546,8 +547,8 @@ verificación es HU07-SC-012.
 - HU-05: línea temporal «append-only», cambios de estado, resoluciones y permisos (HU05-RN-02, HU05-RN-05, HU05-RN-07).
 - HU-06: reasignación y escalado, histórico de responsables y notificaciones (HU06-RN-07, HU06-RN-09).
 - HU-08: configuración de categorías, prioridades y plazos de SLA, y conservación de la configuración vigente al crear cada ticket (HU08-RN-04).
-- HU07-RF-06 del sistema: dashboard de supervisión.
-- HU07-RF-07 del sistema: administración de catálogos y SLA.
+- HU00-RF-06 del sistema: dashboard de supervisión.
+- HU00-RF-07 del sistema: administración de catálogos y SLA.
 - Sistema de autenticación y autorización por roles.
 - Información histórica de tickets, SLA y asignaciones.
 

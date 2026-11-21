@@ -8,7 +8,7 @@
 
 **Entrada**: HU-06 — «Reasignar o escalar ticket. Como técnico, quiero reasignar el ticket a otro técnico o escalarlo a un nivel superior, para que la persona adecuada se haga cargo y sea notificada de inmediato.»
 
-> **Nota de consolidación**: esta especificación amplía la especificación existente con el módulo funcional de la HU-06 y conserva, sin alteraciones, todos los requisitos, escenarios, reglas de negocio y criterios de aceptación de los módulos previos HU-04 (cola de trabajo priorizada) y HU-05 (cambio de estado y documentación de resolución), que se reproducen íntegros al final del documento. El módulo HU-06 se integra con la arquitectura actual sin romper el carácter «append-only» e inmutable de la línea temporal de los tickets.
+> **Nota de consolidación**: esta especificación amplía la especificación existente con el módulo funcional de la HU-06. Los módulos previos HU-04 (cola de trabajo priorizada) y HU-05 (cambio de estado y documentación de resolución) no se reproducen: sus requisitos, escenarios, reglas de negocio y criterios de aceptación son propiedad exclusiva de sus especificaciones de origen y se referencian en la sección final. El módulo HU-06 se integra con la arquitectura actual sin romper el carácter «append-only» e inmutable de la línea temporal de los tickets.
 
 > **Convención de identificadores**: los códigos `RF-###`, `SC-###` y `RN-##` son locales a cada módulo funcional. Las definiciones y tablas de trazabilidad de este módulo usan el prefijo `HU06-` (`HU06-RF-001`, `HU06-SC-001`, `HU06-RN-01`); las referencias a módulos anteriores usan su prefijo (`HU04-`, `HU05-`). Las menciones sin prefijo dentro de una sección se interpretan en el ámbito de esa sección.
 
@@ -383,8 +383,8 @@ Estas notas orientan el plan (`plan.md`) de esta historia y no añaden requisito
 - HU-03: respuesta del usuario creador y transición automática desde «Pendiente de usuario», que gestiona el nuevo responsable tras el traspaso.
 - HU-04: cola de trabajo priorizada y sus reglas de propiedad y refresco (HU04-RN-01, HU04-RN-12 y HU04-RF-005).
 - HU-05: línea temporal «append-only», matriz de estados, permisos del técnico asignado e idempotencia (HU05-RN-02, HU05-RN-04, HU05-RN-06, HU05-RN-07).
-- HU06-RF-03 del sistema: asignación y escalado de tickets.
-- HU06-RF-08.1 del sistema: notificaciones dentro de la aplicación.
+- HU00-RF-03 del sistema: asignación y escalado de tickets.
+- HU00-RF-08.1 del sistema: notificaciones dentro de la aplicación.
 - Sistema de autenticación y autorización por roles.
 
 ## Trazabilidad de los Criterios de Aceptación

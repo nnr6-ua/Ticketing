@@ -92,10 +92,12 @@ Ejecutadas el 2026-11-19 en el entorno de desarrollo (Windows, Python 3.12.14, N
 |---|---|---:|---:|---:|---:|---:|
 | Backend (ejecución 1) | `pytest -q --tb=short` | 622 | 598 | 22 | 2 | 419,30 s |
 | Backend (ejecución 2) | `pytest -q --tb=no -rs` | 622 | 599 | 22 | 1 | 383,64 s |
+| Backend (verificación final 2026-11-21, Linux) | `pytest -q --tb=short` | 622 | 599 | 22 | 1 | 229,15 s |
 | Frontend | `npm test` (`vitest run`) | 55 ficheros | **395** | 0 | 0 | 18,00 s |
+| Frontend (verificación final 2026-11-21) | `npm run build` + `npm test` | 55 ficheros | **395** | 0 | 0 | 13,88 s |
 
 - Las **22 pruebas omitidas** están marcadas con `@pytest.mark.postgres` y requieren `TEST_DATABASE_URL` apuntando a un PostgreSQL 16 real (concurrencia con `with_for_update` y rendimiento real); sobre SQLite se saltran automáticamente.
-- Los **fallos** están analizados con detalle en la [sección 7](#7-pruebas-y-validación) y se corresponden con tareas abiertas ya documentadas en `specs/`.
+- Los **fallos y la verificación final** están analizados con detalle en la [sección 7](#7-pruebas-y-validación); el fallo histórico de rendimiento del dashboard quedó resuelto y el único fallo de la verificación final es un p95 sensible a la carga de la suite que pasa aislado.
 - Para poder ejecutar las suites fue necesario instalar localmente las dependencias que faltaban en el entorno (`python-multipart` en el `.venv` y `@headlessui/vue`/`@heroicons/vue` en `node_modules`); no se modificó ningún fichero versionado (`git status --porcelain` limpio).
 
 ---
@@ -900,18 +902,20 @@ Test Files  55 passed (55)
 
 ### 7.3 Análisis de los fallos
 
-| Prueba | Comportamiento | Diagnóstico | Vínculo con el seguimiento |
+| Prueba | Comportamiento histórico | Diagnóstico | Estado final |
 |---|---|---|---|
-| `tests/integration/test_sla_dashboard_performance.py::test_snapshot_meets_server_latency_budget` | Falla en 4 de 5 ejecuciones (p95 = 0,3197 s frente al presupuesto de 0,300 s); en una pasó | Prueba de **presupuesto de rendimiento** sobre 10.000 tickets y 40 iteraciones. Es sensible a la carga de la máquina y mide exactamente la restricción «p95 < 300 ms» de la constitución | Es, literalmente, la tarea **abierta T079 (CRITICAL)** de `specs/007-dashboard-cumplimiento-sla/tasks.md`: *«Reducir la latencia del snapshot de 10.000 tickets para que el p95 de servidor quede por debajo de 300 ms… (medición actual: p95 ~322 ms)»* |
-| `tests/integration/test_ticket_creation.py::test_creates_ticket_with_attachment` | Falla de forma determinista en Windows | Aserción `attachment.relative_path.startswith(f"attachments/{ticket_number}/")` frente a un valor real `attachments\TK-000002\819b237e….png`: `os.path.join` usa `\` en Windows. **Falso negativo de plataforma**: en Linux/Contenedor el separador es `/` | Candidato a normalizar con `PurePosixPath` o comparando con `os.sep`; no afecta al funcionamiento en el despliegue Docker (Linux) |
+| `tests/integration/test_sla_dashboard_performance.py::test_snapshot_meets_server_latency_budget` | Fallaba en 4 de 5 ejecuciones (p95 = 0,3197 s frente al presupuesto de 0,300 s); en una pasaba | Prueba de **presupuesto de rendimiento** sobre 10.000 tickets y 40 iteraciones; medía la restricción «p95 < 300 ms» | **Resuelto** con el recorrido de una sola pasada en `sla_dashboard.py` (T077–T079). Verificación final: `2 passed` en 4,60 s |
+| `tests/integration/test_ticket_creation.py::test_creates_ticket_with_attachment` | Fallaba de forma determinista en Windows | Aserción `attachment.relative_path.startswith(f"attachments/{ticket_number}/")` frente a `attachments\TK-000002\…`: `os.path.join` usa `\` en Windows | **Falso negativo de plataforma**; en Linux/Docker el separador es `/` y no afecta al despliegue |
 
-Ninguno de los dos fallos corresponde a una regla de negocio rota: uno es un **presupuesto de rendimiento pendiente** ya trackeado y el otro un **artefacto de la suite en Windows**.
+Ninguno de los dos fallos correspondía a una regla de negocio rota: el primero era un presupuesto de rendimiento ya trackeado y cerrado, y el segundo un artefacto de la suite en Windows.
+
+**Verificación final de la entrega** (2026-11-21, Linux): backend `1 failed, 599 passed, 22 skipped in 229,15 s`; frontend `55 files, 395 passed in 13,88 s`; `npm run build` correcto; `workflow.yml` y los 8 contratos YAML analizables. El único fallo backend fue `test_information_commands_and_my_tickets_p95` (p95 de `information-requests` 419,47 ms bajo carga de la suite, frente a 300 ms de presupuesto); al ejecutarse aislado pasa en 2,74 s con 30 muestras. La prueba de rendimiento del dashboard pasó con `2 passed`.
 
 ### 7.4 Pruebas de permisos y reglas críticas
 
 | Regla crítica | Pruebas que la verifican |
 |---|---|
-| La cola es solo del técnico autenticado | `test_work_queue_api.py`, `test_assignee_change_permissions.py` |
+| La cola muestra tickets propios y la cola colectiva sin responsable en `en_progreso`, nunca tickets asignados a otro técnico | `test_work_queue_api.py`, `test_assignee_change_permissions.py` |
 | El dashboard es de supervisor/admin y no revela datos en 403 | `test_sla_dashboard_permissions.py`, `test_admin_authorization.py`, `frontend/tests/components/SlaDashboardAccess.spec.ts` |
 | La configuración es exclusiva de administrador | `test_admin_authorization.py` (403 para usuario/técnico/supervisor) |
 | El creador no ve comentarios internos; un técnico no asignado tampoco | `test_timeline_visibility.py`, `test_internal_comments.py`, `test_information_visibility.py` |
@@ -1084,54 +1088,53 @@ La página de acceso (`/login`) ofrece un desplegable con los usuarios de desarr
 
 ### 9.1 Método de trabajo: GitHub Spec Kit
 
-El proyecto sigue el flujo declarado en `.specify/workflows/speckit/workflow.yml`:
+El proyecto sigue el flujo declarado en `.specify/workflows/speckit/workflow.yml` (v1.1.0), con el ciclo completo y puertas de revisión:
 
 ```text
-/speckit.specify  →  /speckit.clarify  →  /speckit.plan  →  /speckit.tasks
-                                                              ↓
-/speckit.converge  ←  /speckit.implement  ←  /speckit.analyze
+/speckit.specify → /speckit.clarify → /speckit.plan → /speckit.tasks
+        ↓                ↓                 ↓               ↓
+   review-spec      (integrado)       review-plan   checklist → analyze
+                                                             ↓
+/speckit.converge ← /speckit.implement ← /speckit.analyze (review-analysis)
 ```
 
 | Paso | Artefacto generado | Presente en el repositorio |
 |---|---|---|
-| `specify` | `specs/<NNN>-<nombre>/spec.md` + `checklists/requirements.md` | 9 carpetas, 71 ficheros |
-| `clarify` | Resolución de dudas integrada en el `spec.md` (sin marcadores `[NEEDS CLARIFICATION]`) | Checklist 000: *«No [NEEDS CLARIFICATION] markers remain»* ✓ |
-| `plan` | `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `contracts/*.yaml` | 8 planes + 8 investigaciones + 8 modelos de datos + 9 contratos |
-| `tasks` | `tasks.md` desglose T001…T099+ con trazabilidad a RF/SC | 8 ficheros |
-| `analyze` | Revisión de consistencia de solo lectura | Commit `4ba7413` *ronda de analyze* |
-| `implement` | Código backend + frontend + pruebas | Ver secciones 6 y 7 |
-| `converge` | Cierre de historias, cierre de brechas y cierre de especificaciones | Commits *«Completa HU-xx»* / *«Merge hu-xx…: cierre …»* |
+| `specify` | `specs/<NNN>-<nombre>/spec.md` + `checklists/requirements.md` | 9 carpetas, 104 ficheros |
+| `clarify` | Resolución de dudas integrada en el `spec.md` (sin marcadores `[NEEDS CLARIFICATION]`) | 9 checklists; Q1–Q3 de HU-07 confirmadas |
+| `plan` | `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `contracts/*` | 9 planes + 9 investigaciones + 9 modelos de datos + 8 contratos YAML + 6 contratos/componentes MD |
+| `tasks` | `tasks.md` desglose T001…T099+ con trazabilidad a RF/SC | 9 ficheros (el núcleo `000` añade sus tareas de gobernanza) |
+| `analyze` | `analyze.md`: revisión de consistencia de solo lectura | 9 ficheros, con hallazgos y resolución |
+| `implement` | `implement.md` + código backend/frontend/pruebas | 9 ficheros de implementación; ver secciones 6 y 7 |
+| `converge` | `converge.md`: cierre de historias y brechas | 9 ficheros, con estado final y seguimiento |
 
 ### 9.2 Estado de las tareas por especificación
 
-Recuento real de casillas de `specs/*/tasks.md` (`- [x]` completadas / `- [ ]` abiertas):
+Recuento real de casillas de `specs/*/tasks.md` (`- [X]` completadas / `- [ ]` abiertas), revisado tras la corrección final:
 
 | Carpeta | Completadas | Abiertas | Total | % |
 |---|---:|---:|---:|---:|
 | `001-crear-ticket` | 80 | 0 | 80 | 100 % |
 | `002-ticket-timeline-history` | 33 | 0 | 33 | 100 % |
 | `003-responder-peticion-tecnico` | 65 | 0 | 65 | 100 % |
-| `004-prioritized-work-queue` | 96 | 14 | 110 | 87 % |
-| `005-cambio-estado-resolucion` | 78 | 1 | 79 | 99 % |
+| `004-prioritized-work-queue` | 103 | 7 | 110 | 93,6 % |
+| `005-cambio-estado-resolucion` | 79 | 0 | 79 | 100 % |
 | `006-reasignar-escalar-ticket` | 127 | 0 | 127 | 100 % |
-| `007-dashboard-cumplimiento-sla` | 76 | 20 | 96 | 79 % |
+| `007-dashboard-cumplimiento-sla` | 89 | 7 | 96 | 92,7 % |
 | `008-configuracion-plazos-sla` | 150 | 0 | 150 | 100 % |
-| **Total** | **705** | **35** | **740** | **95,3 %** |
+| **Total** | **726** | **14** | **740** | **98,1 %** |
 
-**Tareas abiertas (35)** — clasificadas por naturaleza:
+**Tareas abiertas (14)** — todas de validación, endurecimiento o cobertura; ninguna cambia contrato ni resultados funcionales:
 
 | Especificación | Tareas | Naturaleza |
 |---|---|---|
-| `004-prioritized-work-queue` | T085–T088, T090 | Documentar en `quickstart.md` los escenarios de validación V-01 a V-22 y cerrar la evidencia |
-| | T091, T092, T098, T099 | Ajustes de interfaz: reentrada tras 401, «(inactiva)» en chips de prioridad, colores por nivel, mensaje de refresco |
-| | T093, T096, T097 | Cobertura de pruebas de componente (axe-core, estados de error/vacío, paginación) |
-| | T094, T095 | Regresión de cambio de hora (DST) y suite contra PostgreSQL real con `TEST_DATABASE_URL` |
-| `005-cambio-estado-resolucion` | T072 | Completar en `quickstart.md` la medición p95 de `POST /status-transitions` (ya medida: 24,09 ms) |
-| `007-dashboard-cumplimiento-sla` | **T079 (CRITICAL)**, T078, T080, T081 (CRITICAL) | Reducir el p95 del snapshot a < 300 ms y corregir/verificar la prueba de concurrencia sobre PostgreSQL real |
-| | T082, T084, T085, T086, T089, T090 | Guard de rol en cliente, tratar `403` como denegación, reintento real, nulabilidad en OpenAPI, `emptyVariant`, cabecera `Vary` |
-| | T083, T087, T088, T091–T096 | Iconos del semáforo, «Ampliar fechas», desempate estable del ranking, formato es-ES, accesibilidad, límites de fechas |
+| `004-prioritized-work-queue` | T085–T088, T090 | Documentar/ejecutar los escenarios V-01…V-22 y cerrar la evidencia manual de `quickstart.md` |
+| | T094, T095 | Regresión DST en `test_sla.py` y suite completa contra PostgreSQL 16 con `TEST_DATABASE_URL` |
+| `007-dashboard-cumplimiento-sla` | T082, T084 | Guard de rol en cliente y tratamiento de `403` durante refresco sin revelar agregados (backend ya devuelve `403`) |
+| | T087, T091, T094, T095 | Acción «Ampliar fechas», contraste axe-core y pruebas de límites de fechas/DST |
+| | T096 | Cobertura de atribución heredada sin entradas de línea temporal |
 
-> Las cuatro tareas **CRITICAL** y de mayor impacto (T078/T079) explican el único fallo de rendimiento de la suite (sección 7.3): están documentadas, abiertas y son el primer objetivo del trabajo futuro.
+> T078–T081 y T083, T085, T086, T088–T090, T092 y T093 se cerraron al verificar el código vigente. En particular, T079 quedó resuelta con el recorrido de una sola pasada en `sla_dashboard.py`; la prueba `test_snapshot_meets_server_latency_budget` pasó en la verificación final (2 passed).
 
 ### 9.3 Iteraciones reconstruidas a partir de `git log`
 
@@ -1216,7 +1219,7 @@ Los 4 PR creados están **fusionados**; no hay PR abiertos. El resto de historia
 - El arranque dependía de que PostgreSQL estuviera realmente aceptando conexiones aunque su healthcheck ya respondiera; se resolvió con un bucle de reintentos de `alembic upgrade head` parametrizable (`MIGRATION_MAX_ATTEMPTS` / `MIGRATION_RETRY_SECONDS`).
 - El stub de desarrollo necesitaba una clave para firmar tokens: si no hay `JWT_SECRET`, el *entrypoint* genera una **efémera por arranque** (los tokens caducan al reiniciar) y lo advierte por registro.
 
-**Rendimiento.** El único fallo persistente de la suite es el presupuesto p95 < 300 ms del snapshot del dashboard con 10.000 tickets (p95 medido ≈ 322 ms). Está documentado como **T079 (CRITICAL)** en `specs/007-dashboard-cumplimiento-sla/tasks.md`, junto con sus tareas hermanas T078 (eliminar la segunda consulta a `users` en `build_ranking`) y T080/T081 (corregir la aserción de la prueba de concurrencia, hoy imposible de satisfacer porque los escritores añaden `None` a la misma lista que los lectores).
+**Rendimiento.** El presupuesto p95 < 300 ms del snapshot del dashboard con 10.000 tickets se cumplió tras sustituir la materialización intermedia y la segunda consulta a `users` por un recorrido de una sola pasada en `sla_dashboard.py` (T077–T079). La prueba `test_snapshot_meets_server_latency_budget` pasó en la verificación final (2 passed, 4,60 s). T080/T081 también quedaron cerradas al separar los resultados de lectores y escritores en la prueba de concurrencia.
 
 **Entorno de desarrollo.** La primera ejecución de las suites falló por dependencias locales desactualizadas (`python-multipart` ausente del `.venv`, `@headlessui/vue` y `@heroicons/vue` ausentes de `node_modules`); se corrigió instalando las dependencias declaradas en `requirements.txt`/`package.json` sin tocar ficheros versionados.
 
@@ -1224,14 +1227,13 @@ Los 4 PR creados están **fusionados**; no hay PR abiertos. El resto de historia
 
 ### 10.3 Trabajo futuro
 
-1. **Cerrar T078/T079**: reducir el p95 del snapshot por debajo de 300 ms (consultar población una sola vez, minimizar materialización intermedia) sin alterar resultados ni contratos.
-2. **Cerrar T080/T081**: corregir la prueba de concurrencia del dashboard y ejecutarla sobre PostgreSQL 16 real con `TEST_DATABASE_URL`.
-3. **Completar la documentación de quickstart** de HU-04 (T085–T088, T090) y la medición p95 de HU-05 (T072).
-4. **Endurecer frontend del dashboard**: guard de rol completo (T082), tratamiento del `403` como denegación (T084), reintento real (T085), nulabilidad en OpenAPI (T086), `emptyVariant` (T089) y `Vary: Authorization` validado por contrato (T090).
-5. **Cobertura de pruebas de componente** pendiente en HU-04 (T093, T096, T097) y accesibilidad más estricta en HU-07 (T091, T092).
-6. **Suite contra PostgreSQL real** habilitada por defecto en CI (T095) y normalización de rutas en la prueba de adjuntos.
-7. **Notificaciones por email** (RF-08.2/RF-08.3): hoy solo está la campana en aplicación; requiere configuración SMTP.
-8. **Fuera de alcance de v1** según la especificación: base de conocimiento, app móvil, ITIL completo, horarios laborales en el cálculo de SLA, API pública y multi-tenant.
+1. **Completar la documentación de quickstart** de HU-04 (T085–T088, T090) con la ejecución manual de los escenarios V-01…V-22.
+2. **Endurecer frontend del dashboard**: guard de rol completo (T082), tratamiento del `403` como denegación sin revelar agregados (T084) y acción real «Ampliar fechas» (T087). El backend ya devuelve `403`; queda alinear el cliente con el requisito explícito.
+3. **Accesibilidad y cobertura**: contraste axe-core en HU-07 (T091), fechas inclusivas/DST (T094/T095) y atribución heredada sin entradas de línea temporal (T096).
+4. **Estabilizar la medición de HU-03 bajo carga de suite**: `test_information_commands_and_my_tickets_p95` pasa aislado pero registró 419 ms en la ejecución completa; conviene aislar los cronómetros o ejecutar las pruebas de presupuesto en un job separado.
+5. **Suite contra PostgreSQL 16 real** (T095) y regresión DST de HU-04 (T094) con `TEST_DATABASE_URL` en CI.
+6. **Notificaciones por email**: fuera de alcance de v1; la campana en aplicación cubre HU-03/HU-06 y no hay configuración SMTP.
+7. **Fuera de alcance de v1** según la especificación: base de conocimiento, app móvil, ITIL completo, horarios laborales/festivos en el SLA, API pública, multi-tenant y SLA configurable desde la interfaz.
 
 ---
 
@@ -1267,8 +1269,10 @@ El repositorio incluye una demo completa añadida en el commit `6e1a747` (*Añad
 | Recurso | Ruta | Detalles |
 |---|---|---|
 | Reproductor con capítulos y guion de escenarios | `frontend/public/demo/index.html` | Servido en `http://localhost:8080/demo/` por Nginx (Vite copia `public/` a `dist/` durante `npm run build`; `dist/` es un artefacto ignorado por Git, así que hace falta un `docker compose up --build` para tenerlo) |
-| Vídeo completo | `frontend/public/demo/video/demo-completa.webm` | 56.360.375 bytes (~54 MiB), 39 min 43 s |
+| Vídeo completo (entrega) | `frontend/public/demo/video/demo-completa.mp4` | 28.965.043 bytes (~28 MiB), H.264 y `+faststart`, 41 min 11 s de archivo; el guion cubre 39 min 43 s |
+| Vídeo fuente | `frontend/public/demo/video/demo-completa.webm` | 56.360.375 bytes (~54 MiB), VP9; se conserva en el repositorio como fuente y no se incluye en `DemoSSD_G07.zip` |
 | Contenido estructurado | Embebido en el HTML | **31 historias, 177 escenarios Gherkin y 159 casos límite** |
+| Paquete de entrega | `DemoSSD_G07.zip` | 27.294.897 bytes (~26 MiB), contiene `index.html` y `video/demo-completa.mp4`; sin WebM para cumplir el límite conjunto de 100 MB |
 
 Capítulos del reproductor (marcas reales del *data set* del demo):
 
@@ -1287,7 +1291,7 @@ Capítulos del reproductor (marcas reales del *data set* del demo):
 
 ### 11.4 Cómo enlazar o adjuntar las evidencias
 
-1. **Evidencia en vídeo (principal)**: enlazar el reproductor con `http://localhost:8080/demo/` o, si la memoria se entrega como documento estático, adjuntar `frontend/public/demo/video/demo-completa.webm` y enlazar el capítulo correspondiente a cada HU (marcas de la tabla anterior).
+1. **Evidencia en vídeo (principal)**: enlazar el reproductor con `http://localhost:8080/demo/` o, si la memoria se entrega como documento estático, adjuntar `frontend/public/demo/video/demo-completa.mp4` y enlazar el capítulo correspondiente a cada HU (marcas de la tabla anterior). El reproductor sirve MP4 primero y mantiene WebM como fallback.
 2. **Capturas de pantalla**: adjuntar una captura por punto de la tabla 11.2 con el siguiente formato de nombre, que permite ordenarlas automáticamente: `HU-01-01-crear-ticket.png`, `HU-04-03-indicador-vencido.png`, etc.
 3. **Evidencia ejecutable**: enlazar el fichero de prueba que cubre la regla mostrada (por ejemplo, para «403 sin datos», `backend/tests/integration/test_sla_dashboard_permissions.py`).
 4. **Evidencia de especificación**: enlazar el escenario Gherkin correspondiente dentro de `specs/<NNN>-*/spec.md` y su casilla en `tasks.md`.
@@ -1304,19 +1308,29 @@ Capítulos del reproductor (marcas reales del *data set* del demo):
 
 ### 12.2 Inventario de documentación
 
-**`specs/` — 9 carpetas, 71 ficheros**
+**`specs/` — 9 carpetas, 104 ficheros**
 
-| Carpeta | Ficheros | Contenido |
+Todas las carpetas incluyen `spec.md`, `plan.md`, `tasks.md`, `research.md`, `data-model.md`, `quickstart.md`, `checklists/requirements.md`, `analyze.md`, `implement.md` y `converge.md`; la spec `000` añade además `contracts/api-conventions.md`.
+
+| Carpeta | Ficheros | Contratos específicos |
 |---|---:|---|
-| `000-helpdesk-ticketing` | 2 | `spec.md` (especificación raíz: actores, HU-01…HU-08, RF, RNF, despliegue, entidades, supuestos, criterios de éxito, fuera de alcance) + `checklists/requirements.md` |
-| `001-crear-ticket` | 8 | `spec.md`, `plan.md`, `tasks.md`, `research.md`, `data-model.md`, `quickstart.md`, `checklists/requirements.md`, `contracts/openapi.yaml` |
-| `002-ticket-timeline-history` | 8 | Ídem + `contracts/ticket-timeline.query.openapi.yaml` |
-| `003-responder-peticion-tecnico` | 9 | Ídem + `contracts/ticket-information.openapi.yaml` y `contracts/frontend-components.md` |
-| `004-prioritized-work-queue` | 8 | Ídem + `contracts/work-queue.openapi.yaml` |
-| `005-cambio-estado-resolucion` | 9 | Ídem + `contracts/ticket-workflow.openapi.yaml` y `contracts/frontend-components.md` |
-| `006-reasignar-escalar-ticket` | 9 | Ídem + `contracts/assignee-change.openapi.yaml` y `contracts/frontend-components.md` |
-| `007-dashboard-cumplimiento-sla` | 9 | Ídem + `contracts/sla-dashboard.openapi.yaml` y `contracts/frontend-components.md` |
-| `008-configuracion-plazos-sla` | 9 | Ídem + `contracts/admin-configuration.openapi.yaml` y `contracts/frontend-components.md` |
+| `000-helpdesk-ticketing` | 11 | `contracts/api-conventions.md` |
+| `001-crear-ticket` | 11 | `contracts/openapi.yaml` |
+| `002-ticket-timeline-history` | 11 | `contracts/ticket-timeline.query.openapi.yaml` |
+| `003-responder-peticion-tecnico` | 12 | `contracts/ticket-information.openapi.yaml`, `contracts/frontend-components.md` |
+| `004-prioritized-work-queue` | 11 | `contracts/work-queue.openapi.yaml` |
+| `005-cambio-estado-resolucion` | 12 | `contracts/ticket-workflow.openapi.yaml`, `contracts/frontend-components.md` |
+| `006-reasignar-escalar-ticket` | 12 | `contracts/assignee-change.openapi.yaml`, `contracts/frontend-components.md` |
+| `007-dashboard-cumplimiento-sla` | 12 | `contracts/sla-dashboard.openapi.yaml`, `contracts/frontend-components.md` |
+| `008-configuracion-plazos-sla` | 12 | `contracts/admin-configuration.openapi.yaml`, `contracts/frontend-components.md` |
+
+**Paquetes de entrega generados**
+
+| ZIP | Contenido | Tamaño |
+|---|---|---:|
+| `ProyectoSSD_G07.zip` | 453 ficheros: fuentes, tests, docs, specs y `.specify/`; excluye `.git/`, `node_modules/`, `dist/`, cachés y el vídeo fuente WebM | ~1,1 MiB |
+| `DemoSSD_G07.zip` | `index.html` + `video/demo-completa.mp4` | ~26 MiB |
+| **Conjunto** | — | **~27,2 MiB (muy por debajo del límite de 100 MB)** |
 
 **`.specify/` — 26 ficheros**
 
@@ -1327,16 +1341,17 @@ Capítulos del reproductor (marcas reales del *data set* del demo):
 | `.specify/integrations/opencode.manifest.json`, `speckit.manifest.json` | Integraciones con el entorno de agentes |
 | `.specify/scripts/bash/` (7 ficheros) | `common.sh`, `create-new-feature.sh`, `setup-plan.sh`, `setup-tasks.sh`, `resolve-template.sh` y variantes de `check-prerequisites` |
 | `.specify/templates/` (5) | `spec-template.md`, `plan-template.md`, `tasks-template.md`, `checklist-template.md`, `constitution-template.md` |
-| `.specify/workflows/workflow-registry.json`, `speckit/workflow.yml` | Definición del flujo specify → clarify → plan → tasks → analyze → implement → converge |
+| `.specify/workflows/workflow-registry.json`, `speckit/workflow.yml` | Definición del flujo specify → clarify → plan → tasks → checklist → analyze → implement → converge (v1.1.0) |
 
 **Documentación complementaria en la raíz**
 
 | Fichero | Contenido |
 |---|---|
-| `README.md` | Arranque con Docker y local, variables de entorno y comandos de prueba |
+| `README.md` | Arranque con Docker y local, variables de entorno, comandos de prueba, índice de las 8 historias y enlace a la demo |
 | `CONSTITUTION.md` | Resumen informativo (prevalece `.specify/memory/constitution.md`) |
 | `.env.example` | Variables de entorno documentadas sin secretos |
 | `docker-compose.yml`, `Dockerfile` | Orquestación y build multi-etapa |
+| `docs/agrupamiento.md` | Reparto de Nayara (HU-01/02/03/08) y José Miguel (HU-04/05/06/07), dependencias y acuerdos |
 | `docs/memoria.md` | Este documento |
 
 ### 12.3 Glosario
